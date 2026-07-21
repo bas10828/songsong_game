@@ -12,6 +12,7 @@ const startBtn = document.getElementById("startBtn");
 const promptDisplay = document.getElementById("promptDisplay");
 const promptThumb = document.getElementById("promptThumb");
 const cameraSwitchBtn = document.getElementById("cameraSwitchBtn");
+const exitBtn = document.getElementById("exitBtn");
 const stage = document.getElementById("stage");
 const submitBtn = document.getElementById("submitBtn");
 const resultOverlay = document.getElementById("resultOverlay");
@@ -154,6 +155,7 @@ function setupRound(round) {
     el.className = "card";
     el.dataset.grabbed = "false";
     el.textContent = letter.toUpperCase();
+    el.style.setProperty("--tilt", `${(Math.random() * 10 - 5).toFixed(1)}deg`);
     stage.appendChild(el);
     return {
       id: `card-${i}`,
@@ -178,7 +180,10 @@ function computeMetrics() {
   const rect = stage.getBoundingClientRect();
   const count = Math.max(slots.length, 1);
   const spacing = (rect.width * 0.94) / count;
-  const size = Math.max(32, Math.min(64, spacing * 0.62));
+  // Cap relative to screen height, not a fixed pixel value, so cards scale
+  // up on a big desktop monitor instead of staying phone-sized.
+  const maxSize = rect.height * 0.16;
+  const size = Math.max(32, Math.min(maxSize, spacing * 0.62));
   return { rect, spacing, size };
 }
 
@@ -221,11 +226,28 @@ function layoutBoard() {
   });
 
   grabRadiusPx = grabRadius;
+  updateSubmitButton();
 }
 
 function renderCard(card) {
   card.el.style.left = `${card.x}px`;
   card.el.style.top = `${card.y}px`;
+}
+
+// Submit sits out of the way in a corner normally, then pops front-and-
+// center once every slot is filled so it's easy to find/reach on a big
+// desktop screen without hunting for a corner button.
+function updateSubmitButton() {
+  const rect = stage.getBoundingClientRect();
+  const allFilled = slots.length > 0 && slots.every((s) => s.cardId !== null);
+  submitBtn.classList.toggle("ready", allFilled);
+  if (allFilled) {
+    submitBtn.style.left = `${rect.width / 2}px`;
+    submitBtn.style.top = `${rect.height * 0.62}px`;
+  } else {
+    submitBtn.style.left = `${rect.width - 70}px`;
+    submitBtn.style.top = `${rect.height - 50}px`;
+  }
 }
 
 function placeCardInSlot(card, slotIndex) {
@@ -237,6 +259,7 @@ function placeCardInSlot(card, slotIndex) {
   s.cardId = card.id;
   s.el.dataset.filled = "true";
   renderCard(card);
+  updateSubmitButton();
 }
 
 function sendCardHome(card) {
@@ -244,6 +267,7 @@ function sendCardHome(card) {
   card.x = card.homeX;
   card.y = card.homeY;
   renderCard(card);
+  updateSubmitButton();
 }
 
 async function createHandLandmarker() {
@@ -353,17 +377,22 @@ function processResult(result) {
 
 // Stage-relative hit test: pinchPoint is in the same pixel space as card
 // positions (both anchored to #stage's top-left), so button rects need the
-// same conversion from viewport coordinates before comparing.
-function pinchOverElement(pinchPoint, el) {
+// same conversion from viewport coordinates before comparing. A tolerance
+// pad is added because hand-tracked pointing is far less precise than a
+// mouse/finger tap, especially on a large, high-resolution monitor where
+// the same landmark jitter covers more screen pixels.
+const PINCH_HIT_PAD = 28;
+
+function pinchOverElement(pinchPoint, el, pad = PINCH_HIT_PAD) {
   const stageRect = stage.getBoundingClientRect();
   const elRect = el.getBoundingClientRect();
-  const left = elRect.left - stageRect.left;
-  const top = elRect.top - stageRect.top;
+  const left = elRect.left - stageRect.left - pad;
+  const top = elRect.top - stageRect.top - pad;
   return (
     pinchPoint.x >= left &&
-    pinchPoint.x <= left + elRect.width &&
+    pinchPoint.x <= left + elRect.width + pad * 2 &&
     pinchPoint.y >= top &&
-    pinchPoint.y <= top + elRect.height
+    pinchPoint.y <= top + elRect.height + pad * 2
   );
 }
 
@@ -423,6 +452,7 @@ function handleGesture(isPinching, pinchPoint) {
       if (nearest.currentSlot !== null) {
         slots[nearest.currentSlot].cardId = null;
         slots[nearest.currentSlot].el.dataset.filled = "false";
+        updateSubmitButton();
       }
     }
   }
@@ -599,6 +629,32 @@ cameraSwitchBtn.addEventListener("click", async () => {
     }
   }
 });
+
+function exitGame() {
+  if (document.fullscreenElement || document.webkitFullscreenElement) {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    const result = exit.call(document);
+    if (result && typeof result.catch === "function") {
+      result.catch(() => {});
+    }
+  }
+
+  running = false;
+  if (currentStream) {
+    currentStream.getTracks().forEach((t) => t.stop());
+    currentStream = null;
+  }
+  cameraStarted = false;
+
+  clearBoard();
+  resultOverlay.classList.add("hidden");
+  promptThumb.classList.add("hidden");
+  instructionHint.classList.add("hidden");
+
+  showRoundIntro(pickRound());
+}
+
+exitBtn.addEventListener("click", exitGame);
 
 createHandLandmarker().catch((err) => {
   statusEl.textContent = `Model load error: ${err.message}`;
