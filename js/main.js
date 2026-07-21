@@ -7,6 +7,8 @@ const fpsEl = document.getElementById("fps");
 const statusEl = document.getElementById("status");
 const startOverlay = document.getElementById("startOverlay");
 const startBtn = document.getElementById("startBtn");
+const promptDisplay = document.getElementById("promptDisplay");
+const promptThumb = document.getElementById("promptThumb");
 const cameraSwitchBtn = document.getElementById("cameraSwitchBtn");
 const stage = document.getElementById("stage");
 const submitBtn = document.getElementById("submitBtn");
@@ -17,9 +19,53 @@ const nextBtn = document.getElementById("nextBtn");
 
 const PINCH_RATIO_THRESHOLD = 0.45; // pinch distance / palm-scale distance
 
-// Placeholder word list for board-logic testing. Phase 3 replaces this with
-// real prompt themes (colors/shapes) driving word selection.
-const WORD_LIST = ["cat", "dog", "sun", "red", "big", "top", "map", "pen"];
+// Word themes rendered directly in code — no image assets needed.
+const SHAPE_PATHS = {
+  circle: '<circle cx="50" cy="50" r="45"/>',
+  square: '<rect x="8" y="8" width="84" height="84" rx="8"/>',
+  triangle: '<polygon points="50,8 94,90 6,90"/>',
+  star: '<polygon points="50,4 61,37 96,37 68,58 79,92 50,71 21,92 32,58 4,37 39,37"/>',
+  heart:
+    '<path d="M50,88 12,52 A20,20 0 0 1 50,28 A20,20 0 0 1 88,52 Z"/>',
+  diamond: '<polygon points="50,4 92,50 50,96 8,50"/>',
+};
+
+const THEMES = {
+  colors: [
+    "red", "blue", "green", "yellow", "orange", "purple", "pink", "brown", "black", "white",
+  ].map((word) => ({ word, type: "color", value: COLOR_HEX(word) })),
+  shapes: Object.keys(SHAPE_PATHS).map((word) => ({ word, type: "shape", value: word })),
+};
+
+function COLOR_HEX(name) {
+  const map = {
+    red: "#e53935",
+    blue: "#1e88e5",
+    green: "#43a047",
+    yellow: "#fdd835",
+    orange: "#fb8c00",
+    purple: "#8e24aa",
+    pink: "#ec407a",
+    brown: "#6d4c41",
+    black: "#212121",
+    white: "#f5f5f5",
+  };
+  return map[name];
+}
+
+const ALL_ROUNDS = [...THEMES.colors, ...THEMES.shapes];
+
+function renderVisual(container, round) {
+  container.innerHTML = "";
+  if (round.type === "color") {
+    const block = document.createElement("div");
+    block.className = "visual-color";
+    block.style.background = round.value;
+    container.appendChild(block);
+  } else {
+    container.innerHTML = `<svg viewBox="0 0 100 100" fill="#29b6f6">${SHAPE_PATHS[round.value]}</svg>`;
+  }
+}
 
 let handLandmarker = null;
 let currentStream = null;
@@ -30,13 +76,15 @@ let lastFrameTime = performance.now();
 let fpsSmoothed = 0;
 
 // --- Board state ---------------------------------------------------------
-let currentWord = "";
+let currentRound = null; // { word, type, value }
 let slots = []; // { index, el, cardId }
 let cards = []; // { id, letter, el, currentSlot, homeX, homeY, x, y }
 let grabbedCardId = null;
 let grabOffset = { x: 0, y: 0 };
 let grabOriginSlot = null; // slot index the grabbed card came from, or null (tray)
-let lastWord = "";
+let lastRoundWord = "";
+let cameraStarted = false;
+let grabRadiusPx = 55;
 
 function resizeCanvasToVideo() {
   overlay.width = overlay.clientWidth;
@@ -56,13 +104,13 @@ function shuffle(arr) {
   return a;
 }
 
-function pickWord() {
-  let word;
+function pickRound() {
+  let round;
   do {
-    word = WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)];
-  } while (word === lastWord && WORD_LIST.length > 1);
-  lastWord = word;
-  return word;
+    round = ALL_ROUNDS[Math.floor(Math.random() * ALL_ROUNDS.length)];
+  } while (round.word === lastRoundWord && ALL_ROUNDS.length > 1);
+  lastRoundWord = round.word;
+  return round;
 }
 
 function clearBoard() {
@@ -74,10 +122,11 @@ function clearBoard() {
   grabOriginSlot = null;
 }
 
-function setupRound(word) {
+function setupRound(round) {
   clearBoard();
-  currentWord = word;
+  currentRound = round;
 
+  const word = round.word;
   const letters = shuffle(word.split(""));
 
   slots = word.split("").map((_, index) => {
@@ -110,39 +159,56 @@ function setupRound(word) {
   resultOverlay.classList.add("hidden");
 }
 
-function slotPosition(index) {
+// Spacing grows with available width and shrinks the card/slot size (never
+// the gap between them) so items stay clearly separated even for long words
+// on narrow screens.
+function computeMetrics() {
   const rect = stage.getBoundingClientRect();
-  const slotSpacing = Math.min(90, rect.width / (slots.length + 1));
+  const count = Math.max(slots.length, 1);
+  const spacing = (rect.width * 0.94) / count;
+  const size = Math.max(32, Math.min(64, spacing * 0.62));
+  return { rect, spacing, size };
+}
+
+function slotPosition(index, metrics) {
+  const m = metrics || computeMetrics();
   return {
-    x: rect.width / 2 + (index - (slots.length - 1) / 2) * slotSpacing,
-    y: rect.height * 0.3,
+    x: m.rect.width / 2 + (index - (slots.length - 1) / 2) * m.spacing,
+    y: m.rect.height * 0.3,
   };
 }
 
 function layoutBoard() {
-  const rect = stage.getBoundingClientRect();
-  const traySpacing = Math.min(90, rect.width / (cards.length + 1));
-  const trayY = rect.height * 0.75;
+  const m = computeMetrics();
+  const trayY = m.rect.height * 0.75;
+  const grabRadius = m.size * 0.85;
 
   slots.forEach((s, i) => {
-    const pos = slotPosition(i);
+    const pos = slotPosition(i, m);
     s.el.style.left = `${pos.x}px`;
     s.el.style.top = `${pos.y}px`;
+    s.el.style.width = `${m.size + 6}px`;
+    s.el.style.height = `${m.size + 6}px`;
   });
 
   cards.forEach((c, i) => {
-    c.homeX = rect.width / 2 + (i - (cards.length - 1) / 2) * traySpacing;
+    c.homeX = m.rect.width / 2 + (i - (cards.length - 1) / 2) * m.spacing;
     c.homeY = trayY;
+    c.el.style.width = `${m.size}px`;
+    c.el.style.height = `${m.size}px`;
+    c.el.style.fontSize = `${Math.max(16, m.size * 0.45)}px`;
     if (c.currentSlot === null) {
       c.x = c.homeX;
       c.y = c.homeY;
     } else {
-      const pos = slotPosition(c.currentSlot);
+      const pos = slotPosition(c.currentSlot, m);
       c.x = pos.x;
       c.y = pos.y;
     }
     renderCard(c);
   });
+
+  grabRadiusPx = grabRadius;
 }
 
 function renderCard(card) {
@@ -268,8 +334,7 @@ function handleGesture(isPinching, pinchPoint) {
         nearest = card;
       }
     }
-    const grabRadius = 55;
-    if (nearest && nearestDist < grabRadius) {
+    if (nearest && nearestDist < grabRadiusPx) {
       grabbedCardId = nearest.id;
       grabOriginSlot = nearest.currentSlot;
       nearest.el.dataset.grabbed = "true";
@@ -346,7 +411,7 @@ function checkSubmit() {
   let correct = true;
   for (let i = 0; i < slots.length; i++) {
     const card = cards.find((c) => c.id === slots[i].cardId);
-    if (card.letter !== currentWord[i]) {
+    if (card.letter !== currentRound.word[i]) {
       correct = false;
       break;
     }
@@ -354,12 +419,15 @@ function checkSubmit() {
 
   resultText.textContent = correct ? "Correct! 🎉" : "Not quite!";
   resultText.style.color = correct ? "#4caf50" : "#ff5252";
-  resultWord.textContent = currentWord.toUpperCase();
+  resultWord.textContent = currentRound.word.toUpperCase();
   resultOverlay.classList.remove("hidden");
 }
 
 submitBtn.addEventListener("click", checkSubmit);
-nextBtn.addEventListener("click", () => setupRound(pickWord()));
+nextBtn.addEventListener("click", () => {
+  resultOverlay.classList.add("hidden");
+  showRoundIntro(pickRound());
+});
 
 function loop() {
   if (!running) return;
@@ -379,28 +447,50 @@ function loop() {
   processResult(result);
 }
 
+// Full-screen prompt shown before a round begins. On the very first round
+// this is also where the camera gets requested; on later rounds the camera
+// is already running and this is just a "next round" breather screen.
+function showRoundIntro(round) {
+  currentRound = round;
+  renderVisual(promptDisplay, round);
+  startBtn.textContent = cameraStarted ? "Next Round" : "Start Camera";
+  startOverlay.classList.remove("hidden");
+}
+
+function beginRound() {
+  setupRound(currentRound);
+  renderVisual(promptThumb, currentRound);
+  promptThumb.classList.remove("hidden");
+  startOverlay.classList.add("hidden");
+}
+
 async function start() {
   startBtn.disabled = true;
-  statusEl.textContent = "Requesting camera…";
-  try {
-    await startCamera();
-  } catch (err) {
-    statusEl.textContent = `Camera error: ${err.message}`;
-    startBtn.disabled = false;
-    return;
+
+  if (!cameraStarted) {
+    statusEl.textContent = "Requesting camera…";
+    try {
+      await startCamera();
+    } catch (err) {
+      statusEl.textContent = `Camera error: ${err.message}`;
+      startBtn.disabled = false;
+      return;
+    }
+
+    if (!handLandmarker) {
+      await createHandLandmarker();
+    }
+    cameraStarted = true;
+    running = true;
+    loop();
   }
 
-  if (!handLandmarker) {
-    await createHandLandmarker();
-  }
-
-  setupRound(pickWord());
-  startOverlay.classList.add("hidden");
-  running = true;
-  loop();
+  beginRound();
+  startBtn.disabled = false;
 }
 
 startBtn.addEventListener("click", start);
+showRoundIntro(pickRound());
 
 cameraSwitchBtn.addEventListener("click", async () => {
   facingMode = facingMode === "user" ? "environment" : "user";

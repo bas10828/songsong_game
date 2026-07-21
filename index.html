@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>Phase 2 — Board Logic Test</title>
+  <title>Phase 3 — Game Flow</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -18,6 +18,8 @@
       <video id="video" autoplay playsinline muted></video>
       <canvas id="overlay"></canvas>
 
+      <div id="promptThumb" class="hidden"></div>
+
       <button id="submitBtn" type="button">Submit</button>
     </div>
 
@@ -28,6 +30,7 @@
     </div>
 
     <div id="startOverlay">
+      <div id="promptDisplay"></div>
       <button id="startBtn" type="button">Start Camera</button>
     </div>
   </div>
