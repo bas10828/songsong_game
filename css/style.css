@@ -34,6 +34,11 @@ html, body {
   font-size: 14px;
 }
 
+#pinchDebug {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
 #hud button {
   margin-left: auto;
   padding: 6px 12px;
@@ -218,6 +223,26 @@ html, body {
 }
 
 #promptThumb.hidden {
+  display: none;
+}
+
+#instructionHint {
+  position: absolute;
+  top: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 13px;
+  text-align: center;
+  max-width: 80%;
+  pointer-events: none;
+}
+
+#instructionHint.hidden {
   display: none;
 }
 

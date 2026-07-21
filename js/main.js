@@ -4,7 +4,9 @@ const video = document.getElementById("video");
 const overlay = document.getElementById("overlay");
 const ctx = overlay.getContext("2d");
 const fpsEl = document.getElementById("fps");
+const pinchDebugEl = document.getElementById("pinchDebug");
 const statusEl = document.getElementById("status");
+const instructionHint = document.getElementById("instructionHint");
 const startOverlay = document.getElementById("startOverlay");
 const startBtn = document.getElementById("startBtn");
 const promptDisplay = document.getElementById("promptDisplay");
@@ -17,7 +19,11 @@ const resultText = document.getElementById("resultText");
 const resultWord = document.getElementById("resultWord");
 const nextBtn = document.getElementById("nextBtn");
 
-const PINCH_RATIO_THRESHOLD = 0.45; // pinch distance / palm-scale distance
+// Hysteresis: grabbing needs a tighter pinch than releasing needs, so a
+// finger held near the threshold doesn't flicker grab/release every frame.
+const PINCH_ENTER_RATIO = 0.42;
+const PINCH_EXIT_RATIO = 0.58;
+let isPinchingState = false;
 
 // Word themes rendered directly in code — no image assets needed.
 const SHAPE_PATHS = {
@@ -53,7 +59,8 @@ function COLOR_HEX(name) {
   return map[name];
 }
 
-const ALL_ROUNDS = [...THEMES.colors, ...THEMES.shapes];
+// Colors only for now — shapes theme re-enables once its own visual prompts are ready.
+const ALL_ROUNDS = [...THEMES.colors];
 
 function renderVisual(container, round) {
   container.innerHTML = "";
@@ -286,6 +293,15 @@ function processResult(result) {
   ctx.clearRect(0, 0, overlay.width, overlay.height);
 
   if (!result.landmarks || result.landmarks.length === 0) {
+    pinchDebugEl.textContent = "pinch: no hand";
+    isPinchingState = false;
+    if (grabbedCardId !== null) {
+      const card = cards.find((c) => c.id === grabbedCardId);
+      card.el.dataset.grabbed = "false";
+      dropCard(card);
+      grabbedCardId = null;
+      grabOriginSlot = null;
+    }
     return;
   }
 
@@ -298,7 +314,14 @@ function processResult(result) {
   const palmScale = distance(wrist, middleMcp) || 0.0001;
   const pinchDist = distance(thumbTip, indexTip);
   const pinchRatio = pinchDist / palmScale;
-  const isPinching = pinchRatio < PINCH_RATIO_THRESHOLD;
+
+  if (!isPinchingState && pinchRatio < PINCH_ENTER_RATIO) {
+    isPinchingState = true;
+  } else if (isPinchingState && pinchRatio > PINCH_EXIT_RATIO) {
+    isPinchingState = false;
+  }
+  const isPinching = isPinchingState;
+  pinchDebugEl.textContent = `pinch: ${pinchRatio.toFixed(2)} ${isPinching ? "🤏" : ""}`;
 
   const pinchPoint = {
     x: mapX((thumbTip.x + indexTip.x) / 2, overlay.width),
@@ -461,6 +484,7 @@ function beginRound() {
   setupRound(currentRound);
   renderVisual(promptThumb, currentRound);
   promptThumb.classList.remove("hidden");
+  instructionHint.classList.remove("hidden");
   startOverlay.classList.add("hidden");
 }
 
