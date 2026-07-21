@@ -92,12 +92,17 @@ let grabOriginSlot = null; // slot index the grabbed card came from, or null (tr
 let lastRoundWord = "";
 let cameraStarted = false;
 let grabRadiusPx = 55;
+let prevIsPinching = false;
 
 function resizeCanvasToVideo() {
   overlay.width = overlay.clientWidth;
   overlay.height = overlay.clientHeight;
 }
 window.addEventListener("resize", () => {
+  resizeCanvasToVideo();
+  layoutBoard();
+});
+document.addEventListener("fullscreenchange", () => {
   resizeCanvasToVideo();
   layoutBoard();
 });
@@ -346,7 +351,60 @@ function processResult(result) {
   handleGesture(isPinching, pinchPoint);
 }
 
+// Stage-relative hit test: pinchPoint is in the same pixel space as card
+// positions (both anchored to #stage's top-left), so button rects need the
+// same conversion from viewport coordinates before comparing.
+function pinchOverElement(pinchPoint, el) {
+  const stageRect = stage.getBoundingClientRect();
+  const elRect = el.getBoundingClientRect();
+  const left = elRect.left - stageRect.left;
+  const top = elRect.top - stageRect.top;
+  return (
+    pinchPoint.x >= left &&
+    pinchPoint.x <= left + elRect.width &&
+    pinchPoint.y >= top &&
+    pinchPoint.y <= top + elRect.height
+  );
+}
+
+// The round-intro screen (startBtn, relabeled "Next Round" after the first
+// round) only responds to pinch once the camera is already running — before
+// that there's no hand tracking yet, so it still needs a real tap.
+function roundIntroPinchable() {
+  return cameraStarted && !startOverlay.classList.contains("hidden");
+}
+
+function updateButtonAffordance(pinchPoint) {
+  submitBtn.classList.toggle("hover", pinchOverElement(pinchPoint, submitBtn));
+  if (!resultOverlay.classList.contains("hidden")) {
+    nextBtn.classList.toggle("hover", pinchOverElement(pinchPoint, nextBtn));
+  }
+  if (roundIntroPinchable()) {
+    startBtn.classList.toggle("hover", pinchOverElement(pinchPoint, startBtn));
+  }
+}
+
 function handleGesture(isPinching, pinchPoint) {
+  updateButtonAffordance(pinchPoint);
+
+  const pinchRisingEdge = isPinching && !prevIsPinching;
+  prevIsPinching = isPinching;
+
+  if (pinchRisingEdge && grabbedCardId === null) {
+    if (roundIntroPinchable() && pinchOverElement(pinchPoint, startBtn)) {
+      startBtn.click();
+      return;
+    }
+    if (pinchOverElement(pinchPoint, submitBtn)) {
+      submitBtn.click();
+      return;
+    }
+    if (!resultOverlay.classList.contains("hidden") && pinchOverElement(pinchPoint, nextBtn)) {
+      nextBtn.click();
+      return;
+    }
+  }
+
   if (isPinching && grabbedCardId === null) {
     let nearest = null;
     let nearestDist = Infinity;
@@ -488,7 +546,21 @@ function beginRound() {
   startOverlay.classList.add("hidden");
 }
 
+function requestFullscreenSafe() {
+  const el = document.documentElement;
+  const request = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (!request) return;
+  const result = request.call(el);
+  if (result && typeof result.catch === "function") {
+    result.catch(() => {});
+  }
+}
+
 async function start() {
+  // Must fire synchronously inside the click handler (before any await) or
+  // browsers drop the user-gesture and refuse the fullscreen request.
+  requestFullscreenSafe();
+
   startBtn.disabled = true;
 
   if (!cameraStarted) {

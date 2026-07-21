@@ -17,6 +17,7 @@ html, body {
   position: relative;
   width: 100vw;
   height: 100vh;
+  height: 100dvh; /* accounts for mobile browser chrome so bottom UI isn't clipped */
 }
 
 #hud {
@@ -122,6 +123,14 @@ html, body {
   border-radius: 10px;
   background: #2d6cdf;
   color: #fff;
+  transition: transform 0.1s, background 0.1s;
+}
+
+#submitBtn.hover,
+#nextBtn.hover,
+#startBtn.hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.6);
 }
 
 #resultOverlay {
@@ -170,7 +179,10 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 28px;
-  background: #111;
+  /* Semi-transparent (not solid #111) so the camera feed and pinch cursor
+     stay visible on the "Next Round" screen, where hand tracking is still
+     running and the player needs to see their hand to pinch the button. */
+  background: rgba(17, 17, 17, 0.75);
 }
 
 #startOverlay.hidden {
