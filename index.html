@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Phase 1 — Hand Tracking Test</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <div id="hud">
+      <span id="fps">FPS: --</span>
+      <span id="status">Loading model…</span>
+      <button id="cameraSwitchBtn" type="button">Switch Camera</button>
+    </div>
+
+    <div id="stage">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="overlay"></canvas>
+
+      <div id="slot" class="slot" data-filled="false"></div>
+      <div id="card" class="card" data-grabbed="false">A</div>
+    </div>
+
+    <div id="startOverlay">
+      <button id="startBtn" type="button">Start Camera</button>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
