@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#f4f8ff" />
+  <title>Body Spell Challenge</title>
+  <style>
+    :root {
+      --bg: #eef6ff;
+      --card: #ffffff;
+      --ink: #17324d;
+      --muted: #6f8192;
+      --blue: #2f80ed;
+      --blue-dark: #1d61bb;
+      --red: #ef4f67;
+      --red-dark: #b83247;
+      --green: #2dac6f;
+      --soft: #edf5ff;
+      --shadow: 0 18px 44px rgba(37, 83, 130, .18);
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      background: linear-gradient(180deg, #eaf5ff 0%, #f9fbff 100%);
+      color: var(--ink);
+      padding: 18px;
+    }
+
+    .app {
+      width: min(980px, 100%);
+      margin: 0 auto;
+      background: var(--card);
+      border-radius: 30px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    header {
+      text-align: center;
+      padding: 22px 18px 14px;
+      background: linear-gradient(135deg, #fbfdff, #edf6ff);
+    }
+
+    .logo {
+      font-size: 54px
+    }
+
+    h1 {
+      margin: 6px 0 4px;
+      font-size: clamp(30px, 5vw, 50px)
+    }
+
+    .tagline {
+      margin: 0;
+      color: var(--muted);
+      font-size: 18px;
+      font-weight: 800
+    }
+
+    main {
+      padding: 20px
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1.25fr .75fr;
+      gap: 18px;
+    }
+
+    .panel {
+      background: #fbfdff;
+      border: 1px solid #e3edf7;
+      border-radius: 24px;
+      padding: 18px;
+    }
+
+    .status {
+      min-height: 76px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 14px;
+      border-radius: 20px;
+      background: var(--soft);
+      font-size: clamp(20px, 3.5vw, 30px);
+      font-weight: 1000;
+      margin-bottom: 14px;
+    }
+
+    .timer {
+      font-size: clamp(72px, 15vw, 140px);
+      line-height: 1;
+      font-weight: 1000;
+      text-align: center;
+      letter-spacing: -4px;
+      margin: 10px 0 18px;
+      color: var(--ink);
+      transition: .15s;
+    }
+
+    .timer.warning {
+      color: #d28b00
+    }
+
+    .timer.danger {
+      color: var(--red);
+      animation: pulse .48s infinite;
+      text-shadow: 0 0 20px rgba(239, 79, 103, .25);
+    }
+
+    @keyframes pulse {
+      50% {
+        transform: scale(1.08)
+      }
+    }
+
+    .screen-flash {
+      animation: flash .22s 6;
+    }
+
+    @keyframes flash {
+
+      0%,
+      100% {
+        background: #ffffff
+      }
+
+      50% {
+        background: #ffdadf
+      }
+    }
+
+    .main-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .big {
+      min-height: 105px;
+      border: 0;
+      border-radius: 25px;
+      color: white;
+      font-size: clamp(28px, 5vw, 48px);
+      font-weight: 1000;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: .08s;
+    }
+
+    .start {
+      background: var(--blue);
+      box-shadow: 0 9px 0 var(--blue-dark)
+    }
+
+    .stop {
+      background: var(--red);
+      box-shadow: 0 9px 0 var(--red-dark)
+    }
+
+    .big:active:not(:disabled) {
+      transform: translateY(7px);
+      box-shadow: 0 2px 0 rgba(0, 0, 0, .25)
+    }
+
+    button:disabled {
+      opacity: .42;
+      cursor: not-allowed
+    }
+
+    .mini-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .mini {
+      min-height: 52px;
+      border: 0;
+      border-radius: 16px;
+      background: #eaf3ff;
+      color: var(--ink);
+      font-size: 16px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+
+    .progress-wrap {
+      margin-top: 18px
+    }
+
+    .progress-head {
+      display: flex;
+      justify-content: space-between;
+      color: var(--muted);
+      font-weight: 900;
+      margin-bottom: 8px;
+    }
+
+    .bar {
+      height: 14px;
+      border-radius: 999px;
+      background: #e7eef5;
+      overflow: hidden
+    }
+
+    .fill {
+      height: 100%;
+      width: 0;
+      background: var(--green);
+      transition: width .25s
+    }
+
+    .score-title {
+      text-align: center;
+      font-size: 22px;
+      font-weight: 1000;
+      margin-bottom: 12px
+    }
+
+    .teams {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px
+    }
+
+    .team {
+      background: white;
+      border: 1px solid #e4edf6;
+      border-radius: 22px;
+      padding: 16px;
+      text-align: center
+    }
+
+    .team h3 {
+      margin: 0 0 8px;
+      font-size: 20px
+    }
+
+    .score {
+      font-size: 58px;
+      line-height: 1;
+      font-weight: 1000
+    }
+
+    .award {
+      width: 100%;
+      min-height: 54px;
+      margin-top: 12px;
+      border: 0;
+      border-radius: 15px;
+      font-size: 18px;
+      font-weight: 1000;
+      color: white;
+      cursor: pointer
+    }
+
+    .award.a {
+      background: #d44b4b
+    }
+
+    .award.b {
+      background: #3c69d9
+    }
+
+    .minus-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px
+    }
+
+    .minus {
+      border: 0;
+      border-radius: 13px;
+      min-height: 42px;
+      background: #f1f4f7;
+      color: var(--muted);
+      font-weight: 900;
+      cursor: pointer
+    }
+
+    .footer-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-top: 18px
+    }
+
+    .footer-actions button {
+      min-height: 52px;
+      border: 0;
+      border-radius: 15px;
+      background: #eef3f7;
+      color: var(--ink);
+      font-weight: 900;
+      cursor: pointer
+    }
+
+    .footer-actions .end-game {
+      background: #233f5d;
+      color: white
+    }
+
+    .game-over {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(12, 28, 45, .78);
+      backdrop-filter: blur(8px);
+      z-index: 999;
+    }
+
+    .game-over.show {
+      display: flex
+    }
+
+    .summary-card {
+      position: relative;
+      width: min(680px, 100%);
+      max-height: 94vh;
+      overflow: auto;
+      border-radius: 32px;
+      background: white;
+      padding: 28px;
+      text-align: center;
+      box-shadow: 0 28px 80px rgba(0, 0, 0, .35);
+      animation: summaryIn .45s ease-out;
+    }
+
+    @keyframes summaryIn {
+      from {
+        opacity: 0;
+        transform: translateY(28px) scale(.94)
+      }
+
+      to {
+        opacity: 1;
+        transform: none
+      }
+    }
+
+    .trophy {
+      font-size: 72px;
+      line-height: 1
+    }
+
+    .champion-label {
+      margin-top: 10px;
+      font-size: 20px;
+      font-weight: 1000;
+      color: var(--muted)
+    }
+
+    .winner-name {
+      margin: 8px 0 4px;
+      font-size: clamp(38px, 8vw, 70px);
+      line-height: 1;
+      font-weight: 1000
+    }
+
+    .winner-message {
+      font-size: 24px;
+      font-weight: 1000;
+      margin-bottom: 20px
+    }
+
+    .final-score {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 18px 0
+    }
+
+    .final-team {
+      border-radius: 20px;
+      padding: 15px;
+      background: #f4f7fb;
+      font-weight: 1000
+    }
+
+    .final-team span {
+      display: block;
+      font-size: 42px;
+      margin-top: 5px
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-top: 18px
+    }
+
+    .stat {
+      border-radius: 18px;
+      background: #eef5ff;
+      padding: 14px
+    }
+
+    .stat-label {
+      display: block;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 900
+    }
+
+    .stat-value {
+      display: block;
+      margin-top: 5px;
+      font-size: 25px;
+      font-weight: 1000
+    }
+
+    .stars {
+      margin: 20px 0 8px;
+      font-size: 36px;
+      letter-spacing: 5px
+    }
+
+    .summary-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 22px
+    }
+
+    .summary-actions button {
+      min-height: 58px;
+      border: 0;
+      border-radius: 17px;
+      font-size: 18px;
+      font-weight: 1000;
+      cursor: pointer
+    }
+
+    .play-again {
+      background: var(--blue);
+      color: white
+    }
+
+    .close-summary {
+      background: #edf1f5;
+      color: var(--ink)
+    }
+
+    .confetti-piece {
+      position: fixed;
+      top: -20px;
+      width: 11px;
+      height: 18px;
+      z-index: 1000;
+      pointer-events: none;
+      animation: confettiFall linear forwards
+    }
+
+    @keyframes confettiFall {
+      to {
+        transform: translate3d(var(--drift), 110vh, 720deg);
+        opacity: .85
+      }
+    }
+
+    .result {
+      margin-top: 14px;
+      min-height: 52px;
+      display: grid;
+      place-items: center;
+      border-radius: 16px;
+      background: #f6f9fc;
+      font-size: 18px;
+      font-weight: 1000;
+      text-align: center;
+      padding: 10px
+    }
+
+    .lucky-badge {
+      display: none;
+      margin: 0 auto 14px;
+      width: fit-content;
+      max-width: 100%;
+      padding: 12px 20px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #fff0a8, #ffd25a);
+      color: #6f4d00;
+      font-size: clamp(18px, 3vw, 26px);
+      font-weight: 1000;
+      text-align: center;
+      box-shadow: 0 8px 20px rgba(191, 140, 0, .22);
+      animation: luckyPulse .8s infinite alternate;
+    }
+
+    .lucky-badge.show {
+      display: block
+    }
+
+    @keyframes luckyPulse {
+      from {
+        transform: scale(1)
+      }
+
+      to {
+        transform: scale(1.05)
+      }
+    }
+
+    @media(max-width:760px) {
+      .grid {
+        grid-template-columns: 1fr
+      }
+
+      .main-buttons {
+        grid-template-columns: 1fr
+      }
+
+      .footer-actions {
+        grid-template-columns: 1fr
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr 1fr
+      }
+
+      main {
+        padding: 14px
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app" class="app">
+    <header>
+      <h1>Body Spell Challenge</h1>
+
+    </header>
+
+    <main>
+      <div class="grid">
+        <section class="panel">
+          <div id="luckyBadge" class="lucky-badge"></div>
+          <div id="status" class="status">Tap START to begin.</div>
+          <div id="timer" class="timer">01:00</div>
+
+          <div class="main-buttons">
+            <button id="startBtn" class="big start">START</button>
+            <button id="stopBtn" class="big stop" disabled>STOP</button>
+          </div>
+
+          <div class="mini-row">
+            <button id="repeatBtn" class="mini" disabled>🔊 REPEAT</button>
+            <button id="resetRoundBtn" class="mini">↻ NEW ROUND</button>
+            <button id="fullBtn" class="mini">⛶ FULL SCREEN</button>
+          </div>
+
+          <div class="progress-wrap">
+            <div class="progress-head">
+              <span>Commands used</span>
+              <span id="progressText">0 / 20</span>
+            </div>
+            <div class="bar">
+              <div id="fill" class="fill"></div>
+            </div>
+          </div>
+
+          <div id="result" class="result">No round in progress.</div>
+        </section>
+
+        <aside class="panel">
+          <div class="score-title">TEAM SCORE</div>
+
+          <div class="teams">
+            <div class="team">
+              <h3>TEAM A</h3>
+              <div id="scoreA" class="score">0</div>
+              <button id="awardA" class="award a" disabled>+1 TEAM A</button>
+            </div>
+
+            <div class="team">
+              <h3>TEAM B</h3>
+              <div id="scoreB" class="score">0</div>
+              <button id="awardB" class="award b" disabled>+1 TEAM B</button>
+            </div>
+          </div>
+
+          <div class="minus-row">
+            <button id="minusA" class="minus">− Team A</button>
+            <button id="minusB" class="minus">− Team B</button>
+          </div>
+
+          <div class="footer-actions">
+            <button id="resetScoresBtn">RESET SCORES</button>
+            <button id="resetAllBtn">RESET ALL</button>
+            <button id="endGameBtn" class="end-game">🏆 END GAME</button>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <div id="gameOver" class="game-over" aria-hidden="true">
+    <div class="summary-card">
+      <div class="trophy">🏆</div>
+      <div class="champion-label">TODAY'S CHAMPION</div>
+      <div id="winnerName" class="winner-name">TEAM A</div>
+      <div id="winnerMessage" class="winner-message">Congratulations!</div>
+
+      <div class="final-score">
+        <div class="final-team">TEAM A<span id="finalScoreA">0</span></div>
+        <div class="final-team">TEAM B<span id="finalScoreB">0</span></div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat">
+          <span class="stat-label">ROUNDS PLAYED</span>
+          <span id="summaryRounds" class="stat-value">0</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">LUCKY ROUNDS</span>
+          <span id="summaryLucky" class="stat-value">0</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">AVERAGE TIME</span>
+          <span id="summaryAverage" class="stat-value">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">FASTEST ROUND</span>
+          <span id="summaryFastest" class="stat-value">—</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">TOTAL TIME USED</span>
+          <span id="summaryTotal" class="stat-value">0 sec</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">TIME OUTS</span>
+          <span id="summaryTimeouts" class="stat-value">0</span>
+        </div>
+      </div>
+
+      <div class="stars">⭐⭐⭐</div>
+      <div style="font-size:24px;font-weight:1000">Congratulations!</div>
+
+      <div class="summary-actions">
+        <button id="playAgainBtn" class="play-again">🔄 PLAY AGAIN</button>
+        <button id="closeSummaryBtn" class="close-summary">CLOSE</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const commandTexts = [
+      "Touch your head.", "Touch your hair.", "Touch your eye.", "Touch your ear.",
+      "Touch your nose.", "Touch your mouth.", "Touch your cheek.", "Touch your chin.",
+      "Touch your neck.", "Touch your shoulder.", "Touch your arm.", "Touch your elbow.",
+      "Touch your hand.", "Touch your finger.", "Touch your stomach.", "Touch your back.",
+      "Touch your leg.", "Touch your knee.", "Touch your ankle.", "Touch your foot."
+    ];
+    const AUDIO_FOLDER = "ไฟล์เสียง-20260721T165726Z-1-001";
+    const commands = commandTexts.map((text, i) => ({ text, file: i + 1 }));
+    const cmdAudio = new Audio();
+
+    const LETS_GO_FILE = "let’s go.m4a";
+    function audioUrlFor(fileNumber) {
+      return encodeURI(`${AUDIO_FOLDER}/${fileNumber}.m4a`);
+    }
+    function playCommandAudio(fileNumber, onEnd) {
+      cmdAudio.onended = null;
+      cmdAudio.src = audioUrlFor(fileNumber);
+      if (onEnd) cmdAudio.onended = onEnd;
+      cmdAudio.play();
+    }
+    function playLetsGo(onEnd) {
+      cmdAudio.onended = null;
+      cmdAudio.src = encodeURI(`${AUDIO_FOLDER}/${LETS_GO_FILE}`);
+      if (onEnd) cmdAudio.onended = onEnd;
+      cmdAudio.play();
+    }
+
+    let remaining = [...commands], used = 0, lastCommand = "", lastAudioFile = null, scoreA = 0, scoreB = 0;
+    let timeLeft = 60, timerId = null, roundActive = false, awaitingAward = false;
+    let audioContext = null, lastCountdownSpoken = null;
+    let currentRound = 0, roundPoints = 1, luckyType = "";
+    let completedRounds = 0, luckyRoundsPlayed = 0, totalTimeUsed = 0;
+    let fastestRound = null, timeOuts = 0, roundWasLucky = false;
+
+    const app = document.getElementById("app");
+    const luckyBadge = document.getElementById("luckyBadge");
+    const statusEl = document.getElementById("status");
+    const timerEl = document.getElementById("timer");
+    const resultEl = document.getElementById("result");
+    const progressText = document.getElementById("progressText");
+    const fill = document.getElementById("fill");
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const repeatBtn = document.getElementById("repeatBtn");
+    const awardA = document.getElementById("awardA");
+    const awardB = document.getElementById("awardB");
+    const gameOver = document.getElementById("gameOver");
+
+    function updateTimer() {
+      const m = String(Math.floor(timeLeft / 60)).padStart(2, "0");
+      const s = String(timeLeft % 60).padStart(2, "0");
+      timerEl.textContent = `${m}:${s}`;
+      timerEl.classList.toggle("warning", timeLeft <= 20 && timeLeft > 10);
+      timerEl.classList.toggle("danger", timeLeft <= 10);
+    }
+    function updateProgress() {
+      progressText.textContent = `${used} / ${commands.length}`;
+      fill.style.width = `${(used / commands.length) * 100}%`;
+    }
+    function setAwardEnabled(enabled) {
+      awaitingAward = enabled;
+      awardA.disabled = !enabled;
+      awardB.disabled = !enabled;
+      awardA.textContent = `+${roundPoints} TEAM A`;
+      awardB.textContent = `+${roundPoints} TEAM B`;
+    }
+    function setLuckyRound() {
+      currentRound++;
+      roundPoints = 1;
+      luckyType = "";
+      roundWasLucky = false;
+      luckyBadge.classList.remove("show");
+      if (completedRounds >= 20) setTimeout(showGameSummary, 700);
+      luckyBadge.textContent = "";
+
+      if (currentRound % 5 === 0) {
+        if (Math.random() < 0.5) {
+          roundPoints = 2;
+          luckyType = "Double Score";
+          luckyBadge.textContent = "🎉 LUCKY ROUND — DOUBLE SCORE!";
+        } else {
+          roundPoints = 3;
+          luckyType = "Triple Score";
+          luckyBadge.textContent = "⭐ LUCKY ROUND — TRIPLE SCORE!";
+        }
+        luckyBadge.classList.add("show");
+        roundWasLucky = true;
+      }
+      setAwardEnabled(false);
+    }
+    function getEnglishVoice() {
+      const voices = speechSynthesis.getVoices();
+      return voices.find(v => /^en-US/i.test(v.lang))
+        || voices.find(v => /^en-GB/i.test(v.lang))
+        || voices.find(v => /^en/i.test(v.lang))
+        || voices[0] || null;
+    }
+    function speak(text, onEnd, rate = .82, pitch = 1) {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "en-US"; u.rate = rate; u.pitch = pitch; u.volume = 1;
+      const voice = getEnglishVoice();
+      if (voice) u.voice = voice;
+      if (onEnd) u.onend = onEnd;
+      speechSynthesis.speak(u);
+    }
+    function ensureAudioContext() {
+      if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioContext.state === "suspended") audioContext.resume();
+    }
+    function beep(freq = 880, duration = .09, volume = .18) {
+      ensureAudioContext();
+      const now = audioContext.currentTime;
+      const osc = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      osc.type = "square";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(volume, now);
+      gain.gain.exponentialRampToValueAtTime(.0001, now + duration);
+      osc.connect(gain).connect(audioContext.destination);
+      osc.start(now); osc.stop(now + duration);
+    }
+    function playEpicBoom() {
+      ensureAudioContext();
+      const now = audioContext.currentTime;
+
+      // Deep impact
+      [90, 62, 42].forEach((freq, i) => {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.type = i === 0 ? "sawtooth" : "sine";
+        osc.frequency.setValueAtTime(freq, now + i * .035);
+        osc.frequency.exponentialRampToValueAtTime(18, now + 1.4);
+        gain.gain.setValueAtTime(.0001, now);
+        gain.gain.exponentialRampToValueAtTime(.9 / (i + 1), now + .02 + i * .02);
+        gain.gain.exponentialRampToValueAtTime(.0001, now + 1.45);
+        osc.connect(gain).connect(audioContext.destination);
+        osc.start(now + i * .035); osc.stop(now + 1.5);
+      });
+
+      // Noise blast
+      const length = audioContext.sampleRate * 1.25;
+      const buffer = audioContext.createBuffer(1, length, audioContext.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < length; i++) {
+        const decay = Math.pow(1 - i / length, 2.2);
+        data[i] = (Math.random() * 2 - 1) * decay;
+      }
+      const noise = audioContext.createBufferSource();
+      const filter = audioContext.createBiquadFilter();
+      const gain = audioContext.createGain();
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(1800, now);
+      filter.frequency.exponentialRampToValueAtTime(180, now + 1.2);
+      gain.gain.setValueAtTime(1, now);
+      gain.gain.exponentialRampToValueAtTime(.0001, now + 1.25);
+      noise.buffer = buffer;
+      noise.connect(filter).connect(gain).connect(audioContext.destination);
+      noise.start(now);
+
+      // Metal crash tail
+      for (let i = 0; i < 4; i++) {
+        const osc = audioContext.createOscillator();
+        const gain2 = audioContext.createGain();
+        osc.type = "triangle";
+        osc.frequency.value = 180 + i * 73;
+        gain2.gain.setValueAtTime(.18, now + .08 * i);
+        gain2.gain.exponentialRampToValueAtTime(.0001, now + 1.1 + .12 * i);
+        osc.connect(gain2).connect(audioContext.destination);
+        osc.start(now + .08 * i); osc.stop(now + 1.4);
+      }
+
+      if (navigator.vibrate) navigator.vibrate([180, 70, 260, 70, 400]);
+      app.classList.remove("screen-flash");
+      void app.offsetWidth;
+      app.classList.add("screen-flash");
+    }
+    function beginCountdown() {
+      timeLeft = 60;
+      lastCountdownSpoken = null;
+      updateTimer();
+      roundActive = true;
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      repeatBtn.disabled = false;
+      setAwardEnabled(false);
+      resultEl.textContent = "Round in progress — spell the word!";
+      statusEl.textContent = "LET'S GO!";
+
+      timerId = setInterval(() => {
+        timeLeft--;
+        updateTimer();
+
+        if (timeLeft <= 10 && timeLeft >= 1 && lastCountdownSpoken !== timeLeft) {
+          lastCountdownSpoken = timeLeft;
+          speechSynthesis.cancel();
+          beep(timeLeft <= 3 ? 1100 : 850, .11, timeLeft <= 3 ? .28 : .18);
+          statusEl.textContent = `${timeLeft}!`;
+          timerEl.textContent = `00:${String(timeLeft).padStart(2, '0')}`;
+          speak(String(timeLeft), null, 1.15, 1.08);
+        }
+
+        if (timeLeft <= 0) {
+          clearInterval(timerId);
+          roundActive = false;
+          startBtn.disabled = false;
+          stopBtn.disabled = true;
+          repeatBtn.disabled = false;
+          setAwardEnabled(false);
+          speechSynthesis.cancel();
+          statusEl.textContent = "TIME'S UP!";
+          resultEl.textContent = "💥 BOOM! No points for either team.";
+          completedRounds++;
+          timeOuts++;
+          totalTimeUsed += 60;
+          if (roundWasLucky) luckyRoundsPlayed++;
+          luckyBadge.classList.remove("show");
+          playEpicBoom();
+          if (completedRounds >= 20) setTimeout(showGameSummary, 1700);
+        }
+      }, 1000);
+    }
+    function startRound() {
+      if (roundActive || awaitingAward) return;
+      ensureAudioContext();
+      speechSynthesis.cancel();
+
+      if (remaining.length === 0) {
+        remaining = [...commands];
+        used = 0;
+        updateProgress();
+      }
+
+      const index = Math.floor(Math.random() * remaining.length);
+      const picked = remaining.splice(index, 1)[0];
+      lastCommand = picked.text;
+      lastAudioFile = picked.file;
+      used++;
+      updateProgress();
+      setLuckyRound();
+
+      timeLeft = 60;
+      updateTimer();
+      statusEl.textContent = luckyType ? `${luckyType}!` : "Listen carefully...";
+      resultEl.textContent = luckyType
+        ? `Lucky Round! The winner gets ${roundPoints} points.`
+        : "The command is playing.";
+      startBtn.disabled = true;
+      stopBtn.disabled = true;
+      repeatBtn.disabled = true;
+
+      const playCommand = () => {
+        playCommandAudio(lastAudioFile, () => {
+          playLetsGo(() => beginCountdown());
+        });
+      };
+
+      if (luckyType) {
+        speak(`Lucky Round! ${luckyType}!`, playCommand, .92, 1.08);
+      } else {
+        playCommand();
+      }
+    }
+    function stopRound() {
+      if (!roundActive) return;
+      clearInterval(timerId);
+      speechSynthesis.cancel();
+      roundActive = false;
+      stopBtn.disabled = true;
+      startBtn.disabled = true;
+      repeatBtn.disabled = false;
+      setAwardEnabled(true);
+      statusEl.textContent = "STOPPED!";
+      resultEl.textContent = `Stopped with ${timeLeft} second${timeLeft === 1 ? "" : "s"} left. Check spelling and touch.`;
+    }
+    function awardPoint(team) {
+      if (!awaitingAward) return;
+      if (team === "A") {
+        scoreA += roundPoints;
+        document.getElementById("scoreA").textContent = scoreA;
+      } else {
+        scoreB += roundPoints;
+        document.getElementById("scoreB").textContent = scoreB;
+      }
+      const earned = roundPoints;
+      const usedSeconds = 60 - timeLeft;
+      completedRounds++;
+      totalTimeUsed += usedSeconds;
+      if (fastestRound === null || usedSeconds < fastestRound) fastestRound = usedSeconds;
+      if (roundWasLucky) luckyRoundsPlayed++;
+      setAwardEnabled(false);
+      startBtn.disabled = false;
+      statusEl.textContent = `TEAM ${team} +${earned} POINT${earned === 1 ? "" : "S"}!`;
+      resultEl.textContent = "Ready for the next player. Tap START.";
+      timeLeft = 60;
+      updateTimer();
+      luckyBadge.classList.remove("show");
+    }
+    function resetRound() {
+      clearInterval(timerId);
+      speechSynthesis.cancel();
+      roundActive = false;
+      setAwardEnabled(false);
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      repeatBtn.disabled = !lastCommand;
+      timeLeft = 60;
+      roundPoints = 1;
+      luckyType = "";
+      luckyBadge.classList.remove("show");
+      updateTimer();
+      statusEl.textContent = "Round reset. Tap START.";
+      resultEl.textContent = "No point awarded.";
+    }
+    function resetScores() {
+      scoreA = 0; scoreB = 0;
+      document.getElementById("scoreA").textContent = "0";
+      document.getElementById("scoreB").textContent = "0";
+    }
+    function resetAll() {
+      resetRound();
+      resetScores();
+      remaining = [...commands];
+      used = 0;
+      currentRound = 0;
+      roundPoints = 1;
+      luckyType = "";
+      completedRounds = 0;
+      luckyRoundsPlayed = 0;
+      totalTimeUsed = 0;
+      fastestRound = null;
+      timeOuts = 0;
+      roundWasLucky = false;
+      lastCommand = "";
+      lastAudioFile = null;
+      luckyBadge.classList.remove("show");
+      repeatBtn.disabled = true;
+      updateProgress();
+      statusEl.textContent = "Tap START to begin.";
+      resultEl.textContent = "No round in progress.";
+    }
+
+
+    function launchConfetti() {
+      const colors = ["#ff4f6d", "#2f80ed", "#ffd34d", "#2dac6f", "#9b62e8", "#ff8a3d"];
+      for (let i = 0; i < 90; i++) {
+        const piece = document.createElement("div");
+        piece.className = "confetti-piece";
+        piece.style.left = Math.random() * 100 + "vw";
+        piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+        piece.style.animationDuration = (2.4 + Math.random() * 2.2) + "s";
+        piece.style.animationDelay = (Math.random() * .5) + "s";
+        piece.style.setProperty("--drift", (Math.random() * 240 - 120) + "px");
+        piece.style.transform = `rotate(${Math.random() * 360}deg)`;
+        document.body.appendChild(piece);
+        setTimeout(() => piece.remove(), 5200);
+      }
+    }
+    function showGameSummary() {
+      clearInterval(timerId);
+      speechSynthesis.cancel();
+      roundActive = false;
+      stopBtn.disabled = true;
+      setAwardEnabled(false);
+
+      let winner = "IT'S A TIE!";
+      let message = "Both teams are champions!";
+      if (scoreA > scoreB) {
+        winner = "TEAM A";
+        message = "🏆 Team A Wins!";
+      } else if (scoreB > scoreA) {
+        winner = "TEAM B";
+        message = "🏆 Team B Wins!";
+      }
+
+      document.getElementById("winnerName").textContent = winner;
+      document.getElementById("winnerMessage").textContent = message;
+      document.getElementById("finalScoreA").textContent = scoreA;
+      document.getElementById("finalScoreB").textContent = scoreB;
+      document.getElementById("summaryRounds").textContent = completedRounds;
+      document.getElementById("summaryLucky").textContent = luckyRoundsPlayed;
+      document.getElementById("summaryAverage").textContent =
+        completedRounds ? `${Math.round(totalTimeUsed / completedRounds)} sec` : "—";
+      document.getElementById("summaryFastest").textContent =
+        fastestRound === null ? "—" : `${fastestRound} sec`;
+      document.getElementById("summaryTotal").textContent = `${totalTimeUsed} sec`;
+      document.getElementById("summaryTimeouts").textContent = timeOuts;
+
+      gameOver.classList.add("show");
+      gameOver.setAttribute("aria-hidden", "false");
+      launchConfetti();
+      speak(scoreA === scoreB
+        ? "It's a tie! Congratulations!"
+        : `${winner} wins! Congratulations!`, null, .9, 1.08);
+    }
+    function closeGameSummary() {
+      gameOver.classList.remove("show");
+      gameOver.setAttribute("aria-hidden", "true");
+    }
+
+    startBtn.addEventListener("click", startRound);
+    stopBtn.addEventListener("click", stopRound);
+    repeatBtn.addEventListener("click", () => {
+      if (!lastAudioFile) return;
+      speechSynthesis.cancel();
+      statusEl.textContent = "Listen again...";
+      playCommandAudio(lastAudioFile);
+    });
+    awardA.addEventListener("click", () => awardPoint("A"));
+    awardB.addEventListener("click", () => awardPoint("B"));
+    document.getElementById("minusA").addEventListener("click", () => {
+      scoreA = Math.max(0, scoreA - 1);
+      document.getElementById("scoreA").textContent = scoreA;
+    });
+    document.getElementById("minusB").addEventListener("click", () => {
+      scoreB = Math.max(0, scoreB - 1);
+      document.getElementById("scoreB").textContent = scoreB;
+    });
+    document.getElementById("resetRoundBtn").addEventListener("click", resetRound);
+    document.getElementById("resetScoresBtn").addEventListener("click", resetScores);
+    document.getElementById("resetAllBtn").addEventListener("click", resetAll);
+    document.getElementById("endGameBtn").addEventListener("click", showGameSummary);
+    document.getElementById("closeSummaryBtn").addEventListener("click", closeGameSummary);
+    document.getElementById("playAgainBtn").addEventListener("click", () => {
+      closeGameSummary();
+      resetAll();
+    });
+    document.getElementById("fullBtn").addEventListener("click", () => {
+      const el = document.documentElement;
+      if (!document.fullscreenElement && el.requestFullscreen) el.requestFullscreen();
+      else if (document.exitFullscreen) document.exitFullscreen();
+    });
+
+    speechSynthesis.onvoiceschanged = () => getEnglishVoice();
+    updateTimer();
+    updateProgress();
+  </script>
+</body>
+
+</html>
