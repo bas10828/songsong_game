@@ -18,6 +18,10 @@ const MIME = {
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".ico": "image/x-icon",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".jfif": "image/jpeg",
+  ".m4a": "audio/mp4",
 };
 
 const server = http.createServer((req, res) => {

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Phase 3 — Game Flow</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <div id="hud">
+      <span id="fps">FPS: --</span>
+      <span id="pinchDebug">pinch: --</span>
+      <span id="status">Loading model…</span>
+      <button id="cameraSwitchBtn" type="button">Switch Camera</button>
+      <button id="exitBtn" type="button">✕ Exit</button>
+    </div>
+
+    <div id="stage">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="overlay"></canvas>
+
+      <div id="promptThumb" class="hidden"></div>
+      <div id="instructionHint" class="hidden">Pinch thumb + finger together to grab a letter, drop it in a box</div>
+
+      <button id="submitBtn" type="button">Submit</button>
+    </div>
+
+    <div id="resultOverlay" class="hidden">
+      <div id="resultText"></div>
+      <div id="resultWord"></div>
+      <button id="nextBtn" type="button">Next Word</button>
+    </div>
+
+    <div id="startOverlay">
+      <div id="promptDisplay"></div>
+      <button id="startBtn" type="button">Start Camera</button>
+      <a id="menuLink" href="index.html">🏠 Back to Menu</a>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

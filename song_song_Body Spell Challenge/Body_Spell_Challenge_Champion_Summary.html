@@ -41,12 +41,18 @@
       background: var(--card);
       border-radius: 30px;
       box-shadow: var(--shadow);
+      position: relative;
+    }
+
+    .app-inner {
+      background: #fff;
+      border-radius: 30px;
       overflow: hidden;
     }
 
     header {
       text-align: center;
-      padding: 22px 18px 14px;
+      padding: 26px 18px 14px;
       background: linear-gradient(135deg, #fbfdff, #edf6ff);
     }
 
@@ -55,8 +61,21 @@
     }
 
     h1 {
-      margin: 6px 0 4px;
-      font-size: clamp(30px, 5vw, 50px)
+      margin: 4px 0 4px;
+      font-size: clamp(34px, 6vw, 56px);
+      font-weight: 900;
+      letter-spacing: .5px;
+      background: linear-gradient(135deg, #2f9e58, #1d61bb);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      text-shadow: 0 2px 0 rgba(23, 50, 77, .08);
+    }
+
+    h1 .accent {
+      -webkit-text-fill-color: initial;
+      background: none;
+      color: var(--red);
     }
 
     .tagline {
@@ -74,10 +93,15 @@
       display: grid;
       grid-template-columns: 1.25fr .75fr;
       gap: 18px;
+      min-width: 0;
+    }
+
+    .grid > * {
+      min-width: 0;
     }
 
     .panel {
-      background: #fbfdff;
+      background: rgba(251, 253, 255, .7);
       border: 1px solid #e3edf7;
       border-radius: 24px;
       padding: 18px;
@@ -543,9 +567,10 @@
 
 <body>
   <div id="app" class="app">
+    <div class="app-inner">
     <header>
-      <h1>Body Spell Challenge</h1>
-
+      <h1>🌿 Body Spell <span class="accent">Board</span></h1>
+      <a href="../index.html" style="display:inline-block;margin-top:6px;padding:8px 18px;border-radius:999px;background:#eaf3ff;color:var(--ink);text-decoration:none;font-weight:800;font-size:14px;">🏠 Menu</a>
     </header>
 
     <main>
@@ -584,21 +609,21 @@
 
           <div class="teams">
             <div class="team">
-              <h3>TEAM A</h3>
+              <h3>TEAM RED</h3>
               <div id="scoreA" class="score">0</div>
-              <button id="awardA" class="award a" disabled>+1 TEAM A</button>
+              <button id="awardA" class="award a" disabled>+1 TEAM RED</button>
             </div>
 
             <div class="team">
-              <h3>TEAM B</h3>
+              <h3>TEAM BLUE</h3>
               <div id="scoreB" class="score">0</div>
-              <button id="awardB" class="award b" disabled>+1 TEAM B</button>
+              <button id="awardB" class="award b" disabled>+1 TEAM BLUE</button>
             </div>
           </div>
 
           <div class="minus-row">
-            <button id="minusA" class="minus">− Team A</button>
-            <button id="minusB" class="minus">− Team B</button>
+            <button id="minusA" class="minus">− Team Red</button>
+            <button id="minusB" class="minus">− Team Blue</button>
           </div>
 
           <div class="footer-actions">
@@ -609,18 +634,19 @@
         </aside>
       </div>
     </main>
+    </div>
   </div>
 
   <div id="gameOver" class="game-over" aria-hidden="true">
     <div class="summary-card">
       <div class="trophy">🏆</div>
       <div class="champion-label">TODAY'S CHAMPION</div>
-      <div id="winnerName" class="winner-name">TEAM A</div>
+      <div id="winnerName" class="winner-name">TEAM RED</div>
       <div id="winnerMessage" class="winner-message">Congratulations!</div>
 
       <div class="final-score">
-        <div class="final-team">TEAM A<span id="finalScoreA">0</span></div>
-        <div class="final-team">TEAM B<span id="finalScoreB">0</span></div>
+        <div class="final-team">TEAM RED<span id="finalScoreA">0</span></div>
+        <div class="final-team">TEAM BLUE<span id="finalScoreB">0</span></div>
       </div>
 
       <div class="stats-grid">
@@ -661,35 +687,29 @@
   </div>
 
   <script>
-    const commandTexts = [
-      "Touch your head.", "Touch your hair.", "Touch your eye.", "Touch your ear.",
-      "Touch your nose.", "Touch your mouth.", "Touch your cheek.", "Touch your chin.",
-      "Touch your neck.", "Touch your shoulder.", "Touch your arm.", "Touch your elbow.",
-      "Touch your hand.", "Touch your finger.", "Touch your stomach.", "Touch your back.",
-      "Touch your leg.", "Touch your knee.", "Touch your ankle.", "Touch your foot."
+    const bodyParts = [
+      "head", "hair", "forehead", "face", "eye", "ear", "nose", "mouth", "teeth", "tongue",
+      "neck", "shoulder", "arm", "elbow", "hand", "fingers", "leg", "knee", "foot", "toes"
     ];
-    const AUDIO_FOLDER = "ไฟล์เสียง-20260721T165726Z-1-001";
-    const commands = commandTexts.map((text, i) => ({ text, file: i + 1 }));
-    const cmdAudio = new Audio();
+    const commands = bodyParts.map(part => ({ text: `Touch your ${part}.` }));
 
-    const LETS_GO_FILE = "let’s go.m4a";
-    function audioUrlFor(fileNumber) {
-      return encodeURI(`${AUDIO_FOLDER}/${fileNumber}.m4a`);
+    function getEnglishVoice() {
+      const voices = speechSynthesis.getVoices();
+      return voices.find(v => /^en-US/i.test(v.lang))
+        || voices.find(v => /^en-GB/i.test(v.lang))
+        || voices.find(v => /^en/i.test(v.lang))
+        || voices[0] || null;
     }
-    function playCommandAudio(fileNumber, onEnd) {
-      cmdAudio.onended = null;
-      cmdAudio.src = audioUrlFor(fileNumber);
-      if (onEnd) cmdAudio.onended = onEnd;
-      cmdAudio.play();
-    }
-    function playLetsGo(onEnd) {
-      cmdAudio.onended = null;
-      cmdAudio.src = encodeURI(`${AUDIO_FOLDER}/${LETS_GO_FILE}`);
-      if (onEnd) cmdAudio.onended = onEnd;
-      cmdAudio.play();
+    function speak(text, onEnd, rate = .82, pitch = 1) {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "en-US"; u.rate = rate; u.pitch = pitch; u.volume = 1;
+      const voice = getEnglishVoice();
+      if (voice) u.voice = voice;
+      if (onEnd) u.onend = onEnd;
+      speechSynthesis.speak(u);
     }
 
-    let remaining = [...commands], used = 0, lastCommand = "", lastAudioFile = null, scoreA = 0, scoreB = 0;
+    let remaining = [...commands], used = 0, lastCommand = "", scoreA = 0, scoreB = 0;
     let timeLeft = 60, timerId = null, roundActive = false, awaitingAward = false;
     let audioContext = null, lastCountdownSpoken = null;
     let currentRound = 0, roundPoints = 1, luckyType = "";
@@ -725,8 +745,8 @@
       awaitingAward = enabled;
       awardA.disabled = !enabled;
       awardB.disabled = !enabled;
-      awardA.textContent = `+${roundPoints} TEAM A`;
-      awardB.textContent = `+${roundPoints} TEAM B`;
+      awardA.textContent = `+${roundPoints} TEAM RED`;
+      awardB.textContent = `+${roundPoints} TEAM BLUE`;
     }
     function setLuckyRound() {
       currentRound++;
@@ -751,21 +771,6 @@
         roundWasLucky = true;
       }
       setAwardEnabled(false);
-    }
-    function getEnglishVoice() {
-      const voices = speechSynthesis.getVoices();
-      return voices.find(v => /^en-US/i.test(v.lang))
-        || voices.find(v => /^en-GB/i.test(v.lang))
-        || voices.find(v => /^en/i.test(v.lang))
-        || voices[0] || null;
-    }
-    function speak(text, onEnd, rate = .82, pitch = 1) {
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = "en-US"; u.rate = rate; u.pitch = pitch; u.volume = 1;
-      const voice = getEnglishVoice();
-      if (voice) u.voice = voice;
-      if (onEnd) u.onend = onEnd;
-      speechSynthesis.speak(u);
     }
     function ensureAudioContext() {
       if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -897,7 +902,6 @@
       const index = Math.floor(Math.random() * remaining.length);
       const picked = remaining.splice(index, 1)[0];
       lastCommand = picked.text;
-      lastAudioFile = picked.file;
       used++;
       updateProgress();
       setLuckyRound();
@@ -913,8 +917,8 @@
       repeatBtn.disabled = true;
 
       const playCommand = () => {
-        playCommandAudio(lastAudioFile, () => {
-          playLetsGo(() => beginCountdown());
+        speak(lastCommand, () => {
+          speak("Let's go!", () => beginCountdown());
         });
       };
 
@@ -953,7 +957,7 @@
       if (roundWasLucky) luckyRoundsPlayed++;
       setAwardEnabled(false);
       startBtn.disabled = false;
-      statusEl.textContent = `TEAM ${team} +${earned} POINT${earned === 1 ? "" : "S"}!`;
+      statusEl.textContent = `TEAM ${team === "A" ? "RED" : "BLUE"} +${earned} POINT${earned === 1 ? "" : "S"}!`;
       resultEl.textContent = "Ready for the next player. Tap START.";
       timeLeft = 60;
       updateTimer();
@@ -995,7 +999,6 @@
       timeOuts = 0;
       roundWasLucky = false;
       lastCommand = "";
-      lastAudioFile = null;
       luckyBadge.classList.remove("show");
       repeatBtn.disabled = true;
       updateProgress();
@@ -1029,11 +1032,11 @@
       let winner = "IT'S A TIE!";
       let message = "Both teams are champions!";
       if (scoreA > scoreB) {
-        winner = "TEAM A";
-        message = "🏆 Team A Wins!";
+        winner = "TEAM RED";
+        message = "🏆 Team Red Wins!";
       } else if (scoreB > scoreA) {
-        winner = "TEAM B";
-        message = "🏆 Team B Wins!";
+        winner = "TEAM BLUE";
+        message = "🏆 Team Blue Wins!";
       }
 
       document.getElementById("winnerName").textContent = winner;
@@ -1064,10 +1067,10 @@
     startBtn.addEventListener("click", startRound);
     stopBtn.addEventListener("click", stopRound);
     repeatBtn.addEventListener("click", () => {
-      if (!lastAudioFile) return;
+      if (!lastCommand) return;
       speechSynthesis.cancel();
       statusEl.textContent = "Listen again...";
-      playCommandAudio(lastAudioFile);
+      speak(lastCommand);
     });
     awardA.addEventListener("click", () => awardPoint("A"));
     awardB.addEventListener("click", () => awardPoint("B"));

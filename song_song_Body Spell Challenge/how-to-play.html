@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>How to Play — Body Spell Board</title>
+  <style>
+    :root {
+      --ink: #17324d;
+      --muted: #6f8192;
+      --accent: #2f80ed;
+      --shadow: 0 18px 44px rgba(37, 83, 130, .18);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 40px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      background: linear-gradient(180deg, #eaf5ff 0%, #f9fbff 100%);
+      color: var(--ink);
+    }
+    .nav {
+      width: min(420px, 100%);
+      display: flex;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+    .nav a {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 18px;
+      border-radius: 999px;
+      background: #eaf3ff;
+      color: var(--ink);
+      text-decoration: none;
+      font-weight: 800;
+      font-size: 14px;
+    }
+    .poster {
+      width: min(420px, 100%);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      display: block;
+    }
+    a.play {
+      display: block;
+      width: min(420px, 100%);
+      text-align: center;
+      margin-top: 20px;
+      padding: 16px 20px;
+      border-radius: 16px;
+      background: var(--accent);
+      box-shadow: 0 6px 0 #1d61bb;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 900;
+      letter-spacing: .5px;
+      font-size: 18px;
+      transition: transform .06s;
+    }
+    a.play:active {
+      transform: translateY(4px);
+      box-shadow: 0 2px 0 #1d61bb;
+    }
+  </style>
+</head>
+<body>
+  <div class="nav">
+    <a href="../index.html">🏠 Menu</a>
+  </div>
+  <img class="poster" src="how-to-play.png" alt="How to Play" />
+  <a class="play" href="Body_Spell_Challenge_Champion_Summary.html">NEXT →</a>
+</body>
+</html>

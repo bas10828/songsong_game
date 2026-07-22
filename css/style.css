@@ -292,6 +292,22 @@ html, body {
   box-shadow: var(--shadow-pop);
 }
 
+#menuLink {
+  padding: 10px 22px;
+  font-size: 15px;
+  font-family: var(--font-fun);
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 999px;
+  opacity: 0.85;
+}
+
+#menuLink:active {
+  opacity: 1;
+}
+
 @keyframes promptPulse {
   0%, 100% {
     box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.3), var(--shadow-pop);
