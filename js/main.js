@@ -21,6 +21,12 @@ const resultWord = document.getElementById("resultWord");
 const nextBtn = document.getElementById("nextBtn");
 const zoomOverlay = document.getElementById("zoomOverlay");
 const zoomVisual = document.getElementById("zoomVisual");
+const translateOverlay = document.getElementById("translateOverlay");
+const translateDirectionPill = document.getElementById("translateDirectionPill");
+const translatePromptHint = document.getElementById("translatePromptHint");
+const translatePromptText = document.getElementById("translatePromptText");
+const translateOptionsContainer = document.getElementById("translateOptions");
+const translateOptionEls = [...translateOptionsContainer.children];
 const categoryOverlay = document.getElementById("categoryOverlay");
 const categoryList = document.getElementById("categoryList");
 const categoryPlayBtn = document.getElementById("categoryPlayBtn");
@@ -35,6 +41,59 @@ const summaryTitle = document.getElementById("summaryTitle");
 const summaryScore = document.getElementById("summaryScore");
 const playAgainBtn = document.getElementById("playAgainBtn");
 const newSetupBtn = document.getElementById("newSetupBtn");
+const manageWordsBtn = document.getElementById("manageWordsBtn");
+const authOverlay = document.getElementById("authOverlay");
+const authUser = document.getElementById("authUser");
+const authPass = document.getElementById("authPass");
+const authError = document.getElementById("authError");
+const authSubmitBtn = document.getElementById("authSubmitBtn");
+const authCancelBtn = document.getElementById("authCancelBtn");
+const setsListOverlay = document.getElementById("setsListOverlay");
+const setsList = document.getElementById("setsList");
+const newSetNameInput = document.getElementById("newSetNameInput");
+const createSetBtn = document.getElementById("createSetBtn");
+const setsListError = document.getElementById("setsListError");
+const setsListBackBtn = document.getElementById("setsListBackBtn");
+const setDetailOverlay = document.getElementById("setDetailOverlay");
+const setDetailTitle = document.getElementById("setDetailTitle");
+const renameSetBtn = document.getElementById("renameSetBtn");
+const renameSetRow = document.getElementById("renameSetRow");
+const renameSetInput = document.getElementById("renameSetInput");
+const saveRenameBtn = document.getElementById("saveRenameBtn");
+const cancelRenameBtn = document.getElementById("cancelRenameBtn");
+const savedToast = document.getElementById("savedToast");
+const setQuestionsList = document.getElementById("setQuestionsList");
+const newQuestionKindSelect = document.getElementById("newQuestionKindSelect");
+const addQuestionBtn = document.getElementById("addQuestionBtn");
+const setDetailBackBtn = document.getElementById("setDetailBackBtn");
+const questionFormOverlay = document.getElementById("questionFormOverlay");
+const questionFormTitle = document.getElementById("questionFormTitle");
+const spellFormFields = document.getElementById("spellFormFields");
+const translateFormFields = document.getElementById("translateFormFields");
+const qSpellWordInput = document.getElementById("qSpellWordInput");
+const tabEmojiBtn = document.getElementById("tabEmojiBtn");
+const tabPhotoBtn = document.getElementById("tabPhotoBtn");
+const emojiInputRow = document.getElementById("emojiInputRow");
+const photoInputRow = document.getElementById("photoInputRow");
+const customEmojiInput = document.getElementById("customEmojiInput");
+const customPhotoInput = document.getElementById("customPhotoInput");
+const customPreview = document.getElementById("customPreview");
+const dirThEnBtn = document.getElementById("dirThEnBtn");
+const dirEnThBtn = document.getElementById("dirEnThBtn");
+const qPromptInput = document.getElementById("qPromptInput");
+const qOptionInputs = [0, 1, 2, 3].map((i) => document.getElementById(`qOption${i}`));
+const qCorrectRadios = [0, 1, 2, 3].map((i) => document.getElementById(`qCorrect${i}`));
+const sentenceFormFields = document.getElementById("sentenceFormFields");
+const sentDirThEnBtn = document.getElementById("sentDirThEnBtn");
+const sentDirEnThBtn = document.getElementById("sentDirEnThBtn");
+const qSentPromptInput = document.getElementById("qSentPromptInput");
+const sentCardMinusBtn = document.getElementById("sentCardMinusBtn");
+const sentCardPlusBtn = document.getElementById("sentCardPlusBtn");
+const sentCardCountLabel = document.getElementById("sentCardCountLabel");
+const sentCardInputs = document.getElementById("sentCardInputs");
+const questionFormError = document.getElementById("questionFormError");
+const saveQuestionBtn = document.getElementById("saveQuestionBtn");
+const cancelQuestionBtn = document.getElementById("cancelQuestionBtn");
 
 // Hand-effect "skins" — each bundles the colors/glyphs used to draw the
 // hand skeleton, pinch orb, and particle trails, plus the two CSS magic-
@@ -178,6 +237,8 @@ function COLOR_HEX(name) {
 // Shapes stay disabled until their own visual prompts are ready; every other
 // theme is code-rendered (color swatch or emoji) so all are safe to combine.
 // The player narrows this down to one or more categories via the picker.
+// Teacher-authored "question sets" are a separate, curated concept (see
+// below) — not part of this random-sample pool.
 const CATEGORIES = [
   { id: "colors", label: "🎨 Colors", rounds: THEMES.colors },
   { id: "animals", label: "🐾 Animals", rounds: THEMES.animals },
@@ -185,22 +246,30 @@ const CATEGORIES = [
   { id: "vehicles", label: "🚗 Vehicles", rounds: THEMES.vehicles },
   { id: "food", label: "🍕 Food", rounds: THEMES.food },
 ];
-const ALL_ROUNDS = CATEGORIES.flatMap((c) => c.rounds);
 const selectedCategoryIds = new Set(CATEGORIES.map((c) => c.id));
 
 function currentPool() {
   const active = CATEGORIES.filter((c) => selectedCategoryIds.has(c.id));
   const pool = active.flatMap((c) => c.rounds);
-  return pool.length ? pool : ALL_ROUNDS;
+  return pool.length ? pool : CATEGORIES.flatMap((c) => c.rounds);
 }
 
 // --- Scoring session -----------------------------------------------------
-const ROUNDS_PER_SESSION = 10;
+const ROUNDS_PER_SESSION_DEFAULT = 10;
+let sessionLength = ROUNDS_PER_SESSION_DEFAULT;
 let gameMode = "solo"; // "solo" | "team"
 let questionsAnswered = 0;
 let soloCorrectCount = 0;
 let teamScoreRed = 0;
 let teamScoreBlue = 0;
+
+// A session either draws from the built-in random category pool (fixed
+// length) or plays a teacher-authored set start-to-finish in order (length
+// = however many questions that set actually has — a half-finished 5/10
+// set is still fully playable, not padded or blocked).
+let sessionSource = "pool"; // "pool" | "teacherSet"
+let activeTeacherSet = null;
+let teacherSetQueue = [];
 
 // Whose turn it is, in team mode, derived from how many questions have
 // already been answered this session — alternates Red/Blue every question
@@ -218,11 +287,11 @@ function resetSession() {
 }
 
 function updateScoreHud() {
-  const q = Math.min(questionsAnswered + 1, ROUNDS_PER_SESSION);
+  const q = Math.min(questionsAnswered + 1, sessionLength);
   if (gameMode === "team") {
-    scoreHud.textContent = `Q ${q}/${ROUNDS_PER_SESSION} · 🔴 ${teamScoreRed} - ${teamScoreBlue} 🔵`;
+    scoreHud.textContent = `Q ${q}/${sessionLength} · 🔴 ${teamScoreRed} - ${teamScoreBlue} 🔵`;
   } else {
-    scoreHud.textContent = `Q ${q}/${ROUNDS_PER_SESSION} · ✅ ${soloCorrectCount}`;
+    scoreHud.textContent = `Q ${q}/${sessionLength} · ✅ ${soloCorrectCount}`;
   }
 }
 
@@ -248,18 +317,23 @@ function showSummary() {
     summaryScore.textContent = `🔴 Team Red: ${teamScoreRed}    🔵 Team Blue: ${teamScoreBlue}`;
   } else {
     const stars =
-      soloCorrectCount >= ROUNDS_PER_SESSION ? "⭐⭐⭐" :
-      soloCorrectCount >= ROUNDS_PER_SESSION * 0.7 ? "⭐⭐" :
-      soloCorrectCount >= ROUNDS_PER_SESSION * 0.4 ? "⭐" : "";
+      soloCorrectCount >= sessionLength ? "⭐⭐⭐" :
+      soloCorrectCount >= sessionLength * 0.7 ? "⭐⭐" :
+      soloCorrectCount >= sessionLength * 0.4 ? "⭐" : "";
     summaryTitle.textContent = "Great job!";
-    summaryScore.textContent = `You got ${soloCorrectCount} / ${ROUNDS_PER_SESSION} correct! ${stars}`;
+    summaryScore.textContent = `You got ${soloCorrectCount} / ${sessionLength} correct! ${stars}`;
   }
   summaryOverlay.classList.remove("hidden");
 }
 
 function renderVisual(container, round) {
   container.innerHTML = "";
-  if (round.type === "color") {
+  if (round.kind === "translate" || round.kind === "sentence") {
+    const text = document.createElement("div");
+    text.className = "visual-text";
+    text.textContent = round.prompt;
+    container.appendChild(text);
+  } else if (round.type === "color") {
     const block = document.createElement("div");
     block.className = "visual-color";
     block.style.background = round.value;
@@ -269,6 +343,12 @@ function renderVisual(container, round) {
     emoji.className = "visual-emoji";
     emoji.textContent = round.value;
     container.appendChild(emoji);
+  } else if (round.type === "photo") {
+    const img = document.createElement("img");
+    img.className = "visual-photo";
+    img.src = round.value;
+    img.alt = round.word;
+    container.appendChild(img);
   } else {
     container.innerHTML = `<svg viewBox="0 0 100 100" fill="#29b6f6">${SHAPE_PATHS[round.value]}</svg>`;
   }
@@ -334,15 +414,37 @@ function shuffle(arr) {
   return a;
 }
 
-function pickRound() {
+function pickPoolRound() {
   const pool = currentPool();
   let round;
   do {
     round = pool[Math.floor(Math.random() * pool.length)];
   } while (round.word === lastRoundWord && pool.length > 1);
   lastRoundWord = round.word;
+  return { ...round, kind: "spell" };
+}
+
+// Converts a teacher-authored question (server shape) into the same
+// internal "round" shape the rest of the game already understands.
+function questionToRound(q) {
+  if (q.kind === "translate") {
+    return { kind: "translate", direction: q.direction, prompt: q.prompt, options: q.options, correctIndex: q.correctIndex };
+  }
+  if (q.kind === "sentence") {
+    return { kind: "sentence", direction: q.direction, prompt: q.prompt, answerWords: q.answerWords };
+  }
+  return { kind: "spell", word: q.word, type: q.visualType, value: q.visualValue };
+}
+
+// Single entry point for "what's the next question" — draws from the
+// random built-in pool, or advances through a teacher set in order,
+// depending on how this session was started.
+function pickNextQuestion() {
   pickHandSkin();
-  return round;
+  if (sessionSource === "teacherSet") {
+    return questionToRound(teacherSetQueue.shift());
+  }
+  return pickPoolRound();
 }
 
 function clearBoard() {
@@ -354,31 +456,34 @@ function clearBoard() {
   grabOriginSlot = null;
 }
 
+// Drives both "spell" rounds (one card per letter) and "sentence" rounds
+// (one card per word) — same board, different tokenization.
 function setupRound(round) {
   clearBoard();
   currentRound = round;
 
-  const word = round.word;
-  const letters = shuffle(word.split(""));
+  const isSentence = round.kind === "sentence";
+  const tokens = isSentence ? round.answerWords : round.word.split("");
+  const shuffled = shuffle(tokens);
 
-  slots = word.split("").map((_, index) => {
+  slots = tokens.map((_, index) => {
     const el = document.createElement("div");
-    el.className = "slot";
+    el.className = isSentence ? "slot word" : "slot";
     el.dataset.filled = "false";
     stage.appendChild(el);
     return { index, el, cardId: null };
   });
 
-  cards = letters.map((letter, i) => {
+  cards = shuffled.map((token, i) => {
     const el = document.createElement("div");
-    el.className = "card";
+    el.className = isSentence ? "card word" : "card";
     el.dataset.grabbed = "false";
-    el.textContent = letter.toUpperCase();
+    el.textContent = token.toUpperCase();
     el.style.setProperty("--tilt", `${(Math.random() * 10 - 5).toFixed(1)}deg`);
     stage.appendChild(el);
     return {
       id: `card-${i}`,
-      letter,
+      letter: token,
       el,
       currentSlot: null,
       homeX: 0,
@@ -418,21 +523,31 @@ function layoutBoard() {
   const m = computeMetrics();
   const trayY = m.rect.height * 0.75;
   const grabRadius = m.size * 0.85;
+  const isSentence = currentRound && currentRound.kind === "sentence";
+
+  // Word cards get a width that grows with the word's length instead of
+  // the fixed square used for single letters — "elephant" needs more room
+  // than "I".
+  const tileWidth = (token) => {
+    if (!isSentence) return m.size;
+    return Math.max(m.size, token.length * m.size * 0.42 + m.size * 0.5);
+  };
 
   slots.forEach((s, i) => {
     const pos = slotPosition(i, m);
+    const w = isSentence ? tileWidth(currentRound.answerWords[i]) : m.size;
     s.el.style.left = `${pos.x}px`;
     s.el.style.top = `${pos.y}px`;
-    s.el.style.width = `${m.size + 6}px`;
+    s.el.style.width = `${w + 6}px`;
     s.el.style.height = `${m.size + 6}px`;
   });
 
   cards.forEach((c, i) => {
     c.homeX = m.rect.width / 2 + (i - (cards.length - 1) / 2) * m.spacing;
     c.homeY = trayY;
-    c.el.style.width = `${m.size}px`;
+    c.el.style.width = `${tileWidth(c.letter)}px`;
     c.el.style.height = `${m.size}px`;
-    c.el.style.fontSize = `${Math.max(16, m.size * 0.45)}px`;
+    c.el.style.fontSize = isSentence ? `${Math.max(13, m.size * 0.3)}px` : `${Math.max(16, m.size * 0.45)}px`;
     if (c.currentSlot === null) {
       c.x = c.homeX;
       c.y = c.homeY;
@@ -763,7 +878,12 @@ function processResult(result) {
   const modalOpen =
     !summaryOverlay.classList.contains("hidden") ||
     !categoryOverlay.classList.contains("hidden") ||
-    !modeOverlay.classList.contains("hidden");
+    !modeOverlay.classList.contains("hidden") ||
+    !authOverlay.classList.contains("hidden") ||
+    !setsListOverlay.classList.contains("hidden") ||
+    !setDetailOverlay.classList.contains("hidden") ||
+    !questionFormOverlay.classList.contains("hidden") ||
+    !translateOverlay.classList.contains("hidden");
 
   if (!modalOpen) {
     handleGesture(isPinching, pinchPoint);
@@ -771,6 +891,8 @@ function processResult(result) {
     const roundActive = currentRound && startOverlay.classList.contains("hidden");
     handleZoomGesture(isPeaceSign && !isPinching && grabbedCardId === null && roundActive);
   }
+
+  handleTranslateSelection(isPinching, pinchPoint);
 }
 
 // Finger-extension check: distance-based (tip vs. its own middle knuckle,
@@ -976,25 +1098,11 @@ function dropCard(card) {
   placeCardInSlot(card, targetSlot.index);
 }
 
-function checkSubmit() {
-  const allFilled = slots.every((s) => s.cardId !== null);
-  if (!allFilled) {
-    resultText.textContent = "Fill every slot first!";
-    resultText.style.color = "#ffb74d";
-    resultWord.textContent = "";
-    resultOverlay.classList.remove("hidden");
-    return;
-  }
-
-  let correct = true;
-  for (let i = 0; i < slots.length; i++) {
-    const card = cards.find((c) => c.id === slots[i].cardId);
-    if (card.letter !== currentRound.word[i]) {
-      correct = false;
-      break;
-    }
-  }
-
+// Shared by every question kind's answer check: applies the score, advances
+// the question counter, and shows the result overlay. Callers set
+// resultWord (the "here's the right answer" reveal) themselves first, since
+// that text differs by kind.
+function finishRound(correct) {
   if (gameMode === "team") {
     if (correct) {
       if (teamForIndex(questionsAnswered) === "red") teamScoreRed++;
@@ -1008,19 +1116,45 @@ function checkSubmit() {
 
   resultText.textContent = correct ? "Correct! 🎉" : "Not quite!";
   resultText.style.color = correct ? "#4caf50" : "#ff5252";
-  resultWord.textContent = currentRound.word.toUpperCase();
-  nextBtn.textContent = questionsAnswered >= ROUNDS_PER_SESSION ? "See Results 🏆" : "Next Word";
+  nextBtn.textContent = questionsAnswered >= sessionLength ? "See Results 🏆" : "Next Word";
   resultOverlay.classList.remove("hidden");
+}
+
+// Handles both "spell" (letter tokens) and "sentence" (word tokens) rounds
+// — same drag-into-slots board, just a different unit per card.
+function checkSubmit() {
+  const allFilled = slots.every((s) => s.cardId !== null);
+  if (!allFilled) {
+    resultText.textContent = "Fill every slot first!";
+    resultText.style.color = "#ffb74d";
+    resultWord.textContent = "";
+    resultOverlay.classList.remove("hidden");
+    return;
+  }
+
+  const answerTokens = currentRound.kind === "sentence" ? currentRound.answerWords : currentRound.word.split("");
+  let correct = true;
+  for (let i = 0; i < slots.length; i++) {
+    const card = cards.find((c) => c.id === slots[i].cardId);
+    if (card.letter !== answerTokens[i]) {
+      correct = false;
+      break;
+    }
+  }
+
+  resultWord.textContent =
+    currentRound.kind === "sentence" ? currentRound.answerWords.join(" ") : currentRound.word.toUpperCase();
+  finishRound(correct);
 }
 
 submitBtn.addEventListener("click", checkSubmit);
 nextBtn.addEventListener("click", () => {
   resultOverlay.classList.add("hidden");
-  if (questionsAnswered >= ROUNDS_PER_SESSION) {
+  if (questionsAnswered >= sessionLength) {
     showSummary();
     return;
   }
-  showRoundIntro(pickRound());
+  showRoundIntro(pickNextQuestion());
 });
 
 function loop() {
@@ -1053,11 +1187,80 @@ function showRoundIntro(round) {
 }
 
 function beginRound() {
+  startOverlay.classList.add("hidden");
+  if (currentRound.kind === "translate") {
+    beginTranslateRound();
+    return;
+  }
+  translateOverlay.classList.add("hidden");
   setupRound(currentRound);
   renderVisual(promptThumb, currentRound);
   promptThumb.classList.remove("hidden");
   instructionHint.classList.remove("hidden");
-  startOverlay.classList.add("hidden");
+}
+
+function beginTranslateRound() {
+  clearBoard();
+  promptThumb.classList.add("hidden");
+  instructionHint.classList.add("hidden");
+
+  const isThEn = currentRound.direction === "th-en";
+  translateDirectionPill.textContent = isThEn ? "🇹🇭 → 🇬🇧 Pick the right translation" : "🇬🇧 → 🇹🇭 เลือกคำแปลที่ถูก";
+  translatePromptHint.textContent = isThEn ? "What does this mean?" : "ประโยคนี้แปลว่าอะไร";
+  translatePromptText.textContent = currentRound.prompt;
+  currentRound.options.forEach((opt, i) => {
+    translateOptionEls[i].querySelector(".option-text").textContent = opt;
+    translateOptionEls[i].style.setProperty("--hold-progress", "0");
+  });
+
+  translateOverlay.classList.remove("hidden");
+}
+
+function selectTranslateAnswer(index) {
+  const correct = index === currentRound.correctIndex;
+  resultWord.textContent = currentRound.options[currentRound.correctIndex];
+  translateOverlay.classList.add("hidden");
+  finishRound(correct);
+}
+
+// Pinch-and-hold-to-select: dwelling the pinch cursor over an option while
+// actively pinching fills a progress bar on that button; releasing or
+// drifting off resets it. Chosen over a tap/click because this game is
+// hands-free — there's no reliable "click" gesture, only sustained intent.
+const TRANSLATE_HOLD_MS = 650;
+let translateHoldIndex = null;
+let translateHoldStart = null;
+
+function handleTranslateSelection(isPinching, pinchPoint) {
+  if (translateOverlay.classList.contains("hidden")) return;
+
+  let hoveredIndex = null;
+  for (let i = 0; i < translateOptionEls.length; i++) {
+    translateOptionEls[i].classList.toggle("hover", pinchOverElement(pinchPoint, translateOptionEls[i], 10));
+    if (pinchOverElement(pinchPoint, translateOptionEls[i], 10)) hoveredIndex = i;
+  }
+
+  if (!isPinching || hoveredIndex === null) {
+    translateHoldIndex = null;
+    translateHoldStart = null;
+    for (const el of translateOptionEls) el.style.setProperty("--hold-progress", "0");
+    return;
+  }
+
+  if (hoveredIndex !== translateHoldIndex) {
+    translateHoldIndex = hoveredIndex;
+    translateHoldStart = performance.now();
+    for (const el of translateOptionEls) el.style.setProperty("--hold-progress", "0");
+  }
+
+  const progress = Math.min(1, (performance.now() - translateHoldStart) / TRANSLATE_HOLD_MS);
+  translateOptionEls[hoveredIndex].style.setProperty("--hold-progress", String(progress));
+
+  if (progress >= 1) {
+    translateHoldIndex = null;
+    translateHoldStart = null;
+    selectTranslateAnswer(hoveredIndex);
+  }
 }
 
 function requestFullscreenSafe() {
@@ -1124,36 +1327,622 @@ renderCategoryChips();
 
 categoryPlayBtn.addEventListener("click", () => {
   categoryOverlay.classList.add("hidden");
+  sessionSource = "pool";
+  sessionLength = ROUNDS_PER_SESSION_DEFAULT;
   resetSession();
-  showRoundIntro(pickRound());
+  showRoundIntro(pickNextQuestion());
 });
 
 categoriesBtn.addEventListener("click", () => {
   categoryOverlay.classList.remove("hidden");
 });
 
+// Shuffles a teacher set's questions into play order, sizes the session to
+// however many questions it actually has, and starts the first one.
+function startTeacherSetSession() {
+  teacherSetQueue = shuffle(activeTeacherSet.questions);
+  sessionLength = teacherSetQueue.length;
+  resetSession();
+  showRoundIntro(pickNextQuestion());
+}
+
+// Mode-select is shared by both entry paths: picking a mode after tapping
+// "Play" on a teacher set jumps straight into that set (skipping the
+// built-in category picker, since the content is already chosen); picking
+// a mode any other way continues on to the category picker as before.
 modeSoloBtn.addEventListener("click", () => {
   gameMode = "solo";
   modeOverlay.classList.add("hidden");
-  categoryOverlay.classList.remove("hidden");
+  if (sessionSource === "teacherSet" && activeTeacherSet) {
+    startTeacherSetSession();
+  } else {
+    sessionSource = "pool";
+    categoryOverlay.classList.remove("hidden");
+  }
 });
 
 modeTeamBtn.addEventListener("click", () => {
   gameMode = "team";
   modeOverlay.classList.add("hidden");
-  categoryOverlay.classList.remove("hidden");
+  if (sessionSource === "teacherSet" && activeTeacherSet) {
+    startTeacherSetSession();
+  } else {
+    sessionSource = "pool";
+    categoryOverlay.classList.remove("hidden");
+  }
 });
 
 playAgainBtn.addEventListener("click", () => {
   summaryOverlay.classList.add("hidden");
-  resetSession();
-  showRoundIntro(pickRound());
+  if (sessionSource === "teacherSet" && activeTeacherSet) {
+    startTeacherSetSession();
+  } else {
+    sessionLength = ROUNDS_PER_SESSION_DEFAULT;
+    resetSession();
+    showRoundIntro(pickNextQuestion());
+  }
 });
 
 newSetupBtn.addEventListener("click", () => {
   summaryOverlay.classList.add("hidden");
+  sessionSource = "pool";
+  activeTeacherSet = null;
   resetSession();
   modeOverlay.classList.remove("hidden");
+});
+
+// --- Question sets (teacher-authored) -------------------------------------
+// Named packs of up to 10 questions live on the server (data/question-
+// sets.json + uploads/custom-words/*.jpg for spell-question photos), not
+// localStorage, so they survive a cleared browser cache and are the same
+// for every device hitting this server.
+//
+// NOTE: the login below is a client-side speed bump (keeps curious kids
+// from wandering into the editor), not real security — the credentials are
+// visible to anyone who reads this file. Fine for gating a content-editor
+// screen in a classroom game; would not be fine for anything actually
+// sensitive.
+const AUTH_USER = "songsong";
+const AUTH_PASS = "2222222222222222222222";
+const MAX_QUESTIONS_PER_SET = 10;
+
+let questionSets = [];
+let currentSetId = null;
+let editingQuestionId = null; // null while adding a new question
+let questionFormKind = "spell"; // "spell" | "translate" — which sub-form is showing
+let customWordEditType = "emoji"; // "emoji" | "photo" — spell sub-form's visual tab
+let customPhotoDataUrl = null;
+
+// Re-triggerable "✅ Saved!" toast — removing and re-adding the class (after
+// a reflow) restarts the CSS animation even if a save lands mid-toast from
+// a previous one.
+function showSavedToast() {
+  savedToast.classList.remove("show");
+  savedToast.classList.remove("hidden");
+  void savedToast.offsetWidth;
+  savedToast.classList.add("show");
+}
+
+function getCurrentSet() {
+  return questionSets.find((s) => s.id === currentSetId);
+}
+
+async function loadQuestionSets() {
+  try {
+    const res = await fetch("/api/question-sets");
+    questionSets = await res.json();
+  } catch (err) {
+    console.error("Failed to load question sets:", err);
+    questionSets = [];
+  }
+  renderSetsList();
+}
+
+function compressImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const maxDim = 480;
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.75));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function updateCustomPreview() {
+  customPreview.innerHTML = "";
+  if (customWordEditType === "emoji") {
+    if (!customEmojiInput.value.trim()) return;
+    const div = document.createElement("div");
+    div.className = "visual-emoji";
+    div.textContent = customEmojiInput.value.trim();
+    customPreview.appendChild(div);
+  } else if (customPhotoDataUrl) {
+    const img = document.createElement("img");
+    img.src = customPhotoDataUrl;
+    customPreview.appendChild(img);
+  }
+}
+
+function setCustomTab(type) {
+  customWordEditType = type;
+  tabEmojiBtn.classList.toggle("active", type === "emoji");
+  tabPhotoBtn.classList.toggle("active", type === "photo");
+  emojiInputRow.classList.toggle("hidden", type !== "emoji");
+  photoInputRow.classList.toggle("hidden", type !== "photo");
+  updateCustomPreview();
+}
+
+tabEmojiBtn.addEventListener("click", () => setCustomTab("emoji"));
+tabPhotoBtn.addEventListener("click", () => setCustomTab("photo"));
+customEmojiInput.addEventListener("input", updateCustomPreview);
+
+customPhotoInput.addEventListener("change", async () => {
+  const file = customPhotoInput.files[0];
+  if (!file) return;
+  customPhotoDataUrl = await compressImageFile(file);
+  updateCustomPreview();
+});
+
+function setDirectionTab(direction) {
+  dirThEnBtn.classList.toggle("active", direction === "th-en");
+  dirEnThBtn.classList.toggle("active", direction === "en-th");
+}
+dirThEnBtn.addEventListener("click", () => setDirectionTab("th-en"));
+dirEnThBtn.addEventListener("click", () => setDirectionTab("en-th"));
+
+function currentDirection() {
+  return dirEnThBtn.classList.contains("active") ? "en-th" : "th-en";
+}
+
+function setSentDirectionTab(direction) {
+  sentDirThEnBtn.classList.toggle("active", direction === "th-en");
+  sentDirEnThBtn.classList.toggle("active", direction === "en-th");
+}
+sentDirThEnBtn.addEventListener("click", () => setSentDirectionTab("th-en"));
+sentDirEnThBtn.addEventListener("click", () => setSentDirectionTab("en-th"));
+
+function currentSentDirection() {
+  return sentDirEnThBtn.classList.contains("active") ? "en-th" : "th-en";
+}
+
+// Explicit card-count control (min 2, max 8): the teacher picks the number
+// of cards first, then gets exactly that many individual word inputs —
+// no implicit "type a sentence and we split it" step.
+const SENT_CARDS_MIN = 2;
+const SENT_CARDS_MAX = 8;
+let sentCardCount = 3;
+let sentCardValues = ["", "", ""];
+
+function renderSentCardInputs() {
+  sentCardCountLabel.textContent = `${sentCardCount} card${sentCardCount === 1 ? "" : "s"}`;
+  sentCardMinusBtn.disabled = sentCardCount <= SENT_CARDS_MIN;
+  sentCardPlusBtn.disabled = sentCardCount >= SENT_CARDS_MAX;
+
+  sentCardInputs.innerHTML = "";
+  for (let i = 0; i < sentCardCount; i++) {
+    const row = document.createElement("div");
+    row.className = "sent-card-row";
+
+    const badge = document.createElement("div");
+    badge.className = "sent-card-badge";
+    badge.textContent = i + 1;
+    row.appendChild(badge);
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.maxLength = 30;
+    input.autocomplete = "off";
+    input.placeholder = `Word for card ${i + 1}`;
+    input.value = sentCardValues[i] || "";
+    input.addEventListener("input", () => {
+      sentCardValues[i] = input.value;
+    });
+    row.appendChild(input);
+
+    sentCardInputs.appendChild(row);
+  }
+}
+
+function setSentCardCount(count) {
+  const clamped = Math.max(SENT_CARDS_MIN, Math.min(SENT_CARDS_MAX, count));
+  const nextValues = [];
+  for (let i = 0; i < clamped; i++) nextValues.push(sentCardValues[i] || "");
+  sentCardCount = clamped;
+  sentCardValues = nextValues;
+  renderSentCardInputs();
+}
+
+sentCardMinusBtn.addEventListener("click", () => setSentCardCount(sentCardCount - 1));
+sentCardPlusBtn.addEventListener("click", () => setSentCardCount(sentCardCount + 1));
+
+// --- Set list screen -------------------------------------------------------
+function renderSetsList() {
+  setsList.innerHTML = "";
+  for (const set of questionSets) {
+    const row = document.createElement("div");
+    row.className = "set-row";
+
+    const name = document.createElement("div");
+    name.className = "set-name";
+    name.textContent = set.name;
+    row.appendChild(name);
+
+    const count = document.createElement("div");
+    count.className = "set-count";
+    count.textContent = `${set.questions.length}/${MAX_QUESTIONS_PER_SET}`;
+    row.appendChild(count);
+
+    const playBtn = document.createElement("button");
+    playBtn.type = "button";
+    playBtn.className = "play-btn";
+    playBtn.textContent = "▶️ Play";
+    playBtn.disabled = set.questions.length === 0;
+    playBtn.addEventListener("click", () => playSet(set));
+    row.appendChild(playBtn);
+
+    const openBtn = document.createElement("button");
+    openBtn.type = "button";
+    openBtn.className = "open-btn";
+    openBtn.textContent = "Open";
+    openBtn.addEventListener("click", () => openSet(set.id));
+    row.appendChild(openBtn);
+
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "delete-btn";
+    delBtn.textContent = "🗑️";
+    delBtn.addEventListener("click", () => deleteSet(set.id, set.name));
+    row.appendChild(delBtn);
+
+    setsList.appendChild(row);
+  }
+}
+
+createSetBtn.addEventListener("click", async () => {
+  setsListError.classList.add("hidden");
+  const name = newSetNameInput.value.trim();
+  if (!name) {
+    setsListError.textContent = "Give the set a name.";
+    setsListError.classList.remove("hidden");
+    return;
+  }
+  try {
+    const res = await fetch("/api/question-sets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setsListError.textContent = data.error || "Something went wrong.";
+      setsListError.classList.remove("hidden");
+      return;
+    }
+    questionSets = data;
+    renderSetsList();
+    newSetNameInput.value = "";
+    showSavedToast();
+  } catch (err) {
+    setsListError.textContent = "Network error — try again.";
+    setsListError.classList.remove("hidden");
+  }
+});
+
+async function deleteSet(id, name) {
+  if (!confirm(`Delete the set "${name}"? This can't be undone.`)) return;
+  try {
+    const res = await fetch(`/api/question-sets/${id}`, { method: "DELETE" });
+    questionSets = await res.json();
+    renderSetsList();
+  } catch (err) {
+    console.error("Failed to delete set:", err);
+  }
+}
+
+setsListBackBtn.addEventListener("click", () => {
+  setsListOverlay.classList.add("hidden");
+  categoryOverlay.classList.remove("hidden");
+});
+
+// --- Set detail screen -------------------------------------------------------
+function openSet(id) {
+  currentSetId = id;
+  renderSetQuestionsList();
+  renameSetRow.classList.add("hidden");
+  setsListOverlay.classList.add("hidden");
+  setDetailOverlay.classList.remove("hidden");
+}
+
+// Starting a teacher set is still gated behind the same login as managing
+// them (this whole screen only opens after the auth check) — students
+// don't get a self-serve way to pick and launch a set.
+function playSet(set) {
+  sessionSource = "teacherSet";
+  activeTeacherSet = set;
+  setsListOverlay.classList.add("hidden");
+  setDetailOverlay.classList.add("hidden");
+  questionFormOverlay.classList.add("hidden");
+  modeOverlay.classList.remove("hidden");
+}
+
+renameSetBtn.addEventListener("click", () => {
+  const set = getCurrentSet();
+  if (!set) return;
+  renameSetInput.value = set.name;
+  renameSetRow.classList.remove("hidden");
+});
+
+cancelRenameBtn.addEventListener("click", () => {
+  renameSetRow.classList.add("hidden");
+});
+
+saveRenameBtn.addEventListener("click", async () => {
+  const set = getCurrentSet();
+  if (!set) return;
+  const name = renameSetInput.value.trim();
+  if (!name) return;
+  try {
+    const res = await fetch(`/api/question-sets/${set.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const data = await res.json();
+    if (!res.ok) return;
+    questionSets = data;
+    renderSetQuestionsList();
+    renameSetRow.classList.add("hidden");
+    showSavedToast();
+  } catch (err) {
+    console.error("Failed to rename set:", err);
+  }
+});
+
+function questionSummary(q) {
+  if (q.kind === "translate" || q.kind === "sentence") {
+    const arrow = q.direction === "th-en" ? "🇹🇭→🇬🇧" : "🇬🇧→🇹🇭";
+    return `${arrow} ${q.prompt}`;
+  }
+  return q.word.toUpperCase();
+}
+
+function renderSetQuestionsList() {
+  const set = getCurrentSet();
+  if (!set) return;
+  setDetailTitle.textContent = `${set.name} (${set.questions.length}/${MAX_QUESTIONS_PER_SET})`;
+  setQuestionsList.innerHTML = "";
+
+  for (const q of set.questions) {
+    const row = document.createElement("div");
+    row.className = "question-row";
+
+    const badge = document.createElement("div");
+    badge.className = "kind-badge";
+    badge.textContent = q.kind === "translate" ? "🌐" : q.kind === "sentence" ? "🧩" : "📝";
+    row.appendChild(badge);
+
+    const summary = document.createElement("div");
+    summary.className = "q-summary";
+    summary.textContent = questionSummary(q);
+    row.appendChild(summary);
+
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "edit-btn";
+    editBtn.textContent = "✏️";
+    editBtn.addEventListener("click", () => openQuestionForm(q.kind, q));
+    row.appendChild(editBtn);
+
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "delete-btn";
+    delBtn.textContent = "🗑️";
+    delBtn.addEventListener("click", () => deleteQuestion(q.id));
+    row.appendChild(delBtn);
+
+    setQuestionsList.appendChild(row);
+  }
+
+  const full = set.questions.length >= MAX_QUESTIONS_PER_SET;
+  addQuestionBtn.disabled = full;
+  newQuestionKindSelect.disabled = full;
+}
+
+async function deleteQuestion(qid) {
+  const set = getCurrentSet();
+  if (!set) return;
+  try {
+    const res = await fetch(`/api/question-sets/${set.id}/questions/${qid}`, { method: "DELETE" });
+    const list = await res.json();
+    questionSets = list;
+    renderSetQuestionsList();
+  } catch (err) {
+    console.error("Failed to delete question:", err);
+  }
+}
+
+addQuestionBtn.addEventListener("click", () => openQuestionForm(newQuestionKindSelect.value, null));
+
+setDetailBackBtn.addEventListener("click", () => {
+  setDetailOverlay.classList.add("hidden");
+  renderSetsList(); // question counts may have changed
+  setsListOverlay.classList.remove("hidden");
+});
+
+// --- Question form (add or edit, spell or translate) ------------------------
+const QUESTION_KIND_LABELS = {
+  spell: "Spelling Question",
+  translate: "Translation Question",
+  sentence: "Sentence Builder Question",
+};
+
+function openQuestionForm(kind, existingQuestion) {
+  questionFormKind = kind;
+  editingQuestionId = existingQuestion ? existingQuestion.id : null;
+  questionFormTitle.textContent = (existingQuestion ? "Edit " : "Add ") + QUESTION_KIND_LABELS[kind];
+  questionFormError.classList.add("hidden");
+
+  spellFormFields.classList.toggle("hidden", kind !== "spell");
+  translateFormFields.classList.toggle("hidden", kind !== "translate");
+  sentenceFormFields.classList.toggle("hidden", kind !== "sentence");
+
+  if (kind === "spell") {
+    qSpellWordInput.value = existingQuestion ? existingQuestion.word : "";
+    customPhotoDataUrl = existingQuestion && existingQuestion.visualType === "photo" ? existingQuestion.visualValue : null;
+    customEmojiInput.value = existingQuestion && existingQuestion.visualType === "emoji" ? existingQuestion.visualValue : "";
+    setCustomTab(existingQuestion && existingQuestion.visualType === "photo" ? "photo" : "emoji");
+  } else if (kind === "translate") {
+    setDirectionTab(existingQuestion ? existingQuestion.direction : "th-en");
+    qPromptInput.value = existingQuestion ? existingQuestion.prompt : "";
+    for (let i = 0; i < 4; i++) {
+      qOptionInputs[i].value = existingQuestion ? existingQuestion.options[i] : "";
+    }
+    qCorrectRadios[existingQuestion ? existingQuestion.correctIndex : 0].checked = true;
+  } else {
+    setSentDirectionTab(existingQuestion ? existingQuestion.direction : "th-en");
+    qSentPromptInput.value = existingQuestion ? existingQuestion.prompt : "";
+    if (existingQuestion) {
+      sentCardCount = existingQuestion.answerWords.length;
+      sentCardValues = [...existingQuestion.answerWords];
+    } else {
+      sentCardCount = 3;
+      sentCardValues = ["", "", ""];
+    }
+    renderSentCardInputs();
+  }
+
+  setDetailOverlay.classList.add("hidden");
+  questionFormOverlay.classList.remove("hidden");
+}
+
+function closeQuestionForm() {
+  questionFormOverlay.classList.add("hidden");
+  setDetailOverlay.classList.remove("hidden");
+}
+
+cancelQuestionBtn.addEventListener("click", closeQuestionForm);
+
+saveQuestionBtn.addEventListener("click", async () => {
+  const set = getCurrentSet();
+  if (!set) return;
+  questionFormError.classList.add("hidden");
+
+  let body;
+  if (questionFormKind === "spell") {
+    const word = qSpellWordInput.value.trim();
+    const visualValue = customWordEditType === "emoji" ? customEmojiInput.value.trim() : customPhotoDataUrl;
+    if (!/^[a-zA-Z]{2,12}$/.test(word)) {
+      questionFormError.textContent = "Word must be 2-12 letters only.";
+      questionFormError.classList.remove("hidden");
+      return;
+    }
+    if (!visualValue) {
+      questionFormError.textContent = customWordEditType === "emoji" ? "Type an emoji first." : "Choose a photo first.";
+      questionFormError.classList.remove("hidden");
+      return;
+    }
+    body = { kind: "spell", word, visualType: customWordEditType, visualValue };
+  } else if (questionFormKind === "translate") {
+    const prompt = qPromptInput.value.trim();
+    const options = qOptionInputs.map((el) => el.value.trim());
+    if (!prompt) {
+      questionFormError.textContent = "Question sentence can't be empty.";
+      questionFormError.classList.remove("hidden");
+      return;
+    }
+    if (options.some((o) => !o)) {
+      questionFormError.textContent = "Fill in all 4 answer choices.";
+      questionFormError.classList.remove("hidden");
+      return;
+    }
+    const correctIndex = qCorrectRadios.findIndex((r) => r.checked);
+    body = { kind: "translate", direction: currentDirection(), prompt, options, correctIndex };
+  } else {
+    const prompt = qSentPromptInput.value.trim();
+    const answerWords = sentCardValues.map((w) => w.trim());
+    if (!prompt) {
+      questionFormError.textContent = "Question sentence can't be empty.";
+      questionFormError.classList.remove("hidden");
+      return;
+    }
+    if (answerWords.some((w) => !w)) {
+      questionFormError.textContent = "Fill in a word for every card.";
+      questionFormError.classList.remove("hidden");
+      return;
+    }
+    body = { kind: "sentence", direction: currentSentDirection(), prompt, answerWords };
+  }
+
+  saveQuestionBtn.disabled = true;
+  try {
+    const url = editingQuestionId
+      ? `/api/question-sets/${set.id}/questions/${editingQuestionId}`
+      : `/api/question-sets/${set.id}/questions`;
+    const res = await fetch(url, {
+      method: editingQuestionId ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      questionFormError.textContent = data.error || "Something went wrong.";
+      questionFormError.classList.remove("hidden");
+      return;
+    }
+    questionSets = data;
+    renderSetQuestionsList();
+    closeQuestionForm();
+    showSavedToast();
+  } catch (err) {
+    questionFormError.textContent = "Network error — try again.";
+    questionFormError.classList.remove("hidden");
+  } finally {
+    saveQuestionBtn.disabled = false;
+  }
+});
+
+// --- Entry point + login gate -----------------------------------------------
+manageWordsBtn.addEventListener("click", () => {
+  if (sessionStorage.getItem("wordsAuthed") === "1") {
+    categoryOverlay.classList.add("hidden");
+    loadQuestionSets();
+    setsListOverlay.classList.remove("hidden");
+    return;
+  }
+  authUser.value = "";
+  authPass.value = "";
+  authError.classList.add("hidden");
+  authOverlay.classList.remove("hidden");
+});
+
+authSubmitBtn.addEventListener("click", () => {
+  if (authUser.value === AUTH_USER && authPass.value === AUTH_PASS) {
+    sessionStorage.setItem("wordsAuthed", "1");
+    authOverlay.classList.add("hidden");
+    categoryOverlay.classList.add("hidden");
+    loadQuestionSets();
+    setsListOverlay.classList.remove("hidden");
+  } else {
+    authError.classList.remove("hidden");
+  }
+});
+
+authCancelBtn.addEventListener("click", () => {
+  authOverlay.classList.add("hidden");
 });
 
 cameraSwitchBtn.addEventListener("click", async () => {
@@ -1191,7 +1980,11 @@ function exitGame() {
   zoomOverlay.classList.add("hidden");
   zoomOpen = false;
 
-  showRoundIntro(pickRound());
+  // Re-show the question already in progress rather than drawing a new
+  // one — Exit is "stop the camera for a sec," not "skip this question,"
+  // and for a teacher set, drawing a new one would silently consume the
+  // next item in the queue.
+  showRoundIntro(currentRound || pickNextQuestion());
 }
 
 exitBtn.addEventListener("click", exitGame);

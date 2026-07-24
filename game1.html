@@ -33,6 +33,21 @@
       <div id="zoomHint">✌️ Hold up a peace sign to zoom</div>
     </div>
 
+    <div id="translateOverlay" class="hidden">
+      <div id="translateDirectionPill"></div>
+      <div id="translatePromptCard">
+        <div id="translatePromptHint"></div>
+        <div id="translatePromptText"></div>
+      </div>
+      <div id="translateOptions">
+        <button type="button" class="translate-option" data-index="0"><span class="letter-badge">A</span><span class="option-text"></span></button>
+        <button type="button" class="translate-option" data-index="1"><span class="letter-badge">B</span><span class="option-text"></span></button>
+        <button type="button" class="translate-option" data-index="2"><span class="letter-badge">C</span><span class="option-text"></span></button>
+        <button type="button" class="translate-option" data-index="3"><span class="letter-badge">D</span><span class="option-text"></span></button>
+      </div>
+      <div id="translateHint">🤏 Pinch and hold on an answer to pick it</div>
+    </div>
+
     <div id="resultOverlay" class="hidden">
       <div id="resultText"></div>
       <div id="resultWord"></div>
@@ -51,7 +66,134 @@
       <div id="categoryTitle">Pick what to play! 🌟</div>
       <div id="categoryList"></div>
       <button id="categoryPlayBtn" type="button">PLAY! 🎉</button>
+      <button id="manageWordsBtn" type="button">🔒 Manage Question Sets</button>
       <img id="mascotCategory" src="song_song_Body%20Spell%20Challenge/mascot.png" alt="" />
+    </div>
+
+    <div id="authOverlay" class="hidden">
+      <div class="auth-card">
+        <div id="authTitle">🔒 Teacher Login</div>
+        <input id="authUser" type="text" placeholder="Username" autocomplete="off" />
+        <input id="authPass" type="password" placeholder="Password" autocomplete="off" />
+        <div id="authError" class="hidden">Wrong username or password</div>
+        <div class="auth-actions">
+          <button id="authSubmitBtn" type="button">Enter</button>
+          <button id="authCancelBtn" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="setsListOverlay" class="hidden">
+      <div class="mgmt-title">📚 My Question Sets</div>
+      <div id="setsList"></div>
+      <div id="newSetRow">
+        <input id="newSetNameInput" type="text" placeholder="New set name (e.g. ป.5 Unit 3)" maxlength="40" autocomplete="off" />
+        <button id="createSetBtn" type="button">➕ New Set</button>
+      </div>
+      <div id="setsListError" class="mgmt-error hidden"></div>
+      <button id="setsListBackBtn" type="button" class="mgmt-back">← Back</button>
+    </div>
+
+    <div id="setDetailOverlay" class="hidden">
+      <div id="setDetailTitleRow">
+        <div class="mgmt-title" id="setDetailTitle"></div>
+        <button id="renameSetBtn" type="button">✏️</button>
+      </div>
+      <div id="renameSetRow" class="hidden">
+        <input id="renameSetInput" type="text" maxlength="40" autocomplete="off" />
+        <button id="saveRenameBtn" type="button">💾 Save</button>
+        <button id="cancelRenameBtn" type="button">✕</button>
+      </div>
+      <div id="setQuestionsList"></div>
+      <div id="setDetailActions">
+        <select id="newQuestionKindSelect">
+          <option value="spell">📝 Spell a Word</option>
+          <option value="translate">🌐 Translation (Multiple Choice)</option>
+          <option value="sentence">🧩 Sentence Builder</option>
+        </select>
+        <button id="addQuestionBtn" type="button">➕ Add Question</button>
+      </div>
+      <button id="setDetailBackBtn" type="button" class="mgmt-back">← Back to Sets</button>
+    </div>
+
+    <div id="questionFormOverlay" class="hidden">
+      <div class="mgmt-title" id="questionFormTitle">Add Question</div>
+
+      <div id="spellFormFields">
+        <label class="field-label">Word to spell</label>
+        <input id="qSpellWordInput" type="text" placeholder="Type a word (letters only)" maxlength="12" autocomplete="off" />
+        <div id="customVisualTabs">
+          <button id="tabEmojiBtn" type="button" class="tab-btn active">😀 Emoji</button>
+          <button id="tabPhotoBtn" type="button" class="tab-btn">📷 Photo</button>
+        </div>
+        <div id="emojiInputRow">
+          <input id="customEmojiInput" type="text" placeholder="Paste an emoji 🐶" maxlength="4" autocomplete="off" />
+        </div>
+        <div id="photoInputRow" class="hidden">
+          <input id="customPhotoInput" type="file" accept="image/*" capture="environment" />
+        </div>
+        <div id="customPreview"></div>
+      </div>
+
+      <div id="translateFormFields" class="hidden">
+        <label class="field-label">Direction</label>
+        <div id="directionTabs">
+          <button id="dirThEnBtn" type="button" class="tab-btn active">🇹🇭→🇬🇧 Thai to English</button>
+          <button id="dirEnThBtn" type="button" class="tab-btn">🇬🇧→🇹🇭 English to Thai</button>
+        </div>
+
+        <label class="field-label">This is the question — the sentence to translate</label>
+        <input id="qPromptInput" type="text" placeholder="e.g. บ้านของฉันสวย" maxlength="200" autocomplete="off" />
+
+        <label class="field-label">These are the answer choices — mark the one correct answer</label>
+        <div id="optionRows">
+          <div class="option-row">
+            <input type="radio" name="correctOption" id="qCorrect0" value="0" checked />
+            <label for="qCorrect0" class="correct-label">✓ Correct</label>
+            <input type="text" id="qOption0" placeholder="Option A" maxlength="80" autocomplete="off" />
+          </div>
+          <div class="option-row">
+            <input type="radio" name="correctOption" id="qCorrect1" value="1" />
+            <label for="qCorrect1" class="correct-label">✓ Correct</label>
+            <input type="text" id="qOption1" placeholder="Option B" maxlength="80" autocomplete="off" />
+          </div>
+          <div class="option-row">
+            <input type="radio" name="correctOption" id="qCorrect2" value="2" />
+            <label for="qCorrect2" class="correct-label">✓ Correct</label>
+            <input type="text" id="qOption2" placeholder="Option C" maxlength="80" autocomplete="off" />
+          </div>
+          <div class="option-row">
+            <input type="radio" name="correctOption" id="qCorrect3" value="3" />
+            <label for="qCorrect3" class="correct-label">✓ Correct</label>
+            <input type="text" id="qOption3" placeholder="Option D" maxlength="80" autocomplete="off" />
+          </div>
+        </div>
+      </div>
+
+      <div id="sentenceFormFields" class="hidden">
+        <label class="field-label">Direction</label>
+        <div id="sentenceDirectionTabs">
+          <button id="sentDirThEnBtn" type="button" class="tab-btn active">🇹🇭→🇬🇧 Thai to English</button>
+          <button id="sentDirEnThBtn" type="button" class="tab-btn">🇬🇧→🇹🇭 English to Thai</button>
+        </div>
+
+        <label class="field-label">This is the question — the sentence to translate</label>
+        <input id="qSentPromptInput" type="text" placeholder="e.g. I love you" maxlength="200" autocomplete="off" />
+
+        <label class="field-label">This is the answer — pick how many cards, then type one word per card</label>
+        <div id="sentCardCountRow">
+          <button id="sentCardMinusBtn" type="button">−</button>
+          <div id="sentCardCountLabel">3 cards</div>
+          <button id="sentCardPlusBtn" type="button">+</button>
+        </div>
+        <div id="sentCardInputs"></div>
+      </div>
+
+      <div id="questionFormError" class="mgmt-error hidden"></div>
+      <div class="form-actions">
+        <button id="saveQuestionBtn" type="button">💾 Save</button>
+        <button id="cancelQuestionBtn" type="button">✕ Cancel</button>
+      </div>
     </div>
 
     <div id="modeOverlay">
@@ -75,6 +217,8 @@
         </div>
       </div>
     </div>
+
+    <div id="savedToast" class="hidden">✅ Saved!</div>
   </div>
 
   <script type="module" src="js/main.js"></script>

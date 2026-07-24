@@ -169,7 +169,17 @@ html, body {
   z-index: 10;
   user-select: none;
   animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both, cardFloat 2.6s ease-in-out 0.3s infinite;
-  transition: box-shadow 0.15s ease;
+  transition: box-shadow 0.15s ease, width 0.15s ease;
+}
+
+.card.word {
+  padding: 0 10px;
+  white-space: nowrap;
+  border-radius: 999px;
+}
+
+.slot.word {
+  border-radius: 999px;
 }
 
 @keyframes grabPop {
@@ -335,12 +345,162 @@ html, body {
   line-height: 1;
 }
 
+#zoomVisual .visual-text {
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 800;
+  font-size: clamp(28px, 7vw, 56px);
+  line-height: 1.3;
+  text-align: center;
+  padding: 0 20px;
+}
+
+#zoomVisual .visual-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+}
+
 #zoomHint {
   color: #fff;
   font-family: var(--font-fun);
   font-weight: 700;
   font-size: 16px;
   opacity: 0.85;
+}
+
+/* --- Translation multiple-choice round ------------------------------------ */
+#translateOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(14px, 3vh, 24px);
+  padding: 24px;
+  background: rgba(42, 27, 61, 0.78);
+}
+
+#translateOverlay.hidden {
+  display: none;
+}
+
+#translateDirectionPill {
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 700;
+  font-size: clamp(13px, 2vw, 15px);
+}
+
+#translatePromptCard {
+  width: min(480px, 92%);
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: 20px;
+  padding: clamp(16px, 3vh, 26px) 20px;
+  text-align: center;
+}
+
+#translatePromptHint {
+  color: rgba(255, 255, 255, 0.65);
+  font-family: var(--font-fun);
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+#translatePromptText {
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 800;
+  font-size: clamp(20px, 4vw, 28px);
+  line-height: 1.3;
+}
+
+#translateOptions {
+  width: min(480px, 92%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.translate-option {
+  position: relative;
+  overflow: hidden;
+  padding: 16px 20px;
+  border-radius: 16px;
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 700;
+  font-size: clamp(15px, 2.4vw, 18px);
+  text-align: left;
+}
+
+.translate-option::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: calc(var(--hold-progress, 0) * 100%);
+  background: rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+}
+
+.translate-option .letter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  margin-right: 10px;
+  font-size: 13px;
+  position: relative;
+  z-index: 1;
+}
+
+.translate-option .option-text {
+  position: relative;
+  z-index: 1;
+}
+
+.translate-option.hover {
+  border-color: #fff;
+}
+
+#translateHint {
+  color: rgba(255, 255, 255, 0.7);
+  font-family: var(--font-fun);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+#promptDisplay .visual-text,
+#promptThumb .visual-text {
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 800;
+  text-align: center;
+  padding: 0 10px;
+}
+
+#promptDisplay .visual-text {
+  font-size: clamp(20px, 5vw, 34px);
+}
+
+#promptThumb .visual-text {
+  font-size: 12px;
+  line-height: 1.2;
 }
 
 #resultOverlay {
@@ -732,6 +892,14 @@ html, body {
   border-radius: var(--radius-lg);
 }
 
+#promptDisplay .visual-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+  animation: promptPulse 2.4s ease-in-out infinite;
+}
+
 #promptThumb {
   position: absolute;
   top: 60px;
@@ -767,6 +935,12 @@ html, body {
   line-height: 1;
 }
 
+#promptThumb .visual-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 #instructionHint {
   position: absolute;
   top: 48px;
@@ -788,4 +962,667 @@ html, body {
 
 #instructionHint.hidden {
   display: none;
+}
+
+#manageWordsBtn {
+  margin-top: 4px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+#manageWordsBtn:active {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* --- Teacher login gate ------------------------------------------------- */
+#authOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 56;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(26, 15, 40, 0.92);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+#authOverlay.hidden {
+  display: none;
+}
+
+.auth-card {
+  width: min(340px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+}
+
+#authTitle {
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 800;
+  font-size: 22px;
+  margin-bottom: 6px;
+}
+
+.auth-card input {
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-family: var(--font-fun);
+  font-size: 16px;
+}
+
+.auth-card input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+#authError {
+  color: #ff8a80;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+#authError.hidden {
+  display: none;
+}
+
+.auth-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.auth-actions button {
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 999px;
+  font-family: var(--font-fun);
+  font-weight: 800;
+  font-size: 16px;
+  color: #fff;
+}
+
+#authSubmitBtn {
+  background: var(--color-success);
+}
+
+#authCancelBtn {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* --- Manage Question Sets -------------------------------------------------
+   Shared chrome for the three teacher-authoring screens (set list, set
+   detail, question form) — same full-screen scrollable panel look. */
+#setsListOverlay,
+#setDetailOverlay,
+#questionFormOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 54;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  overflow-y: auto;
+  background: rgba(42, 27, 61, 0.98);
+}
+
+#setsListOverlay.hidden,
+#setDetailOverlay.hidden,
+#questionFormOverlay.hidden {
+  display: none;
+}
+
+.mgmt-title {
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 800;
+  font-size: clamp(20px, 3vw, 28px);
+  text-align: center;
+}
+
+.mgmt-error {
+  color: #ff8a80;
+  font-weight: 700;
+  font-size: 13px;
+  text-align: center;
+}
+
+.mgmt-error.hidden {
+  display: none;
+}
+
+.mgmt-back {
+  padding: 12px 28px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 800;
+}
+
+/* Set list ----------------------------------------------------------------*/
+#setsList {
+  width: min(460px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-family: var(--font-fun);
+}
+
+.set-row .set-name {
+  flex: 1;
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.set-row .set-count {
+  opacity: 0.7;
+  font-size: 13px;
+  font-weight: 700;
+  margin-right: 4px;
+}
+
+.set-row button {
+  border: none;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-family: var(--font-fun);
+  font-weight: 700;
+  color: #fff;
+  font-size: 13px;
+}
+
+.set-row .play-btn {
+  background: var(--color-success);
+  white-space: nowrap;
+}
+
+.set-row .play-btn:disabled {
+  opacity: 0.4;
+}
+
+.set-row .open-btn {
+  background: var(--color-primary);
+}
+
+.set-row .delete-btn {
+  background: var(--color-danger);
+}
+
+#newSetRow {
+  width: min(460px, 100%);
+  display: flex;
+  gap: 8px;
+}
+
+#newSetRow input {
+  flex: 1;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-family: var(--font-fun);
+  font-size: 15px;
+}
+
+#newSetRow input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+#createSetBtn {
+  padding: 12px 18px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-success);
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 800;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+/* Set detail ----------------------------------------------------------------*/
+#setQuestionsList {
+  width: min(460px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.question-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 700;
+}
+
+.question-row .kind-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  background: rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.question-row .q-summary {
+  flex: 1;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.question-row button {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-family: var(--font-fun);
+  font-weight: 700;
+  color: #fff;
+  font-size: 13px;
+}
+
+.question-row .edit-btn {
+  background: var(--color-primary);
+}
+
+.question-row .delete-btn {
+  background: var(--color-danger);
+}
+
+#setDetailTitleRow {
+  width: min(460px, 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+#renameSetBtn {
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  padding: 6px 10px;
+  font-size: 14px;
+}
+
+#renameSetRow {
+  width: min(460px, 100%);
+  display: flex;
+  gap: 8px;
+}
+
+#renameSetRow.hidden {
+  display: none;
+}
+
+#renameSetInput {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-family: var(--font-fun);
+  font-size: 15px;
+}
+
+#saveRenameBtn,
+#cancelRenameBtn {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-family: var(--font-fun);
+  font-weight: 700;
+  color: #fff;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+#saveRenameBtn {
+  background: var(--color-success);
+}
+
+#cancelRenameBtn {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+#setDetailActions {
+  width: min(460px, 100%);
+  display: flex;
+  gap: 8px;
+}
+
+#setDetailActions select {
+  flex: 1;
+  padding: 12px 16px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+#setDetailActions select option {
+  background: var(--color-bg-deep);
+  color: #fff;
+}
+
+#setDetailActions button {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-success);
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 800;
+  font-size: 14px;
+}
+
+#setDetailActions button:disabled,
+#setDetailActions select:disabled {
+  opacity: 0.5;
+}
+
+/* Question form -------------------------------------------------------------
+   Shared by both the spell and translate sub-forms. */
+#spellFormFields,
+#translateFormFields,
+#sentenceFormFields {
+  width: min(460px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 18px;
+  padding: 16px;
+}
+
+#translateFormFields.hidden,
+#spellFormFields.hidden,
+#sentenceFormFields.hidden {
+  display: none;
+}
+
+.field-label {
+  color: rgba(255, 255, 255, 0.75);
+  font-family: var(--font-fun);
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
+#spellFormFields input[type="text"],
+#translateFormFields input[type="text"] {
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-family: var(--font-fun);
+  font-size: 16px;
+}
+
+#spellFormFields input::placeholder,
+#translateFormFields input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+#customVisualTabs,
+#directionTabs,
+#sentenceDirectionTabs {
+  display: flex;
+  gap: 8px;
+}
+
+#sentCardCountRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+#sentCardCountRow button {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 900;
+  font-size: 20px;
+  line-height: 1;
+}
+
+#sentCardCountRow button:disabled {
+  opacity: 0.4;
+}
+
+#sentCardCountLabel {
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 800;
+  font-size: 16px;
+  min-width: 70px;
+  text-align: center;
+}
+
+#sentCardInputs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sent-card-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sent-card-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 800;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sent-card-row input {
+  flex: 1;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: transparent;
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.tab-btn.active {
+  background: var(--color-primary);
+  border-color: #fff;
+}
+
+#photoInputRow.hidden,
+#emojiInputRow.hidden {
+  display: none;
+}
+
+#customPhotoInput {
+  color: #fff;
+  font-family: var(--font-fun);
+  font-size: 13px;
+}
+
+#customPreview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60px;
+}
+
+#customPreview .visual-emoji {
+  font-size: 48px;
+}
+
+#customPreview img {
+  max-width: 100px;
+  max-height: 100px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+#optionRows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.option-row input[type="radio"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--color-success);
+  flex-shrink: 0;
+}
+
+.option-row .correct-label {
+  color: var(--color-success);
+  font-family: var(--font-fun);
+  font-weight: 800;
+  font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.option-row input[type="text"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.form-actions {
+  width: min(460px, 100%);
+  display: flex;
+  gap: 10px;
+}
+
+.form-actions button {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 999px;
+  font-family: var(--font-fun);
+  font-weight: 800;
+  font-size: 16px;
+  color: #fff;
+}
+
+#saveQuestionBtn {
+  background: var(--color-success);
+}
+
+#cancelQuestionBtn {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+@keyframes savedToastPop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 10px) scale(0.9);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+#savedToast {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  z-index: 70;
+  padding: 12px 24px;
+  border-radius: 999px;
+  background: var(--color-success);
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 800;
+  font-size: 15px;
+  box-shadow: var(--shadow-pop);
+  pointer-events: none;
+}
+
+#savedToast.hidden {
+  display: none;
+}
+
+#savedToast.show {
+  animation: savedToastPop 1.4s ease both;
 }
