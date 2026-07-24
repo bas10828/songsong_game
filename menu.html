@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Choose a Game</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <style>
+    html, body {
+      height: auto;
+      min-height: 100vh;
+      overflow: auto;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(20px, 4vh, 36px);
+      padding: 32px 20px;
+    }
+    #menuTitle {
+      color: #fff;
+      font-family: var(--font-fun);
+      font-weight: 900;
+      font-size: clamp(24px, 5vw, 36px);
+      text-align: center;
+    }
+    #gameCards {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+      width: min(760px, 100%);
+    }
+    .game-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      width: min(320px, 100%);
+      padding: 28px 22px;
+      border-radius: 26px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 2px solid rgba(255, 255, 255, 0.18);
+      text-decoration: none;
+      text-align: center;
+      transition: transform 0.12s ease, border-color 0.12s ease;
+    }
+    .game-card:active {
+      transform: scale(0.97);
+    }
+    .game-card .emoji {
+      font-size: 56px;
+      line-height: 1;
+    }
+    .game-card .game-name {
+      color: #fff;
+      font-family: var(--font-fun);
+      font-weight: 800;
+      font-size: 20px;
+    }
+    .game-card .game-desc {
+      color: rgba(255, 255, 255, 0.7);
+      font-family: var(--font-fun);
+      font-weight: 600;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    .game-card.camera {
+      border-color: var(--color-primary);
+    }
+    .game-card.touch {
+      border-color: #ef4f67;
+    }
+    #menuMascot {
+      height: min(22vh, 150px);
+      animation: mascotBob 3.2s ease-in-out infinite;
+      filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.4));
+    }
+  </style>
+</head>
+<body>
+  <div id="menuTitle">🎮 Choose a Game</div>
+
+  <div id="gameCards">
+    <a class="game-card camera" href="game1.html">
+      <div class="emoji">🖐️</div>
+      <div class="game-name">Spelling Adventure</div>
+      <div class="game-desc">Hand-tracking camera game — spell words, translate sentences, no controller needed</div>
+    </a>
+
+    <a class="game-card touch" href="index.html">
+      <div class="emoji">🎯</div>
+      <div class="game-name">Body Spell Challenge</div>
+      <div class="game-desc">🔴 Team Red vs 🔵 Team Blue — touch the body part before time runs out</div>
+    </a>
+  </div>
+
+  <img id="menuMascot" src="song_song_Body%20Spell%20Challenge/mascot.png" alt="" />
+</body>
+</html>
