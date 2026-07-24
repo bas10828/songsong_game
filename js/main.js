@@ -19,6 +19,12 @@ const resultOverlay = document.getElementById("resultOverlay");
 const resultText = document.getElementById("resultText");
 const resultWord = document.getElementById("resultWord");
 const nextBtn = document.getElementById("nextBtn");
+const zoomOverlay = document.getElementById("zoomOverlay");
+const zoomVisual = document.getElementById("zoomVisual");
+const categoryOverlay = document.getElementById("categoryOverlay");
+const categoryList = document.getElementById("categoryList");
+const categoryPlayBtn = document.getElementById("categoryPlayBtn");
+const categoriesBtn = document.getElementById("categoriesBtn");
 
 // Hysteresis: grabbing needs a tighter pinch than releasing needs, so a
 // finger held near the threshold doesn't flicker grab/release every frame.
@@ -37,11 +43,53 @@ const SHAPE_PATHS = {
   diamond: '<polygon points="50,4 92,50 50,96 8,50"/>',
 };
 
+const ANIMAL_EMOJI = {
+  cat: "🐱", dog: "🐶", pig: "🐷", cow: "🐮", hen: "🐔", owl: "🦉",
+  fox: "🦊", bee: "🐝", ant: "🐜", bat: "🦇", bear: "🐻", lion: "🦁",
+  frog: "🐸", duck: "🦆", fish: "🐟", crab: "🦀", goat: "🐐", deer: "🦌",
+  wolf: "🐺", mouse: "🐭", snake: "🐍", horse: "🐴", sheep: "🐑",
+  tiger: "🐯", zebra: "🦓", camel: "🐫", koala: "🐨", panda: "🐼",
+  shark: "🦈", whale: "🐳", eagle: "🦅", snail: "🐌", turtle: "🐢",
+  monkey: "🐵", rabbit: "🐰", parrot: "🦜", elephant: "🐘", giraffe: "🦒",
+  penguin: "🐧", chick: "🐥", spider: "🕷️", ladybug: "🐞", octopus: "🐙",
+  kangaroo: "🦘", hamster: "🐹", squirrel: "🐿️", peacock: "🦚", flamingo: "🦩",
+  swan: "🦢", gorilla: "🦍", hippo: "🦛", rhino: "🦏", otter: "🦦",
+  seal: "🦭", dolphin: "🐬", buffalo: "🐃",
+};
+
+const FRUIT_EMOJI = {
+  apple: "🍎", banana: "🍌", grape: "🍇", mango: "🥭", melon: "🍈",
+  cherry: "🍒", peach: "🍑", lemon: "🍋", pear: "🍐", kiwi: "🥝",
+  pineapple: "🍍", coconut: "🥥", strawberry: "🍓", watermelon: "🍉",
+  avocado: "🥑", tomato: "🍅",
+};
+
+const VEHICLE_EMOJI = {
+  car: "🚗", bus: "🚌", bike: "🚲", boat: "⛵", train: "🚆",
+  plane: "✈️", truck: "🚚", ship: "🚢", taxi: "🚕", tram: "🚊",
+  rocket: "🚀", scooter: "🛴", tractor: "🚜",
+};
+
+const FOOD_EMOJI = {
+  cake: "🍰", bread: "🍞", candy: "🍬", pizza: "🍕", taco: "🌮",
+  egg: "🥚", rice: "🍚", soup: "🍲", milk: "🥛", juice: "🧃",
+  donut: "🍩", cookie: "🍪", burger: "🍔", popcorn: "🍿",
+};
+
+function emojiTheme(map) {
+  return Object.entries(map).map(([word, emoji]) => ({ word, type: "emoji", value: emoji }));
+}
+
 const THEMES = {
   colors: [
-    "red", "blue", "green", "yellow", "orange", "purple", "pink", "brown", "black", "white",
+    "red", "blue", "green", "yellow", "orange", "purple", "pink", "brown",
+    "black", "white", "gray", "gold", "teal", "cyan", "lime", "navy",
   ].map((word) => ({ word, type: "color", value: COLOR_HEX(word) })),
   shapes: Object.keys(SHAPE_PATHS).map((word) => ({ word, type: "shape", value: word })),
+  animals: emojiTheme(ANIMAL_EMOJI),
+  fruits: emojiTheme(FRUIT_EMOJI),
+  vehicles: emojiTheme(VEHICLE_EMOJI),
+  food: emojiTheme(FOOD_EMOJI),
 };
 
 function COLOR_HEX(name) {
@@ -56,12 +104,34 @@ function COLOR_HEX(name) {
     brown: "#6d4c41",
     black: "#212121",
     white: "#f5f5f5",
+    gray: "#757575",
+    gold: "#c9a227",
+    teal: "#00897b",
+    cyan: "#00bcd4",
+    lime: "#c0d92e",
+    navy: "#1a237e",
   };
   return map[name];
 }
 
-// Colors only for now — shapes theme re-enables once its own visual prompts are ready.
-const ALL_ROUNDS = [...THEMES.colors];
+// Shapes stay disabled until their own visual prompts are ready; every other
+// theme is code-rendered (color swatch or emoji) so all are safe to combine.
+// The player narrows this down to one or more categories via the picker.
+const CATEGORIES = [
+  { id: "colors", label: "🎨 Colors", rounds: THEMES.colors },
+  { id: "animals", label: "🐾 Animals", rounds: THEMES.animals },
+  { id: "fruits", label: "🍎 Fruits", rounds: THEMES.fruits },
+  { id: "vehicles", label: "🚗 Vehicles", rounds: THEMES.vehicles },
+  { id: "food", label: "🍕 Food", rounds: THEMES.food },
+];
+const ALL_ROUNDS = CATEGORIES.flatMap((c) => c.rounds);
+const selectedCategoryIds = new Set(CATEGORIES.map((c) => c.id));
+
+function currentPool() {
+  const active = CATEGORIES.filter((c) => selectedCategoryIds.has(c.id));
+  const pool = active.flatMap((c) => c.rounds);
+  return pool.length ? pool : ALL_ROUNDS;
+}
 
 function renderVisual(container, round) {
   container.innerHTML = "";
@@ -70,6 +140,11 @@ function renderVisual(container, round) {
     block.className = "visual-color";
     block.style.background = round.value;
     container.appendChild(block);
+  } else if (round.type === "emoji") {
+    const emoji = document.createElement("div");
+    emoji.className = "visual-emoji";
+    emoji.textContent = round.value;
+    container.appendChild(emoji);
   } else {
     container.innerHTML = `<svg viewBox="0 0 100 100" fill="#29b6f6">${SHAPE_PATHS[round.value]}</svg>`;
   }
@@ -94,6 +169,24 @@ let lastRoundWord = "";
 let cameraStarted = false;
 let grabRadiusPx = 55;
 let prevIsPinching = false;
+let lastSparkleTime = 0;
+let lastDustTime = performance.now();
+
+function spawnSparkles(x, y, count = 6) {
+  for (let i = 0; i < count; i++) {
+    const s = document.createElement("span");
+    s.className = "sparkle";
+    s.textContent = Math.random() < 0.5 ? "✨" : "⭐";
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 24 + Math.random() * 24;
+    s.style.setProperty("--sx", `${Math.cos(angle) * dist}px`);
+    s.style.setProperty("--sy", `${Math.sin(angle) * dist - 18}px`);
+    s.style.left = `${x}px`;
+    s.style.top = `${y}px`;
+    stage.appendChild(s);
+    s.addEventListener("animationend", () => s.remove());
+  }
+}
 
 function resizeCanvasToVideo() {
   overlay.width = overlay.clientWidth;
@@ -118,10 +211,11 @@ function shuffle(arr) {
 }
 
 function pickRound() {
+  const pool = currentPool();
   let round;
   do {
-    round = ALL_ROUNDS[Math.floor(Math.random() * ALL_ROUNDS.length)];
-  } while (round.word === lastRoundWord && ALL_ROUNDS.length > 1);
+    round = pool[Math.floor(Math.random() * pool.length)];
+  } while (round.word === lastRoundWord && pool.length > 1);
   lastRoundWord = round.word;
   return round;
 }
@@ -318,8 +412,109 @@ function mapX(xNorm, width) {
   return facingMode === "user" ? (1 - xNorm) * width : xNorm * width;
 }
 
+// Magic-light cursor drawn at the pinch point: a soft glowing orb that
+// pulses gently, flaring brighter (gold -> purple-white) when pinching.
+function drawMagicOrb(point, isPinching) {
+  const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 170);
+  const baseRgb = isPinching ? "179, 107, 255" : "255, 213, 79";
+  const radius = (isPinching ? 15 : 11) + pulse * (isPinching ? 5 : 3);
+
+  ctx.save();
+  ctx.shadowBlur = 18 + pulse * 12;
+  ctx.shadowColor = `rgba(${baseRgb}, 0.95)`;
+
+  const gradient = ctx.createRadialGradient(
+    point.x, point.y, 0,
+    point.x, point.y, radius
+  );
+  gradient.addColorStop(0, "rgba(255, 255, 255, 0.95)");
+  gradient.addColorStop(0.45, `rgba(${baseRgb}, 0.9)`);
+  gradient.addColorStop(1, `rgba(${baseRgb}, 0)`);
+
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// A little ring of tiny sparkles orbiting the pinch point — purely
+// decorative flair to make the hand cursor read as "magic wand" rather
+// than a plain dot.
+const ORBIT_GLYPHS = ["✨", "⭐", "💫"];
+
+function drawOrbHalo(point, isPinching) {
+  const count = isPinching ? 6 : 4;
+  const radius = isPinching ? 30 : 24;
+  const t = performance.now() / 480;
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i < count; i++) {
+    const angle = t + (i * Math.PI * 2) / count;
+    const x = point.x + Math.cos(angle) * radius;
+    const y = point.y + Math.sin(angle) * radius * 0.6;
+    const twinkle = 0.5 + 0.5 * Math.sin(t * 3 + i * 1.7);
+    ctx.globalAlpha = 0.4 + twinkle * 0.6;
+    ctx.font = `${8 + twinkle * 6}px serif`;
+    ctx.fillText(ORBIT_GLYPHS[i % ORBIT_GLYPHS.length], x, y);
+  }
+  ctx.restore();
+}
+
+// Continuous fairy-dust trail: tiny fading glitter particles emitted from
+// the pinch point every frame, independent of grabbing a card, so the whole
+// hand cursor feels alive rather than just the moment of a grab.
+let dustParticles = [];
+
+function spawnDust(x, y, count) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 0.15 + Math.random() * 0.35;
+    dustParticles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 0.25,
+      age: 0,
+      maxAge: 350 + Math.random() * 350,
+      size: 1.2 + Math.random() * 2.2,
+      rgb: Math.random() < 0.5 ? "255, 213, 79" : "179, 107, 255",
+    });
+  }
+}
+
+function updateAndDrawDust(dt) {
+  if (dustParticles.length === 0) return;
+  ctx.save();
+  for (let i = dustParticles.length - 1; i >= 0; i--) {
+    const p = dustParticles[i];
+    p.age += dt;
+    if (p.age > p.maxAge) {
+      dustParticles.splice(i, 1);
+      continue;
+    }
+    p.x += p.vx * (dt / 16);
+    p.y += p.vy * (dt / 16);
+    const t = p.age / p.maxAge;
+    const alpha = (1 - t) * 0.85;
+    const r = p.size * (1 - t * 0.5);
+    ctx.shadowBlur = 5;
+    ctx.shadowColor = `rgba(${p.rgb}, ${alpha})`;
+    ctx.fillStyle = `rgba(${p.rgb}, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 function processResult(result) {
   ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+  const now = performance.now();
+  const dustDt = now - lastDustTime;
+  lastDustTime = now;
+  updateAndDrawDust(dustDt);
 
   if (!result.landmarks || result.landmarks.length === 0) {
     pinchDebugEl.textContent = "pinch: no hand";
@@ -331,6 +526,7 @@ function processResult(result) {
       grabbedCardId = null;
       grabOriginSlot = null;
     }
+    handleZoomGesture(false);
     return;
   }
 
@@ -350,29 +546,112 @@ function processResult(result) {
     isPinchingState = false;
   }
   const isPinching = isPinchingState;
-  pinchDebugEl.textContent = `pinch: ${pinchRatio.toFixed(2)} ${isPinching ? "🤏" : ""}`;
+
+  const fingers = {
+    thumb: isFingerExtended(landmarks, 4, 2, wrist, palmScale),
+    index: isFingerExtended(landmarks, 8, 6, wrist, palmScale),
+    middle: isFingerExtended(landmarks, 12, 10, wrist, palmScale),
+    ring: isFingerExtended(landmarks, 16, 14, wrist, palmScale),
+    pinky: isFingerExtended(landmarks, 20, 18, wrist, palmScale),
+  };
+  const isThumbsUp = fingers.thumb && !fingers.index && !fingers.middle && !fingers.ring && !fingers.pinky;
+  const isPeaceSign = fingers.index && fingers.middle && !fingers.ring && !fingers.pinky;
+  pinchDebugEl.textContent = `pinch: ${pinchRatio.toFixed(2)} ${isPinching ? "🤏" : ""} ${isThumbsUp ? "👍" : ""} ${isPeaceSign ? "✌️" : ""}`;
 
   const pinchPoint = {
     x: mapX((thumbTip.x + indexTip.x) / 2, overlay.width),
     y: ((thumbTip.y + indexTip.y) / 2) * overlay.height,
   };
 
-  ctx.fillStyle = "#00e5ff";
-  for (const lm of landmarks) {
+  // Twinkling fairy-light dots instead of plain landmark markers: size and
+  // color shimmer per-point so the whole hand sparkles, not just the cursor.
+  const twinkleT = now / 260;
+  ctx.save();
+  landmarks.forEach((lm, i) => {
     const x = mapX(lm.x, overlay.width);
     const y = lm.y * overlay.height;
+    const twinkle = 0.5 + 0.5 * Math.sin(twinkleT + i * 1.3);
+    const rgb = i % 2 === 0 ? "255, 213, 79" : "255, 154, 226";
+    ctx.shadowBlur = 6 + twinkle * 6;
+    ctx.shadowColor = `rgba(${rgb}, 0.9)`;
+    ctx.fillStyle = `rgba(${rgb}, ${0.6 + twinkle * 0.4})`;
     ctx.beginPath();
-    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.arc(x, y, 2 + twinkle * 2, 0, Math.PI * 2);
     ctx.fill();
-  }
+  });
+  ctx.restore();
 
-  ctx.strokeStyle = isPinching ? "#4caf50" : "#ff5252";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.arc(pinchPoint.x, pinchPoint.y, 14, 0, Math.PI * 2);
-  ctx.stroke();
+  drawMagicOrb(pinchPoint, isPinching);
+  drawOrbHalo(pinchPoint, isPinching);
+  spawnDust(pinchPoint.x, pinchPoint.y, isPinching ? 2 : 1);
 
   handleGesture(isPinching, pinchPoint);
+  handleThumbsUpGesture(isThumbsUp);
+  const roundActive = currentRound && startOverlay.classList.contains("hidden");
+  handleZoomGesture(isPeaceSign && !isPinching && grabbedCardId === null && roundActive);
+}
+
+// Finger-extension check: distance-based (tip vs. its own middle knuckle,
+// both measured from the wrist) so it holds up across hand rotation,
+// unlike an axis-aligned check. The margin is deliberately generous (not
+// just "farther than the knuckle") so an ordinary half-open hand while
+// reaching for a card doesn't read as "extended".
+const FINGER_EXTEND_MARGIN = 0.28;
+
+function isFingerExtended(landmarks, tipIdx, midIdx, wrist, palmScale) {
+  const tip = landmarks[tipIdx];
+  const mid = landmarks[midIdx];
+  return distance(tip, wrist) - distance(mid, wrist) > palmScale * FINGER_EXTEND_MARGIN;
+}
+
+// A held-up thumbs-up acts as a hands-free "confirm" button press for
+// whichever screen is active — an alternative to pinch-clicking the tiny
+// on-screen buttons, which some players find fiddly to land. A fist-with-
+// thumb-out is a very different shape from an open reaching hand, so it's
+// much less prone to misfiring mid-round than the index+pinky "ILY" sign
+// used before.
+//
+// It still has to be held for THUMBS_UP_HOLD_MS before it fires (not just a
+// single rising-edge frame), as a second guard against one noisy MediaPipe
+// frame triggering an accidental Submit mid-round.
+const THUMBS_UP_HOLD_MS = 350;
+let thumbsUpHoldStart = null;
+let thumbsUpFired = false;
+
+function handleThumbsUpGesture(isThumbsUp) {
+  if (!isThumbsUp || isPinchingState || grabbedCardId !== null) {
+    thumbsUpHoldStart = null;
+    thumbsUpFired = false;
+    return;
+  }
+  if (thumbsUpHoldStart === null) thumbsUpHoldStart = performance.now();
+  if (thumbsUpFired || performance.now() - thumbsUpHoldStart < THUMBS_UP_HOLD_MS) return;
+  thumbsUpFired = true;
+
+  if (roundIntroPinchable() && !startBtn.disabled) {
+    startBtn.click();
+  } else if (!resultOverlay.classList.contains("hidden")) {
+    nextBtn.click();
+  } else if (startOverlay.classList.contains("hidden")) {
+    submitBtn.click();
+  }
+}
+
+// Holding up a peace sign (index + middle) magnifies the current round's
+// picture full-screen — a "zoom to check" for the tiny corner thumbnail
+// during a round. It's a hold gesture (not a click), so the overlay tracks
+// state directly rather than only firing on a rising edge.
+let zoomOpen = false;
+
+function handleZoomGesture(shouldShow) {
+  if (shouldShow === zoomOpen) return;
+  zoomOpen = shouldShow;
+  if (shouldShow) {
+    renderVisual(zoomVisual, currentRound);
+    zoomOverlay.classList.remove("hidden");
+  } else {
+    zoomOverlay.classList.add("hidden");
+  }
 }
 
 // Stage-relative hit test: pinchPoint is in the same pixel space as card
@@ -448,6 +727,7 @@ function handleGesture(isPinching, pinchPoint) {
       grabbedCardId = nearest.id;
       grabOriginSlot = nearest.currentSlot;
       nearest.el.dataset.grabbed = "true";
+      spawnSparkles(nearest.x, nearest.y, 7);
       grabOffset = { x: nearest.x - pinchPoint.x, y: nearest.y - pinchPoint.y };
       if (nearest.currentSlot !== null) {
         slots[nearest.currentSlot].cardId = null;
@@ -463,6 +743,11 @@ function handleGesture(isPinching, pinchPoint) {
       card.x = pinchPoint.x + grabOffset.x;
       card.y = pinchPoint.y + grabOffset.y;
       renderCard(card);
+      const now = performance.now();
+      if (now - lastSparkleTime > 110) {
+        lastSparkleTime = now;
+        spawnSparkles(card.x, card.y, 1);
+      }
     } else {
       card.el.dataset.grabbed = "false";
       dropCard(card);
@@ -616,7 +901,36 @@ async function start() {
 }
 
 startBtn.addEventListener("click", start);
-showRoundIntro(pickRound());
+
+function renderCategoryChips() {
+  categoryList.innerHTML = "";
+  for (const cat of CATEGORIES) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "category-chip";
+    chip.classList.toggle("active", selectedCategoryIds.has(cat.id));
+    chip.textContent = cat.label;
+    chip.addEventListener("click", () => {
+      if (selectedCategoryIds.has(cat.id)) {
+        selectedCategoryIds.delete(cat.id);
+      } else {
+        selectedCategoryIds.add(cat.id);
+      }
+      chip.classList.toggle("active", selectedCategoryIds.has(cat.id));
+    });
+    categoryList.appendChild(chip);
+  }
+}
+renderCategoryChips();
+
+categoryPlayBtn.addEventListener("click", () => {
+  categoryOverlay.classList.add("hidden");
+  showRoundIntro(pickRound());
+});
+
+categoriesBtn.addEventListener("click", () => {
+  categoryOverlay.classList.remove("hidden");
+});
 
 cameraSwitchBtn.addEventListener("click", async () => {
   facingMode = facingMode === "user" ? "environment" : "user";
@@ -650,6 +964,8 @@ function exitGame() {
   resultOverlay.classList.add("hidden");
   promptThumb.classList.add("hidden");
   instructionHint.classList.add("hidden");
+  zoomOverlay.classList.add("hidden");
+  zoomOpen = false;
 
   showRoundIntro(pickRound());
 }

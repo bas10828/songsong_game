@@ -12,6 +12,7 @@
       <span id="fps">FPS: --</span>
       <span id="pinchDebug">pinch: --</span>
       <span id="status">Loading model…</span>
+      <button id="categoriesBtn" type="button">🎯 Categories</button>
       <button id="cameraSwitchBtn" type="button">Switch Camera</button>
       <button id="exitBtn" type="button">✕ Exit</button>
     </div>
@@ -26,16 +27,27 @@
       <button id="submitBtn" type="button">Submit</button>
     </div>
 
+    <div id="zoomOverlay" class="hidden">
+      <div id="zoomVisual"></div>
+      <div id="zoomHint">✌️ Hold up a peace sign to zoom</div>
+    </div>
+
     <div id="resultOverlay" class="hidden">
       <div id="resultText"></div>
       <div id="resultWord"></div>
       <button id="nextBtn" type="button">Next Word</button>
     </div>
 
-    <div id="startOverlay">
+    <div id="startOverlay" class="hidden">
       <div id="promptDisplay"></div>
       <button id="startBtn" type="button">Start Camera</button>
       <a id="menuLink" href="index.html">🏠 Back to Menu</a>
+    </div>
+
+    <div id="categoryOverlay">
+      <div id="categoryTitle">Pick what to play!</div>
+      <div id="categoryList"></div>
+      <button id="categoryPlayBtn" type="button">PLAY ▶</button>
     </div>
   </div>
 

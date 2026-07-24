@@ -3,6 +3,8 @@
   --color-primary: #5b6ee8;
   --color-success: #2ecc71;
   --color-danger: #ff5b6a;
+  --color-magic-a: #b06bff;
+  --color-magic-b: #ffd54f;
   --radius-lg: 22px;
   --radius-md: 14px;
   --shadow-pop: 0 8px 20px rgba(0, 0, 0, 0.35);
@@ -169,11 +171,75 @@ html, body {
   transition: box-shadow 0.15s ease;
 }
 
+@keyframes grabPop {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  45% {
+    transform: translate(-50%, -50%) scale(1.22);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.08);
+  }
+}
+
+@keyframes grabGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 4px var(--color-magic-a), 0 0 18px 4px rgba(176, 107, 255, 0.6), 0 10px 20px rgba(0, 0, 0, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 7px var(--color-magic-b), 0 0 28px 10px rgba(255, 213, 79, 0.8), 0 10px 20px rgba(0, 0, 0, 0.5);
+  }
+}
+
+@keyframes auraSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .card[data-grabbed="true"] {
   z-index: 15;
-  animation: none;
   transform: translate(-50%, -50%) scale(1.08);
-  box-shadow: 0 0 0 4px var(--color-primary), 0 10px 20px rgba(0, 0, 0, 0.5);
+  animation: grabPop 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+    grabGlow 0.7s ease-in-out 0.18s infinite;
+}
+
+.card[data-grabbed="true"]::before {
+  content: "";
+  position: absolute;
+  inset: -16px;
+  z-index: -1;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--color-magic-a), var(--color-magic-b), var(--color-magic-a));
+  filter: blur(7px);
+  opacity: 0.65;
+  animation: auraSpin 1.2s linear infinite;
+}
+
+@keyframes sparkleFloat {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.3) rotate(0deg);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--sx, 0px)), calc(-50% + var(--sy, -40px))) scale(1) rotate(180deg);
+  }
+}
+
+.sparkle {
+  position: absolute;
+  z-index: 16;
+  pointer-events: none;
+  font-size: 18px;
+  line-height: 1;
+  color: #ffe27a;
+  text-shadow: 0 0 6px #ffd54f, 0 0 12px #b06bff;
+  animation: sparkleFloat 0.6s ease-out forwards;
 }
 
 #submitBtn {
@@ -210,6 +276,70 @@ html, body {
 #startBtn.hover {
   transform: scale(1.08);
   box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.7), var(--shadow-pop);
+}
+
+#zoomOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: rgba(10, 10, 26, 0.88);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+
+#zoomOverlay.hidden {
+  display: none;
+}
+
+@keyframes zoomPop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+#zoomVisual {
+  width: min(70vw, 70vh);
+  height: min(70vw, 70vh);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: zoomPop 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+#zoomVisual .visual-color {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-lg);
+}
+
+#zoomVisual svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.4));
+}
+
+#zoomVisual .visual-emoji {
+  font-size: min(56vw, 56vh);
+  line-height: 1;
+}
+
+#zoomHint {
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 700;
+  font-size: 16px;
+  opacity: 0.85;
 }
 
 #resultOverlay {
@@ -308,6 +438,77 @@ html, body {
   opacity: 1;
 }
 
+#categoryOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 24px;
+  background: rgba(15, 16, 36, 0.96);
+}
+
+#categoryOverlay.hidden {
+  display: none;
+}
+
+#categoryTitle {
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 800;
+  font-size: clamp(20px, 3vw, 30px);
+}
+
+#categoryList {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  max-width: 560px;
+}
+
+.category-chip {
+  padding: 14px 22px;
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 700;
+  font-size: clamp(15px, 2vw, 19px);
+  transition: transform 0.1s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.category-chip.active {
+  background: var(--color-primary);
+  border-color: #fff;
+  transform: scale(1.05);
+}
+
+.category-chip:active {
+  transform: scale(0.94);
+}
+
+#categoryPlayBtn {
+  margin-top: 8px;
+  padding: clamp(14px, 2vw, 20px) clamp(36px, 6vw, 56px);
+  font-size: clamp(18px, 2vw, 24px);
+  font-family: var(--font-fun);
+  font-weight: 800;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-success);
+  color: #fff;
+  box-shadow: var(--shadow-pop);
+}
+
+#categoryPlayBtn:active {
+  filter: brightness(0.88);
+}
+
 @keyframes promptPulse {
   0%, 100% {
     box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.3), var(--shadow-pop);
@@ -338,6 +539,13 @@ html, body {
   filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.4));
 }
 
+#promptDisplay .visual-emoji {
+  font-size: min(48vw, 48vh);
+  line-height: 1;
+  animation: promptPulse 2.4s ease-in-out infinite;
+  border-radius: var(--radius-lg);
+}
+
 #promptThumb {
   position: absolute;
   top: 60px;
@@ -366,6 +574,11 @@ html, body {
 #promptThumb svg {
   width: 80%;
   height: 80%;
+}
+
+#promptThumb .visual-emoji {
+  font-size: 40px;
+  line-height: 1;
 }
 
 #instructionHint {
