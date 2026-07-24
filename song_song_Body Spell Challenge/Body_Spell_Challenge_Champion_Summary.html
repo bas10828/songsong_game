@@ -297,6 +297,19 @@
       background: #3c69d9
     }
 
+    .no-point {
+      width: 100%;
+      min-height: 46px;
+      margin-top: 10px;
+      border: 0;
+      border-radius: 13px;
+      font-size: 15px;
+      font-weight: 900;
+      background: #6b7684;
+      color: white;
+      cursor: pointer
+    }
+
     .minus-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -621,6 +634,8 @@
             </div>
           </div>
 
+          <button id="noPointBtn" class="no-point" disabled>❌ BOTH WRONG — NO POINTS</button>
+
           <div class="minus-row">
             <button id="minusA" class="minus">− Team Red</button>
             <button id="minusB" class="minus">− Team Blue</button>
@@ -728,6 +743,7 @@
     const repeatBtn = document.getElementById("repeatBtn");
     const awardA = document.getElementById("awardA");
     const awardB = document.getElementById("awardB");
+    const noPointBtn = document.getElementById("noPointBtn");
     const gameOver = document.getElementById("gameOver");
 
     function updateTimer() {
@@ -745,6 +761,7 @@
       awaitingAward = enabled;
       awardA.disabled = !enabled;
       awardB.disabled = !enabled;
+      noPointBtn.disabled = !enabled;
       awardA.textContent = `+${roundPoints} TEAM RED`;
       awardB.textContent = `+${roundPoints} TEAM BLUE`;
     }
@@ -963,6 +980,22 @@
       updateTimer();
       luckyBadge.classList.remove("show");
     }
+    function noOneScores() {
+      if (!awaitingAward) return;
+      const usedSeconds = 60 - timeLeft;
+      completedRounds++;
+      totalTimeUsed += usedSeconds;
+      if (fastestRound === null || usedSeconds < fastestRound) fastestRound = usedSeconds;
+      if (roundWasLucky) luckyRoundsPlayed++;
+      setAwardEnabled(false);
+      startBtn.disabled = false;
+      statusEl.textContent = "NO POINTS — both teams wrong!";
+      resultEl.textContent = "Ready for the next player. Tap START.";
+      timeLeft = 60;
+      updateTimer();
+      luckyBadge.classList.remove("show");
+      if (completedRounds >= 20) setTimeout(showGameSummary, 700);
+    }
     function resetRound() {
       clearInterval(timerId);
       speechSynthesis.cancel();
@@ -1074,6 +1107,7 @@
     });
     awardA.addEventListener("click", () => awardPoint("A"));
     awardB.addEventListener("click", () => awardPoint("B"));
+    noPointBtn.addEventListener("click", noOneScores);
     document.getElementById("minusA").addEventListener("click", () => {
       scoreA = Math.max(0, scoreA - 1);
       document.getElementById("scoreA").textContent = scoreA;
