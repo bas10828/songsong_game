@@ -25,6 +25,67 @@ const categoryOverlay = document.getElementById("categoryOverlay");
 const categoryList = document.getElementById("categoryList");
 const categoryPlayBtn = document.getElementById("categoryPlayBtn");
 const categoriesBtn = document.getElementById("categoriesBtn");
+const modeOverlay = document.getElementById("modeOverlay");
+const modeSoloBtn = document.getElementById("modeSoloBtn");
+const modeTeamBtn = document.getElementById("modeTeamBtn");
+const scoreHud = document.getElementById("scoreHud");
+const teamTurnBanner = document.getElementById("teamTurnBanner");
+const summaryOverlay = document.getElementById("summaryOverlay");
+const summaryTitle = document.getElementById("summaryTitle");
+const summaryScore = document.getElementById("summaryScore");
+const playAgainBtn = document.getElementById("playAgainBtn");
+const newSetupBtn = document.getElementById("newSetupBtn");
+
+// Hand-effect "skins" — each bundles the colors/glyphs used to draw the
+// hand skeleton, pinch orb, and particle trails, plus the two CSS magic-
+// aura colors used by the card-grab effect (synced onto :root so the
+// existing CSS keeps working unchanged). One is picked at random each
+// round so the effect keeps feeling fresh.
+const HAND_SKINS = [
+  {
+    name: "fairy",
+    boneColors: ["255, 241, 199", "255, 245, 214", "255, 250, 235", "255, 245, 214", "255, 241, 199"],
+    tipGlowRgb: "255, 250, 235",
+    orbIdleRgb: "255, 213, 79",
+    orbPinchRgb: "255, 244, 214",
+    orbitGlyphs: ["✨", "🌟", "💫"],
+    dustRgbs: ["255, 250, 235", "255, 213, 79"],
+    sparkleGlyphs: ["✨", "🌟"],
+    magicA: "#fff4d6",
+    magicB: "#ffd54f",
+  },
+  {
+    name: "unicorn",
+    boneColors: ["255, 110, 110", "255, 214, 92", "110, 220, 150", "110, 180, 255", "200, 120, 255"],
+    tipGlowRgb: "255, 255, 255",
+    orbIdleRgb: "255, 255, 255",
+    orbPinchRgb: "200, 120, 255",
+    orbitGlyphs: ["🦄", "✨", "🌈"],
+    dustRgbs: ["255, 110, 110", "255, 214, 92", "110, 220, 150", "110, 180, 255", "200, 120, 255"],
+    sparkleGlyphs: ["🌈", "✨", "⭐"],
+    magicA: "#b06bff",
+    magicB: "#7fd1ff",
+  },
+  {
+    name: "flower",
+    boneColors: ["90, 170, 90", "120, 200, 120", "100, 190, 140", "130, 200, 110", "110, 180, 160"],
+    tipGlowRgb: "255, 182, 213",
+    orbIdleRgb: "182, 230, 150",
+    orbPinchRgb: "255, 133, 177",
+    orbitGlyphs: ["🌸", "🦋", "🌷"],
+    dustRgbs: ["255, 182, 213", "182, 230, 150", "255, 133, 177"],
+    sparkleGlyphs: ["🌸", "🦋"],
+    magicA: "#8fd68f",
+    magicB: "#ff9ecf",
+  },
+];
+let currentHandSkin = HAND_SKINS[0];
+
+function pickHandSkin() {
+  currentHandSkin = HAND_SKINS[Math.floor(Math.random() * HAND_SKINS.length)];
+  document.documentElement.style.setProperty("--color-magic-a", currentHandSkin.magicA);
+  document.documentElement.style.setProperty("--color-magic-b", currentHandSkin.magicB);
+}
 
 // Hysteresis: grabbing needs a tighter pinch than releasing needs, so a
 // finger held near the threshold doesn't flicker grab/release every frame.
@@ -133,6 +194,69 @@ function currentPool() {
   return pool.length ? pool : ALL_ROUNDS;
 }
 
+// --- Scoring session -----------------------------------------------------
+const ROUNDS_PER_SESSION = 10;
+let gameMode = "solo"; // "solo" | "team"
+let questionsAnswered = 0;
+let soloCorrectCount = 0;
+let teamScoreRed = 0;
+let teamScoreBlue = 0;
+
+// Whose turn it is, in team mode, derived from how many questions have
+// already been answered this session — alternates Red/Blue every question
+// (1st, 3rd, 5th... = Red) rather than tracked as separate mutable state.
+function teamForIndex(answeredCount) {
+  return answeredCount % 2 === 0 ? "red" : "blue";
+}
+
+function resetSession() {
+  questionsAnswered = 0;
+  soloCorrectCount = 0;
+  teamScoreRed = 0;
+  teamScoreBlue = 0;
+  updateScoreHud();
+}
+
+function updateScoreHud() {
+  const q = Math.min(questionsAnswered + 1, ROUNDS_PER_SESSION);
+  if (gameMode === "team") {
+    scoreHud.textContent = `Q ${q}/${ROUNDS_PER_SESSION} · 🔴 ${teamScoreRed} - ${teamScoreBlue} 🔵`;
+  } else {
+    scoreHud.textContent = `Q ${q}/${ROUNDS_PER_SESSION} · ✅ ${soloCorrectCount}`;
+  }
+}
+
+function updateTeamTurnBanner() {
+  if (gameMode !== "team") {
+    teamTurnBanner.classList.add("hidden");
+    return;
+  }
+  const team = teamForIndex(questionsAnswered);
+  teamTurnBanner.classList.remove("hidden");
+  teamTurnBanner.classList.toggle("team-red", team === "red");
+  teamTurnBanner.classList.toggle("team-blue", team === "blue");
+  teamTurnBanner.textContent = team === "red" ? "🔴 Team Red's turn!" : "🔵 Team Blue's turn!";
+}
+
+function showSummary() {
+  if (gameMode === "team") {
+    if (teamScoreRed === teamScoreBlue) {
+      summaryTitle.textContent = "🤝 It's a Tie!";
+    } else {
+      summaryTitle.textContent = teamScoreRed > teamScoreBlue ? "🔴 Team Red Wins!" : "🔵 Team Blue Wins!";
+    }
+    summaryScore.textContent = `🔴 Team Red: ${teamScoreRed}    🔵 Team Blue: ${teamScoreBlue}`;
+  } else {
+    const stars =
+      soloCorrectCount >= ROUNDS_PER_SESSION ? "⭐⭐⭐" :
+      soloCorrectCount >= ROUNDS_PER_SESSION * 0.7 ? "⭐⭐" :
+      soloCorrectCount >= ROUNDS_PER_SESSION * 0.4 ? "⭐" : "";
+    summaryTitle.textContent = "Great job!";
+    summaryScore.textContent = `You got ${soloCorrectCount} / ${ROUNDS_PER_SESSION} correct! ${stars}`;
+  }
+  summaryOverlay.classList.remove("hidden");
+}
+
 function renderVisual(container, round) {
   container.innerHTML = "";
   if (round.type === "color") {
@@ -176,7 +300,7 @@ function spawnSparkles(x, y, count = 6) {
   for (let i = 0; i < count; i++) {
     const s = document.createElement("span");
     s.className = "sparkle";
-    s.textContent = Math.random() < 0.5 ? "✨" : "⭐";
+    s.textContent = currentHandSkin.sparkleGlyphs[Math.floor(Math.random() * currentHandSkin.sparkleGlyphs.length)];
     const angle = Math.random() * Math.PI * 2;
     const dist = 24 + Math.random() * 24;
     s.style.setProperty("--sx", `${Math.cos(angle) * dist}px`);
@@ -217,6 +341,7 @@ function pickRound() {
     round = pool[Math.floor(Math.random() * pool.length)];
   } while (round.word === lastRoundWord && pool.length > 1);
   lastRoundWord = round.word;
+  pickHandSkin();
   return round;
 }
 
@@ -416,7 +541,7 @@ function mapX(xNorm, width) {
 // pulses gently, flaring brighter (gold -> purple-white) when pinching.
 function drawMagicOrb(point, isPinching) {
   const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 170);
-  const baseRgb = isPinching ? "179, 107, 255" : "255, 213, 79";
+  const baseRgb = isPinching ? currentHandSkin.orbPinchRgb : currentHandSkin.orbIdleRgb;
   const radius = (isPinching ? 15 : 11) + pulse * (isPinching ? 5 : 3);
 
   ctx.save();
@@ -440,10 +565,9 @@ function drawMagicOrb(point, isPinching) {
 
 // A little ring of tiny sparkles orbiting the pinch point — purely
 // decorative flair to make the hand cursor read as "magic wand" rather
-// than a plain dot.
-const ORBIT_GLYPHS = ["✨", "⭐", "💫"];
-
+// than a plain dot. Glyphs come from the current hand skin.
 function drawOrbHalo(point, isPinching) {
+  const glyphs = currentHandSkin.orbitGlyphs;
   const count = isPinching ? 6 : 4;
   const radius = isPinching ? 30 : 24;
   const t = performance.now() / 480;
@@ -457,7 +581,7 @@ function drawOrbHalo(point, isPinching) {
     const twinkle = 0.5 + 0.5 * Math.sin(t * 3 + i * 1.7);
     ctx.globalAlpha = 0.4 + twinkle * 0.6;
     ctx.font = `${8 + twinkle * 6}px serif`;
-    ctx.fillText(ORBIT_GLYPHS[i % ORBIT_GLYPHS.length], x, y);
+    ctx.fillText(glyphs[i % glyphs.length], x, y);
   }
   ctx.restore();
 }
@@ -478,7 +602,7 @@ function spawnDust(x, y, count) {
       age: 0,
       maxAge: 350 + Math.random() * 350,
       size: 1.2 + Math.random() * 2.2,
-      rgb: Math.random() < 0.5 ? "255, 213, 79" : "179, 107, 255",
+      rgb: currentHandSkin.dustRgbs[Math.floor(Math.random() * currentHandSkin.dustRgbs.length)],
     });
   }
 }
@@ -503,6 +627,68 @@ function updateAndDrawDust(dt) {
     ctx.fillStyle = `rgba(${p.rgb}, ${alpha})`;
     ctx.beginPath();
     ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// MediaPipe's 21-point hand skeleton, grouped as [wrist->finger] bone pairs
+// (palm knuckles first so each finger chains off the previous one's base).
+const HAND_CONNECTIONS = [
+  [0, 1], [1, 2], [2, 3], [3, 4], // thumb
+  [0, 5], [5, 6], [6, 7], [7, 8], // index
+  [5, 9], [9, 10], [10, 11], [11, 12], // middle
+  [9, 13], [13, 14], [14, 15], [15, 16], // ring
+  [13, 17], [17, 18], [18, 19], [19, 20], // pinky
+  [0, 17], // palm base
+];
+const FINGERTIPS = [4, 8, 12, 16, 20];
+
+// Which color a bone belongs to, by its first joint index — gives each
+// finger its own hue (from the current hand skin) so the whole hand reads
+// as a themed glove instead of a uniform wireframe.
+function boneColor(fromIdx) {
+  const [thumb, index, middle, ring, pinky] = currentHandSkin.boneColors;
+  if (fromIdx <= 3) return thumb;
+  if (fromIdx <= 8) return index;
+  if (fromIdx <= 12) return middle;
+  if (fromIdx <= 16) return ring;
+  return pinky;
+}
+
+// Replaces a scattered dot-per-landmark view with a connected, glowing
+// "fairy glove" outline — prettier than raw tracking dots and still reads
+// each finger's position clearly enough to see what the hand is doing.
+function drawHandSkeleton(landmarks) {
+  const shimmer = 0.5 + 0.5 * Math.sin(performance.now() / 260);
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const [aIdx, bIdx] of HAND_CONNECTIONS) {
+    const a = landmarks[aIdx];
+    const b = landmarks[bIdx];
+    const rgb = boneColor(aIdx);
+    ctx.strokeStyle = `rgba(${rgb}, ${0.75 + shimmer * 0.25})`;
+    ctx.shadowBlur = 8 + shimmer * 6;
+    ctx.shadowColor = `rgba(${rgb}, 0.9)`;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(mapX(a.x, overlay.width), a.y * overlay.height);
+    ctx.lineTo(mapX(b.x, overlay.width), b.y * overlay.height);
+    ctx.stroke();
+  }
+
+  for (const idx of FINGERTIPS) {
+    const lm = landmarks[idx];
+    const x = mapX(lm.x, overlay.width);
+    const y = lm.y * overlay.height;
+    const twinkle = 0.5 + 0.5 * Math.sin(performance.now() / 260 + idx);
+    const rgb = currentHandSkin.tipGlowRgb;
+    ctx.shadowBlur = 10 + twinkle * 6;
+    ctx.shadowColor = `rgba(${rgb}, 0.95)`;
+    ctx.fillStyle = `rgba(${rgb}, 0.95)`;
+    ctx.beginPath();
+    ctx.arc(x, y, 3 + twinkle * 1.5, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();
@@ -563,32 +749,28 @@ function processResult(result) {
     y: ((thumbTip.y + indexTip.y) / 2) * overlay.height,
   };
 
-  // Twinkling fairy-light dots instead of plain landmark markers: size and
-  // color shimmer per-point so the whole hand sparkles, not just the cursor.
-  const twinkleT = now / 260;
-  ctx.save();
-  landmarks.forEach((lm, i) => {
-    const x = mapX(lm.x, overlay.width);
-    const y = lm.y * overlay.height;
-    const twinkle = 0.5 + 0.5 * Math.sin(twinkleT + i * 1.3);
-    const rgb = i % 2 === 0 ? "255, 213, 79" : "255, 154, 226";
-    ctx.shadowBlur = 6 + twinkle * 6;
-    ctx.shadowColor = `rgba(${rgb}, 0.9)`;
-    ctx.fillStyle = `rgba(${rgb}, ${0.6 + twinkle * 0.4})`;
-    ctx.beginPath();
-    ctx.arc(x, y, 2 + twinkle * 2, 0, Math.PI * 2);
-    ctx.fill();
-  });
-  ctx.restore();
+  drawHandSkeleton(landmarks);
 
   drawMagicOrb(pinchPoint, isPinching);
   drawOrbHalo(pinchPoint, isPinching);
   spawnDust(pinchPoint.x, pinchPoint.y, isPinching ? 2 : 1);
 
-  handleGesture(isPinching, pinchPoint);
-  handleThumbsUpGesture(isThumbsUp);
-  const roundActive = currentRound && startOverlay.classList.contains("hidden");
-  handleZoomGesture(isPeaceSign && !isPinching && grabbedCardId === null && roundActive);
+  // Full-screen modals (summary, category picker, mode picker) sit on top
+  // of the game board but the hand-tracking loop doesn't otherwise know
+  // about them — without this guard a pinch/thumbs-up still lands on
+  // whatever's underneath (submitBtn etc.), which is how the score kept
+  // climbing after the session-summary screen came up.
+  const modalOpen =
+    !summaryOverlay.classList.contains("hidden") ||
+    !categoryOverlay.classList.contains("hidden") ||
+    !modeOverlay.classList.contains("hidden");
+
+  if (!modalOpen) {
+    handleGesture(isPinching, pinchPoint);
+    handleThumbsUpGesture(isThumbsUp);
+    const roundActive = currentRound && startOverlay.classList.contains("hidden");
+    handleZoomGesture(isPeaceSign && !isPinching && grabbedCardId === null && roundActive);
+  }
 }
 
 // Finger-extension check: distance-based (tip vs. its own middle knuckle,
@@ -813,15 +995,31 @@ function checkSubmit() {
     }
   }
 
+  if (gameMode === "team") {
+    if (correct) {
+      if (teamForIndex(questionsAnswered) === "red") teamScoreRed++;
+      else teamScoreBlue++;
+    }
+  } else if (correct) {
+    soloCorrectCount++;
+  }
+  questionsAnswered++;
+  updateScoreHud();
+
   resultText.textContent = correct ? "Correct! 🎉" : "Not quite!";
   resultText.style.color = correct ? "#4caf50" : "#ff5252";
   resultWord.textContent = currentRound.word.toUpperCase();
+  nextBtn.textContent = questionsAnswered >= ROUNDS_PER_SESSION ? "See Results 🏆" : "Next Word";
   resultOverlay.classList.remove("hidden");
 }
 
 submitBtn.addEventListener("click", checkSubmit);
 nextBtn.addEventListener("click", () => {
   resultOverlay.classList.add("hidden");
+  if (questionsAnswered >= ROUNDS_PER_SESSION) {
+    showSummary();
+    return;
+  }
   showRoundIntro(pickRound());
 });
 
@@ -850,6 +1048,7 @@ function showRoundIntro(round) {
   currentRound = round;
   renderVisual(promptDisplay, round);
   startBtn.textContent = cameraStarted ? "Next Round" : "Start Camera";
+  updateTeamTurnBanner();
   startOverlay.classList.remove("hidden");
 }
 
@@ -925,11 +1124,36 @@ renderCategoryChips();
 
 categoryPlayBtn.addEventListener("click", () => {
   categoryOverlay.classList.add("hidden");
+  resetSession();
   showRoundIntro(pickRound());
 });
 
 categoriesBtn.addEventListener("click", () => {
   categoryOverlay.classList.remove("hidden");
+});
+
+modeSoloBtn.addEventListener("click", () => {
+  gameMode = "solo";
+  modeOverlay.classList.add("hidden");
+  categoryOverlay.classList.remove("hidden");
+});
+
+modeTeamBtn.addEventListener("click", () => {
+  gameMode = "team";
+  modeOverlay.classList.add("hidden");
+  categoryOverlay.classList.remove("hidden");
+});
+
+playAgainBtn.addEventListener("click", () => {
+  summaryOverlay.classList.add("hidden");
+  resetSession();
+  showRoundIntro(pickRound());
+});
+
+newSetupBtn.addEventListener("click", () => {
+  summaryOverlay.classList.add("hidden");
+  resetSession();
+  modeOverlay.classList.remove("hidden");
 });
 
 cameraSwitchBtn.addEventListener("click", async () => {

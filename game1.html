@@ -12,6 +12,7 @@
       <span id="fps">FPS: --</span>
       <span id="pinchDebug">pinch: --</span>
       <span id="status">Loading model…</span>
+      <span id="scoreHud"></span>
       <button id="categoriesBtn" type="button">🎯 Categories</button>
       <button id="cameraSwitchBtn" type="button">Switch Camera</button>
       <button id="exitBtn" type="button">✕ Exit</button>
@@ -39,15 +40,40 @@
     </div>
 
     <div id="startOverlay" class="hidden">
+      <div id="teamTurnBanner" class="hidden"></div>
       <div id="promptDisplay"></div>
       <button id="startBtn" type="button">Start Camera</button>
       <a id="menuLink" href="index.html">🏠 Back to Menu</a>
+      <img id="mascotCorner" src="song_song_Body%20Spell%20Challenge/mascot.png" alt="" />
     </div>
 
-    <div id="categoryOverlay">
-      <div id="categoryTitle">Pick what to play!</div>
+    <div id="categoryOverlay" class="hidden">
+      <div id="categoryTitle">Pick what to play! 🌟</div>
       <div id="categoryList"></div>
-      <button id="categoryPlayBtn" type="button">PLAY ▶</button>
+      <button id="categoryPlayBtn" type="button">PLAY! 🎉</button>
+      <img id="mascotCategory" src="song_song_Body%20Spell%20Challenge/mascot.png" alt="" />
+    </div>
+
+    <div id="modeOverlay">
+      <div id="categoryTitle">How do you want to play?</div>
+      <div id="modeList">
+        <button id="modeSoloBtn" type="button" class="mode-btn">🙋 Solo Practice</button>
+        <button id="modeTeamBtn" type="button" class="mode-btn">🔴 vs 🔵 Team Battle</button>
+      </div>
+      <img id="mascotMode" src="song_song_Body%20Spell%20Challenge/mascot.png" alt="" />
+    </div>
+
+    <div id="summaryOverlay" class="hidden">
+      <div class="summary-card">
+        <div id="summaryTrophy">🏆</div>
+        <div id="summaryTitle">Great job!</div>
+        <div id="summaryScore"></div>
+        <div class="summary-actions">
+          <button id="playAgainBtn" type="button">🔄 Play Again</button>
+          <button id="newSetupBtn" type="button">🎯 New Setup</button>
+          <a id="summaryMenuLink" href="index.html">🏠 Back to Menu</a>
+        </div>
+      </div>
     </div>
   </div>
 

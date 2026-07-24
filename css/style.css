@@ -1,10 +1,11 @@
 :root {
   --font-fun: ui-rounded, "Segoe UI Rounded", "SF Rounded", "Comic Sans MS", system-ui, sans-serif;
-  --color-primary: #5b6ee8;
-  --color-success: #2ecc71;
-  --color-danger: #ff5b6a;
+  --color-primary: #ff6fae;
+  --color-success: #c86bff;
+  --color-danger: #ff5577;
   --color-magic-a: #b06bff;
   --color-magic-b: #ffd54f;
+  --color-bg-deep: #2a1b3d;
   --radius-lg: 22px;
   --radius-md: 14px;
   --shadow-pop: 0 8px 20px rgba(0, 0, 0, 0.35);
@@ -20,7 +21,7 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #0f1024;
+  background: var(--color-bg-deep);
   font-family: var(--font-fun);
   touch-action: none;
 }
@@ -42,7 +43,7 @@ html, body {
   align-items: center;
   gap: 14px;
   padding: 10px 14px;
-  background: rgba(15, 16, 36, 0.6);
+  background: rgba(42, 27, 61, 0.6);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
@@ -148,7 +149,7 @@ html, body {
 .slot[data-filled="true"] {
   border-style: solid;
   border-color: var(--color-success);
-  background: rgba(46, 204, 113, 0.18);
+  background: rgba(200, 107, 255, 0.2);
 }
 
 .card {
@@ -156,8 +157,8 @@ html, body {
   width: 64px;
   height: 64px;
   border-radius: var(--radius-md);
-  background: linear-gradient(155deg, #ffd54f, #ffb300);
-  color: #4a3200;
+  background: linear-gradient(155deg, #ffb3dd, #c86bff);
+  color: var(--color-bg-deep);
   font-family: var(--font-fun);
   font-size: 32px;
   font-weight: 800;
@@ -237,8 +238,8 @@ html, body {
   pointer-events: none;
   font-size: 18px;
   line-height: 1;
-  color: #ffe27a;
-  text-shadow: 0 0 6px #ffd54f, 0 0 12px #b06bff;
+  color: var(--color-magic-b);
+  text-shadow: 0 0 6px var(--color-magic-b), 0 0 12px var(--color-magic-a);
   animation: sparkleFloat 0.6s ease-out forwards;
 }
 
@@ -287,7 +288,7 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 18px;
-  background: rgba(10, 10, 26, 0.88);
+  background: rgba(26, 15, 40, 0.88);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   pointer-events: none;
@@ -351,7 +352,7 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 14px;
-  background: rgba(10, 10, 26, 0.8);
+  background: rgba(26, 15, 40, 0.8);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   color: #fff;
@@ -401,7 +402,7 @@ html, body {
   /* Semi-transparent (not solid) so the camera feed and pinch cursor stay
      visible on the "Next Round" screen, where hand tracking is still
      running and the player needs to see their hand to pinch the button. */
-  background: rgba(15, 16, 36, 0.78);
+  background: rgba(42, 27, 61, 0.78);
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
 }
@@ -438,6 +439,33 @@ html, body {
   opacity: 1;
 }
 
+@keyframes mascotBob {
+  0%, 100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(2deg);
+  }
+}
+
+#mascotCorner {
+  position: absolute;
+  bottom: 0;
+  left: 12px;
+  height: min(32vh, 220px);
+  animation: mascotBob 3.2s ease-in-out infinite;
+  pointer-events: none;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.4));
+}
+
+#mascotCategory,
+#mascotMode {
+  height: min(24vh, 170px);
+  animation: mascotBob 3.2s ease-in-out infinite;
+  pointer-events: none;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.4));
+}
+
 #categoryOverlay {
   position: absolute;
   inset: 0;
@@ -448,7 +476,7 @@ html, body {
   justify-content: center;
   gap: 20px;
   padding: 24px;
-  background: rgba(15, 16, 36, 0.96);
+  background: rgba(42, 27, 61, 0.96);
 }
 
 #categoryOverlay.hidden {
@@ -503,6 +531,164 @@ html, body {
   background: var(--color-success);
   color: #fff;
   box-shadow: var(--shadow-pop);
+}
+
+#categoryPlayBtn:active {
+  filter: brightness(0.88);
+}
+
+#scoreHud {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+#modeOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 52;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 24px;
+  background: rgba(42, 27, 61, 0.96);
+}
+
+#modeOverlay.hidden {
+  display: none;
+}
+
+#modeList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(360px, 100%);
+}
+
+.mode-btn {
+  padding: clamp(16px, 3vw, 22px) clamp(20px, 4vw, 32px);
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-family: var(--font-fun);
+  font-weight: 800;
+  font-size: clamp(16px, 2.4vw, 21px);
+  transition: transform 0.1s ease, background 0.15s ease;
+}
+
+.mode-btn:active {
+  transform: scale(0.96);
+  background: var(--color-primary);
+}
+
+#teamTurnBanner {
+  padding: 10px 24px;
+  border-radius: 999px;
+  font-family: var(--font-fun);
+  font-weight: 800;
+  font-size: clamp(16px, 2.4vw, 22px);
+  color: #fff;
+  box-shadow: var(--shadow-pop);
+}
+
+#teamTurnBanner.hidden {
+  display: none;
+}
+
+#teamTurnBanner.team-red {
+  background: #ff5577;
+}
+
+#teamTurnBanner.team-blue {
+  background: #4f8dff;
+}
+
+#summaryOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(26, 15, 40, 0.9);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+#summaryOverlay.hidden {
+  display: none;
+}
+
+.summary-card {
+  width: min(420px, 100%);
+  text-align: center;
+  color: #fff;
+  font-family: var(--font-fun);
+  animation: zoomPop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+#summaryTrophy {
+  font-size: 64px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+#summaryTitle {
+  font-weight: 900;
+  font-size: clamp(24px, 4vw, 34px);
+  margin-bottom: 10px;
+}
+
+#summaryScore {
+  font-weight: 700;
+  font-size: clamp(18px, 3vw, 24px);
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+
+.summary-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.summary-actions button,
+.summary-actions a {
+  display: block;
+  padding: clamp(14px, 2vw, 18px) clamp(24px, 4vw, 36px);
+  font-size: clamp(16px, 2vw, 20px);
+  font-family: var(--font-fun);
+  font-weight: 800;
+  border: none;
+  border-radius: 999px;
+  color: #fff;
+  text-decoration: none;
+  text-align: center;
+  box-shadow: var(--shadow-pop);
+}
+
+#playAgainBtn {
+  background: var(--color-success);
+}
+
+#summaryMenuLink {
+  background: rgba(255, 255, 255, 0.12);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+}
+
+#summaryMenuLink:active {
+  opacity: 0.85;
+}
+
+#newSetupBtn {
+  background: var(--color-primary);
+}
+
+.summary-actions button:active {
+  filter: brightness(0.88);
 }
 
 #categoryPlayBtn:active {
@@ -589,7 +775,7 @@ html, body {
   z-index: 15;
   padding: 7px 16px;
   border-radius: 999px;
-  background: rgba(15, 16, 36, 0.65);
+  background: rgba(42, 27, 61, 0.65);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   color: #fff;
