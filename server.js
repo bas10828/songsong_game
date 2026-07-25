@@ -12,6 +12,8 @@ const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, "data");
 const QUESTION_SETS_FILE = path.join(DATA_DIR, "question-sets.json");
+const BACKUPS_DIR = path.join(DATA_DIR, "backups");
+const MAX_BACKUPS = 30;
 const UPLOADS_DIR = path.join(ROOT, "uploads", "custom-words");
 const MAX_QUESTIONS_PER_SET = 30;
 // Bumped once per process start (i.e. every deploy/restart) and appended
@@ -21,6 +23,7 @@ const MAX_QUESTIONS_PER_SET = 30;
 const BUILD_VERSION = Date.now();
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
+fs.mkdirSync(BACKUPS_DIR, { recursive: true });
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 if (!fs.existsSync(QUESTION_SETS_FILE)) fs.writeFileSync(QUESTION_SETS_FILE, "[]");
 
@@ -71,15 +74,39 @@ function readJsonBody(req, maxBytes) {
 }
 
 function loadSets() {
+  let raw;
   try {
-    return JSON.parse(fs.readFileSync(QUESTION_SETS_FILE, "utf8"));
+    raw = fs.readFileSync(QUESTION_SETS_FILE, "utf8");
   } catch {
+    // File genuinely missing (first run) — safe to start empty.
     return [];
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    // File exists but is corrupt (e.g. a crash mid-write) — do NOT silently
+    // treat this as "no sets", or the next save would overwrite real data
+    // with an empty list. Fail loud instead; an admin can restore from
+    // data/backups/.
+    throw new Error(`question-sets.json is corrupt, refusing to load: ${err.message}`);
   }
 }
 
+// Keeps a timestamped copy of the previous file before every overwrite, and
+// writes via a temp-file + rename so a crash mid-write can never leave
+// question-sets.json half-written/corrupt.
 function saveSets(list) {
-  fs.writeFileSync(QUESTION_SETS_FILE, JSON.stringify(list, null, 2));
+  if (fs.existsSync(QUESTION_SETS_FILE)) {
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    fs.copyFileSync(QUESTION_SETS_FILE, path.join(BACKUPS_DIR, `question-sets-${stamp}.json`));
+    const backups = fs.readdirSync(BACKUPS_DIR).sort();
+    for (const old of backups.slice(0, -MAX_BACKUPS)) {
+      fs.unlinkSync(path.join(BACKUPS_DIR, old));
+    }
+  }
+  const tmpFile = `${QUESTION_SETS_FILE}.tmp`;
+  fs.writeFileSync(tmpFile, JSON.stringify(list, null, 2));
+  fs.renameSync(tmpFile, QUESTION_SETS_FILE);
 }
 
 function sanitizeSetName(raw) {
@@ -179,7 +206,11 @@ function buildQuestion(body, id) {
 }
 
 async function handleListSets(res) {
-  respondJson(res, 200, loadSets());
+  try {
+    respondJson(res, 200, loadSets());
+  } catch (err) {
+    respondJson(res, 500, { error: err.message });
+  }
 }
 
 async function handleCreateSet(req, res) {
@@ -282,6 +313,16 @@ function handleDeleteQuestion(setId, qid, res) {
 }
 
 const server = http.createServer((req, res) => {
+  try {
+    handleRequest(req, res);
+  } catch (err) {
+    // A handler threw synchronously (e.g. loadSets() hitting a corrupt
+    // question-sets.json) — fail this one request, not the whole process.
+    respondJson(res, 500, { error: err.message });
+  }
+});
+
+function handleRequest(req, res) {
   const rawPath = decodeURIComponent(req.url.split("?")[0]);
   const parts = rawPath.split("/").filter(Boolean); // e.g. ["api","question-sets",":id","questions",":qid"]
 
@@ -333,7 +374,7 @@ const server = http.createServer((req, res) => {
       res.end(data);
     }
   });
-});
+}
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log(`Serving ${ROOT} at http://localhost:${PORT}`);
