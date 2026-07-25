@@ -1,7 +1,7 @@
 // Zero-dependency static file server. No build step — serves this
 // directory as-is, the same way the target host will. Also exposes a
 // tiny JSON API (no framework) for teacher-authored "question sets":
-// named packs of up to 10 questions (spell-the-word or pick-the-
+// named packs of up to 30 questions (spell-the-word or pick-the-
 // translation), full CRUD on both the set and its nested questions.
 const http = require("http");
 const fs = require("fs");
@@ -13,7 +13,7 @@ const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, "data");
 const QUESTION_SETS_FILE = path.join(DATA_DIR, "question-sets.json");
 const UPLOADS_DIR = path.join(ROOT, "uploads", "custom-words");
-const MAX_QUESTIONS_PER_SET = 10;
+const MAX_QUESTIONS_PER_SET = 30;
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });

@@ -71,11 +71,7 @@ const questionFormTitle = document.getElementById("questionFormTitle");
 const spellFormFields = document.getElementById("spellFormFields");
 const translateFormFields = document.getElementById("translateFormFields");
 const qSpellWordInput = document.getElementById("qSpellWordInput");
-const tabEmojiBtn = document.getElementById("tabEmojiBtn");
-const tabPhotoBtn = document.getElementById("tabPhotoBtn");
-const emojiInputRow = document.getElementById("emojiInputRow");
 const photoInputRow = document.getElementById("photoInputRow");
-const customEmojiInput = document.getElementById("customEmojiInput");
 const customPhotoInput = document.getElementById("customPhotoInput");
 const customPreview = document.getElementById("customPreview");
 const dirThEnBtn = document.getElementById("dirThEnBtn");
@@ -1404,13 +1400,12 @@ newSetupBtn.addEventListener("click", () => {
 // sensitive.
 const AUTH_USER = "songsong";
 const AUTH_PASS = "2222222222222222222222";
-const MAX_QUESTIONS_PER_SET = 10;
+const MAX_QUESTIONS_PER_SET = 30;
 
 let questionSets = [];
 let currentSetId = null;
 let editingQuestionId = null; // null while adding a new question
 let questionFormKind = "spell"; // "spell" | "translate" — which sub-form is showing
-let customWordEditType = "emoji"; // "emoji" | "photo" — spell sub-form's visual tab
 let customPhotoDataUrl = null;
 
 // Re-triggerable "✅ Saved!" toast — removing and re-adding the class (after
@@ -1464,31 +1459,12 @@ function compressImageFile(file) {
 
 function updateCustomPreview() {
   customPreview.innerHTML = "";
-  if (customWordEditType === "emoji") {
-    if (!customEmojiInput.value.trim()) return;
-    const div = document.createElement("div");
-    div.className = "visual-emoji";
-    div.textContent = customEmojiInput.value.trim();
-    customPreview.appendChild(div);
-  } else if (customPhotoDataUrl) {
+  if (customPhotoDataUrl) {
     const img = document.createElement("img");
     img.src = customPhotoDataUrl;
     customPreview.appendChild(img);
   }
 }
-
-function setCustomTab(type) {
-  customWordEditType = type;
-  tabEmojiBtn.classList.toggle("active", type === "emoji");
-  tabPhotoBtn.classList.toggle("active", type === "photo");
-  emojiInputRow.classList.toggle("hidden", type !== "emoji");
-  photoInputRow.classList.toggle("hidden", type !== "photo");
-  updateCustomPreview();
-}
-
-tabEmojiBtn.addEventListener("click", () => setCustomTab("emoji"));
-tabPhotoBtn.addEventListener("click", () => setCustomTab("photo"));
-customEmojiInput.addEventListener("input", updateCustomPreview);
 
 customPhotoInput.addEventListener("change", async () => {
   const file = customPhotoInput.files[0];
@@ -1803,8 +1779,7 @@ function openQuestionForm(kind, existingQuestion) {
   if (kind === "spell") {
     qSpellWordInput.value = existingQuestion ? existingQuestion.word : "";
     customPhotoDataUrl = existingQuestion && existingQuestion.visualType === "photo" ? existingQuestion.visualValue : null;
-    customEmojiInput.value = existingQuestion && existingQuestion.visualType === "emoji" ? existingQuestion.visualValue : "";
-    setCustomTab(existingQuestion && existingQuestion.visualType === "photo" ? "photo" : "emoji");
+    updateCustomPreview();
   } else if (kind === "translate") {
     setDirectionTab(existingQuestion ? existingQuestion.direction : "th-en");
     qPromptInput.value = existingQuestion ? existingQuestion.prompt : "";
@@ -1844,18 +1819,17 @@ saveQuestionBtn.addEventListener("click", async () => {
   let body;
   if (questionFormKind === "spell") {
     const word = qSpellWordInput.value.trim();
-    const visualValue = customWordEditType === "emoji" ? customEmojiInput.value.trim() : customPhotoDataUrl;
     if (!/^[a-zA-Z]{2,12}$/.test(word)) {
       questionFormError.textContent = "Word must be 2-12 letters only.";
       questionFormError.classList.remove("hidden");
       return;
     }
-    if (!visualValue) {
-      questionFormError.textContent = customWordEditType === "emoji" ? "Type an emoji first." : "Choose a photo first.";
+    if (!customPhotoDataUrl) {
+      questionFormError.textContent = "Choose a photo first.";
       questionFormError.classList.remove("hidden");
       return;
     }
-    body = { kind: "spell", word, visualType: customWordEditType, visualValue };
+    body = { kind: "spell", word, visualType: "photo", visualValue: customPhotoDataUrl };
   } else if (questionFormKind === "translate") {
     const prompt = qPromptInput.value.trim();
     const options = qOptionInputs.map((el) => el.value.trim());

@@ -1410,7 +1410,6 @@ html, body {
   color: rgba(255, 255, 255, 0.5);
 }
 
-#customVisualTabs,
 #directionTabs,
 #sentenceDirectionTabs {
   display: flex;
@@ -1498,8 +1497,7 @@ html, body {
   border-color: #fff;
 }
 
-#photoInputRow.hidden,
-#emojiInputRow.hidden {
+#photoInputRow.hidden {
   display: none;
 }
 
