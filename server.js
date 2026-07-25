@@ -14,6 +14,11 @@ const DATA_DIR = path.join(ROOT, "data");
 const QUESTION_SETS_FILE = path.join(DATA_DIR, "question-sets.json");
 const UPLOADS_DIR = path.join(ROOT, "uploads", "custom-words");
 const MAX_QUESTIONS_PER_SET = 30;
+// Bumped once per process start (i.e. every deploy/restart) and appended
+// as a query string to js/main.js in served HTML. Guarantees a fresh URL
+// after each deploy so CDN/browser caches of the old main.js can't get
+// served alongside a newer HTML — the two must always be fetched together.
+const BUILD_VERSION = Date.now();
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -318,7 +323,15 @@ const server = http.createServer((req, res) => {
       "Content-Type": MIME[ext] || "application/octet-stream",
       "Cache-Control": "no-cache",
     });
-    res.end(data);
+    if (ext === ".html") {
+      const html = data.toString("utf8").replace(
+        /src="(js\/main\.js)"/g,
+        `src="$1?v=${BUILD_VERSION}"`
+      );
+      res.end(html);
+    } else {
+      res.end(data);
+    }
   });
 });
 
