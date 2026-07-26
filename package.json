@@ -12,5 +12,8 @@
   "description": "Browser-based hand-gesture spelling game. Static site, no build step; the app itself has zero npm dependencies at runtime.",
   "devDependencies": {
     "@mediapipe/tasks-vision": "^0.10.35"
+  },
+  "dependencies": {
+    "pg": "^8.22.0"
   }
 }

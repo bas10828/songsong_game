@@ -1,19 +1,18 @@
-// Zero-dependency static file server. No build step — serves this
-// directory as-is, the same way the target host will. Also exposes a
-// tiny JSON API (no framework) for teacher-authored "question sets":
-// named packs of up to 30 questions (spell-the-word or pick-the-
-// translation), full CRUD on both the set and its nested questions.
+// Static file server (no build step — serves this directory as-is, the
+// same way the target host will) plus a tiny JSON API (no framework) for
+// teacher-authored "question sets": named packs of up to 30 questions
+// (spell-the-word, translate, or sentence-builder), full CRUD on both the
+// set and its nested questions. Question sets live in Postgres (see
+// `pool` below, configured via standard PG* env vars); uploaded photos
+// stay on disk with just their path stored in the DB.
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { Pool } = require("pg");
 
 const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
-const DATA_DIR = path.join(ROOT, "data");
-const QUESTION_SETS_FILE = path.join(DATA_DIR, "question-sets.json");
-const BACKUPS_DIR = path.join(DATA_DIR, "backups");
-const MAX_BACKUPS = 30;
 const UPLOADS_DIR = path.join(ROOT, "uploads", "custom-words");
 const MAX_QUESTIONS_PER_SET = 30;
 // Bumped once per process start (i.e. every deploy/restart) and appended
@@ -22,10 +21,9 @@ const MAX_QUESTIONS_PER_SET = 30;
 // served alongside a newer HTML — the two must always be fetched together.
 const BUILD_VERSION = Date.now();
 
-fs.mkdirSync(DATA_DIR, { recursive: true });
-fs.mkdirSync(BACKUPS_DIR, { recursive: true });
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-if (!fs.existsSync(QUESTION_SETS_FILE)) fs.writeFileSync(QUESTION_SETS_FILE, "[]");
+
+const pool = new Pool();
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -73,40 +71,45 @@ function readJsonBody(req, maxBytes) {
   });
 }
 
-function loadSets() {
-  let raw;
-  try {
-    raw = fs.readFileSync(QUESTION_SETS_FILE, "utf8");
-  } catch {
-    // File genuinely missing (first run) — safe to start empty.
-    return [];
+// Maps a `questions` row back to the API's question shape (only the
+// columns relevant to its `kind` are populated; the rest are NULL).
+function rowToQuestion(row) {
+  if (row.kind === "spell") {
+    return { id: row.id, kind: "spell", word: row.word, visualType: row.visual_type, visualValue: row.visual_value };
   }
-  try {
-    return JSON.parse(raw);
-  } catch (err) {
-    // File exists but is corrupt (e.g. a crash mid-write) — do NOT silently
-    // treat this as "no sets", or the next save would overwrite real data
-    // with an empty list. Fail loud instead; an admin can restore from
-    // data/backups/.
-    throw new Error(`question-sets.json is corrupt, refusing to load: ${err.message}`);
+  if (row.kind === "translate") {
+    return { id: row.id, kind: "translate", direction: row.direction, prompt: row.prompt, options: row.options, correctIndex: row.correct_index };
   }
+  return { id: row.id, kind: "sentence", direction: row.direction, prompt: row.prompt, answerWords: row.answer_words };
 }
 
-// Keeps a timestamped copy of the previous file before every overwrite, and
-// writes via a temp-file + rename so a crash mid-write can never leave
-// question-sets.json half-written/corrupt.
-function saveSets(list) {
-  if (fs.existsSync(QUESTION_SETS_FILE)) {
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    fs.copyFileSync(QUESTION_SETS_FILE, path.join(BACKUPS_DIR, `question-sets-${stamp}.json`));
-    const backups = fs.readdirSync(BACKUPS_DIR).sort();
-    for (const old of backups.slice(0, -MAX_BACKUPS)) {
-      fs.unlinkSync(path.join(BACKUPS_DIR, old));
-    }
+async function loadSets() {
+  const { rows: sets } = await pool.query("SELECT id, name FROM question_sets ORDER BY created_at");
+  const { rows: questions } = await pool.query("SELECT * FROM questions ORDER BY position");
+  const bySet = new Map(sets.map((s) => [s.id, { id: s.id, name: s.name, questions: [] }]));
+  for (const q of questions) {
+    const set = bySet.get(q.set_id);
+    if (set) set.questions.push(rowToQuestion(q));
   }
-  const tmpFile = `${QUESTION_SETS_FILE}.tmp`;
-  fs.writeFileSync(tmpFile, JSON.stringify(list, null, 2));
-  fs.renameSync(tmpFile, QUESTION_SETS_FILE);
+  return [...bySet.values()];
+}
+
+async function insertQuestion(client, setId, position, q) {
+  await client.query(
+    `INSERT INTO questions (id, set_id, position, kind, word, visual_type, visual_value, direction, prompt, options, correct_index, answer_words)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+    [
+      q.id, setId, position, q.kind,
+      q.kind === "spell" ? q.word : null,
+      q.kind === "spell" ? q.visualType : null,
+      q.kind === "spell" ? q.visualValue : null,
+      q.kind !== "spell" ? q.direction : null,
+      q.kind !== "spell" ? q.prompt : null,
+      q.kind === "translate" ? JSON.stringify(q.options) : null,
+      q.kind === "translate" ? q.correctIndex : null,
+      q.kind === "sentence" ? JSON.stringify(q.answerWords) : null,
+    ]
+  );
 }
 
 function sanitizeSetName(raw) {
@@ -207,7 +210,7 @@ function buildQuestion(body, id) {
 
 async function handleListSets(res) {
   try {
-    respondJson(res, 200, loadSets());
+    respondJson(res, 200, await loadSets());
   } catch (err) {
     respondJson(res, 500, { error: err.message });
   }
@@ -218,11 +221,8 @@ async function handleCreateSet(req, res) {
     const body = await readJsonBody(req, 16 * 1024);
     const name = sanitizeSetName(body.name);
     if (!name) return respondJson(res, 400, { error: "Give the set a name." });
-    const list = loadSets();
-    const set = { id: crypto.randomUUID(), name, questions: [] };
-    list.push(set);
-    saveSets(list);
-    respondJson(res, 200, list);
+    await pool.query("INSERT INTO question_sets (name) VALUES ($1)", [name]);
+    respondJson(res, 200, await loadSets());
   } catch (err) {
     respondJson(res, 400, { error: err.message });
   }
@@ -233,34 +233,42 @@ async function handleRenameSet(id, req, res) {
     const body = await readJsonBody(req, 16 * 1024);
     const name = sanitizeSetName(body.name);
     if (!name) return respondJson(res, 400, { error: "Give the set a name." });
-    const list = loadSets();
-    const set = list.find((s) => s.id === id);
-    if (!set) return respondJson(res, 404, { error: "Set not found." });
-    set.name = name;
-    saveSets(list);
-    respondJson(res, 200, list);
+    const { rowCount } = await pool.query(
+      "UPDATE question_sets SET name = $1, updated_at = now() WHERE id = $2",
+      [name, id]
+    );
+    if (!rowCount) return respondJson(res, 404, { error: "Set not found." });
+    respondJson(res, 200, await loadSets());
   } catch (err) {
     respondJson(res, 400, { error: err.message });
   }
 }
 
-function handleDeleteSet(id, res) {
-  const list = loadSets();
-  const idx = list.findIndex((s) => s.id === id);
-  if (idx === -1) return respondJson(res, 404, { error: "Set not found." });
-  const [removed] = list.splice(idx, 1);
-  for (const q of removed.questions) deletePhotoIfAny(q);
-  saveSets(list);
-  respondJson(res, 200, list);
+async function handleDeleteSet(id, res) {
+  try {
+    const { rows: photoRows } = await pool.query(
+      "SELECT visual_value FROM questions WHERE set_id = $1 AND kind = 'spell' AND visual_type = 'photo' AND visual_value IS NOT NULL",
+      [id]
+    );
+    const { rowCount } = await pool.query("DELETE FROM question_sets WHERE id = $1", [id]);
+    if (!rowCount) return respondJson(res, 404, { error: "Set not found." });
+    for (const row of photoRows) fs.unlink(path.join(ROOT, row.visual_value), () => {});
+    respondJson(res, 200, await loadSets());
+  } catch (err) {
+    respondJson(res, 500, { error: err.message });
+  }
 }
 
 async function handleAddQuestion(setId, req, res) {
   try {
     const body = await readJsonBody(req, 4 * 1024 * 1024); // 4MB cap (photo)
-    const list = loadSets();
-    const set = list.find((s) => s.id === setId);
-    if (!set) return respondJson(res, 404, { error: "Set not found." });
-    if (set.questions.length >= MAX_QUESTIONS_PER_SET) {
+    const { rows: setRows } = await pool.query("SELECT id FROM question_sets WHERE id = $1", [setId]);
+    if (!setRows.length) return respondJson(res, 404, { error: "Set not found." });
+    const { rows: countRows } = await pool.query(
+      "SELECT COUNT(*)::int AS n, COALESCE(MAX(position), -1) AS maxpos FROM questions WHERE set_id = $1",
+      [setId]
+    );
+    if (countRows[0].n >= MAX_QUESTIONS_PER_SET) {
       return respondJson(res, 400, { error: `A set can only hold ${MAX_QUESTIONS_PER_SET} questions.` });
     }
 
@@ -268,9 +276,8 @@ async function handleAddQuestion(setId, req, res) {
     if (built.error) return respondJson(res, 400, { error: built.error });
     delete built.wroteNewFile;
 
-    set.questions.push(built);
-    saveSets(list);
-    respondJson(res, 200, list);
+    await insertQuestion(pool, setId, countRows[0].maxpos + 1, built);
+    respondJson(res, 200, await loadSets());
   } catch (err) {
     respondJson(res, 400, { error: err.message });
   }
@@ -279,37 +286,49 @@ async function handleAddQuestion(setId, req, res) {
 async function handleEditQuestion(setId, qid, req, res) {
   try {
     const body = await readJsonBody(req, 4 * 1024 * 1024);
-    const list = loadSets();
-    const set = list.find((s) => s.id === setId);
-    if (!set) return respondJson(res, 404, { error: "Set not found." });
-    const idx = set.questions.findIndex((q) => q.id === qid);
-    if (idx === -1) return respondJson(res, 404, { error: "Question not found." });
+    const { rows } = await pool.query("SELECT * FROM questions WHERE id = $1 AND set_id = $2", [qid, setId]);
+    if (!rows.length) return respondJson(res, 404, { error: "Question not found." });
+    const oldQuestion = rowToQuestion(rows[0]);
 
     const built = buildQuestion(body, qid);
     if (built.error) return respondJson(res, 400, { error: built.error });
 
-    if (built.kind === "spell") deleteOldPhotoIfReplaced(set.questions[idx], built);
-    else deletePhotoIfAny(set.questions[idx]); // switched away from a spell+photo question
+    if (built.kind === "spell") deleteOldPhotoIfReplaced(oldQuestion, built);
+    else deletePhotoIfAny(oldQuestion); // switched away from a spell+photo question
     delete built.wroteNewFile;
 
-    set.questions[idx] = built;
-    saveSets(list);
-    respondJson(res, 200, list);
+    await pool.query(
+      `UPDATE questions SET kind=$1, word=$2, visual_type=$3, visual_value=$4, direction=$5, prompt=$6, options=$7, correct_index=$8, answer_words=$9
+       WHERE id = $10`,
+      [
+        built.kind,
+        built.kind === "spell" ? built.word : null,
+        built.kind === "spell" ? built.visualType : null,
+        built.kind === "spell" ? built.visualValue : null,
+        built.kind !== "spell" ? built.direction : null,
+        built.kind !== "spell" ? built.prompt : null,
+        built.kind === "translate" ? JSON.stringify(built.options) : null,
+        built.kind === "translate" ? built.correctIndex : null,
+        built.kind === "sentence" ? JSON.stringify(built.answerWords) : null,
+        qid,
+      ]
+    );
+    respondJson(res, 200, await loadSets());
   } catch (err) {
     respondJson(res, 400, { error: err.message });
   }
 }
 
-function handleDeleteQuestion(setId, qid, res) {
-  const list = loadSets();
-  const set = list.find((s) => s.id === setId);
-  if (!set) return respondJson(res, 404, { error: "Set not found." });
-  const idx = set.questions.findIndex((q) => q.id === qid);
-  if (idx === -1) return respondJson(res, 404, { error: "Question not found." });
-  const [removed] = set.questions.splice(idx, 1);
-  deletePhotoIfAny(removed);
-  saveSets(list);
-  respondJson(res, 200, list);
+async function handleDeleteQuestion(setId, qid, res) {
+  try {
+    const { rows } = await pool.query("SELECT * FROM questions WHERE id = $1 AND set_id = $2", [qid, setId]);
+    if (!rows.length) return respondJson(res, 404, { error: "Question not found." });
+    await pool.query("DELETE FROM questions WHERE id = $1", [qid]);
+    deletePhotoIfAny(rowToQuestion(rows[0]));
+    respondJson(res, 200, await loadSets());
+  } catch (err) {
+    respondJson(res, 500, { error: err.message });
+  }
 }
 
 const server = http.createServer((req, res) => {
