@@ -116,6 +116,12 @@
       <button id="setDetailBackBtn" type="button" class="mgmt-back">← Back to Sets</button>
     </div>
 
+    <div id="leaderboardOverlay" class="hidden">
+      <div class="mgmt-title" id="leaderboardTitle">🏆 Leaderboard</div>
+      <div id="leaderboardList"></div>
+      <button id="leaderboardBackBtn" type="button" class="mgmt-back">← Back</button>
+    </div>
+
     <div id="questionFormOverlay" class="hidden">
       <div class="mgmt-title" id="questionFormTitle">Add Question</div>
 
@@ -204,6 +210,13 @@
         <div id="summaryTrophy">🏆</div>
         <div id="summaryTitle">Great job!</div>
         <div id="summaryScore"></div>
+        <div id="recordBlock" class="hidden">
+          <div id="recordBanner">🎉 New Record!</div>
+          <input id="recordNameInput" type="text" placeholder="Your nickname" maxlength="20" autocomplete="off" />
+          <button id="recordSubmitBtn" type="button">💾 Save Record</button>
+          <div id="recordError" class="mgmt-error hidden"></div>
+        </div>
+        <div id="recordSavedMsg" class="hidden">🏆 Record saved!</div>
         <div class="summary-actions">
           <button id="playAgainBtn" type="button">🔄 Play Again</button>
           <button id="newSetupBtn" type="button">🎯 New Setup</button>

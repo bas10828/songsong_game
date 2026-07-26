@@ -41,6 +41,11 @@ const summaryTitle = document.getElementById("summaryTitle");
 const summaryScore = document.getElementById("summaryScore");
 const playAgainBtn = document.getElementById("playAgainBtn");
 const newSetupBtn = document.getElementById("newSetupBtn");
+const recordBlock = document.getElementById("recordBlock");
+const recordNameInput = document.getElementById("recordNameInput");
+const recordSubmitBtn = document.getElementById("recordSubmitBtn");
+const recordError = document.getElementById("recordError");
+const recordSavedMsg = document.getElementById("recordSavedMsg");
 const manageWordsBtn = document.getElementById("manageWordsBtn");
 const authOverlay = document.getElementById("authOverlay");
 const authUser = document.getElementById("authUser");
@@ -66,6 +71,10 @@ const setQuestionsList = document.getElementById("setQuestionsList");
 const newQuestionKindSelect = document.getElementById("newQuestionKindSelect");
 const addQuestionBtn = document.getElementById("addQuestionBtn");
 const setDetailBackBtn = document.getElementById("setDetailBackBtn");
+const leaderboardOverlay = document.getElementById("leaderboardOverlay");
+const leaderboardTitle = document.getElementById("leaderboardTitle");
+const leaderboardList = document.getElementById("leaderboardList");
+const leaderboardBackBtn = document.getElementById("leaderboardBackBtn");
 const questionFormOverlay = document.getElementById("questionFormOverlay");
 const questionFormTitle = document.getElementById("questionFormTitle");
 const spellFormFields = document.getElementById("spellFormFields");
@@ -258,6 +267,12 @@ let questionsAnswered = 0;
 let soloCorrectCount = 0;
 let teamScoreRed = 0;
 let teamScoreBlue = 0;
+// Set while the summary screen is offering to save a just-broken record —
+// only meaningful between showSummary() showing the prompt and the
+// teacher/student tapping Save.
+let pendingRecordSetId = null;
+let pendingRecordScore = 0;
+let pendingRecordSessionLength = 0;
 
 // A session either draws from the built-in random category pool (fixed
 // length) or plays a teacher-authored set start-to-finish in order (length
@@ -303,7 +318,12 @@ function updateTeamTurnBanner() {
   teamTurnBanner.textContent = team === "red" ? "🔴 Team Red's turn!" : "🔵 Team Blue's turn!";
 }
 
-function showSummary() {
+async function showSummary() {
+  recordBlock.classList.add("hidden");
+  recordError.classList.add("hidden");
+  recordSavedMsg.classList.add("hidden");
+  pendingRecordSetId = null;
+
   if (gameMode === "team") {
     if (teamScoreRed === teamScoreBlue) {
       summaryTitle.textContent = "🤝 It's a Tie!";
@@ -318,9 +338,57 @@ function showSummary() {
       soloCorrectCount >= sessionLength * 0.4 ? "⭐" : "";
     summaryTitle.textContent = "Great job!";
     summaryScore.textContent = `You got ${soloCorrectCount} / ${sessionLength} correct! ${stars}`;
+
+    // Only teacher-authored sets have a leaderboard (built-in category
+    // play draws a random pool each time, so there's no stable "set" to
+    // hold a record).
+    if (sessionSource === "teacherSet" && activeTeacherSet) {
+      try {
+        const res = await fetch(`/api/question-sets/${activeTeacherSet.id}/leaderboard`);
+        const board = await res.json();
+        const currentBest = board.length ? board[board.length - 1].score : -1;
+        if (soloCorrectCount > 0 && soloCorrectCount > currentBest) {
+          pendingRecordSetId = activeTeacherSet.id;
+          pendingRecordScore = soloCorrectCount;
+          pendingRecordSessionLength = sessionLength;
+          recordNameInput.value = "";
+          recordBlock.classList.remove("hidden");
+        }
+      } catch (err) {
+        console.error("Failed to check leaderboard:", err);
+      }
+    }
   }
   summaryOverlay.classList.remove("hidden");
 }
+
+recordSubmitBtn.addEventListener("click", async () => {
+  const name = recordNameInput.value.trim();
+  if (!name) {
+    recordError.textContent = "Enter a nickname.";
+    recordError.classList.remove("hidden");
+    return;
+  }
+  recordError.classList.add("hidden");
+  try {
+    const res = await fetch(`/api/question-sets/${pendingRecordSetId}/leaderboard`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, score: pendingRecordScore, sessionLength: pendingRecordSessionLength }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      recordError.textContent = data.error || "Something went wrong.";
+      recordError.classList.remove("hidden");
+      return;
+    }
+    recordBlock.classList.add("hidden");
+    recordSavedMsg.classList.remove("hidden");
+  } catch (err) {
+    recordError.textContent = "Network error — try again.";
+    recordError.classList.remove("hidden");
+  }
+});
 
 function renderVisual(container, round) {
   container.innerHTML = "";
@@ -878,6 +946,7 @@ function processResult(result) {
     !authOverlay.classList.contains("hidden") ||
     !setsListOverlay.classList.contains("hidden") ||
     !setDetailOverlay.classList.contains("hidden") ||
+    !leaderboardOverlay.classList.contains("hidden") ||
     !questionFormOverlay.classList.contains("hidden") ||
     !translateOverlay.classList.contains("hidden");
 
@@ -1577,6 +1646,13 @@ function renderSetsList() {
     openBtn.addEventListener("click", () => openSet(set.id));
     row.appendChild(openBtn);
 
+    const leaderboardBtn = document.createElement("button");
+    leaderboardBtn.type = "button";
+    leaderboardBtn.className = "leaderboard-btn";
+    leaderboardBtn.textContent = "🏆";
+    leaderboardBtn.addEventListener("click", () => showLeaderboard(set));
+    row.appendChild(leaderboardBtn);
+
     const delBtn = document.createElement("button");
     delBtn.type = "button";
     delBtn.className = "delete-btn";
@@ -1632,6 +1708,58 @@ async function deleteSet(id, name) {
 setsListBackBtn.addEventListener("click", () => {
   setsListOverlay.classList.add("hidden");
   categoryOverlay.classList.remove("hidden");
+});
+
+// The leaderboard is a chronological record-history, not a ranked top-10 —
+// each row was, at the time it was set, the best score anyone had gotten
+// on this set. The most recent row is always the current record holder.
+async function showLeaderboard(set) {
+  leaderboardTitle.textContent = `🏆 ${set.name}`;
+  leaderboardList.textContent = "Loading…";
+  setsListOverlay.classList.add("hidden");
+  leaderboardOverlay.classList.remove("hidden");
+  try {
+    const res = await fetch(`/api/question-sets/${set.id}/leaderboard`);
+    const board = await res.json();
+    leaderboardList.innerHTML = "";
+    if (!board.length) {
+      leaderboardList.textContent = "No records yet — be the first!";
+      return;
+    }
+    [...board].reverse().forEach((entry, i) => {
+      const row = document.createElement("div");
+      row.className = "leaderboard-row";
+
+      const badge = document.createElement("div");
+      badge.className = "leaderboard-badge";
+      badge.textContent = i === 0 ? "👑" : "🕘";
+      row.appendChild(badge);
+
+      const name = document.createElement("div");
+      name.className = "leaderboard-name";
+      name.textContent = entry.name;
+      row.appendChild(name);
+
+      const score = document.createElement("div");
+      score.className = "leaderboard-score";
+      score.textContent = `${entry.score}/${entry.sessionLength}`;
+      row.appendChild(score);
+
+      const date = document.createElement("div");
+      date.className = "leaderboard-date";
+      date.textContent = new Date(entry.createdAt).toLocaleDateString();
+      row.appendChild(date);
+
+      leaderboardList.appendChild(row);
+    });
+  } catch (err) {
+    leaderboardList.textContent = "Network error — try again.";
+  }
+}
+
+leaderboardBackBtn.addEventListener("click", () => {
+  leaderboardOverlay.classList.add("hidden");
+  setsListOverlay.classList.remove("hidden");
 });
 
 // --- Set detail screen -------------------------------------------------------

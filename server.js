@@ -91,7 +91,12 @@ function rowToQuestion(row) {
 
 async function loadSets() {
   const { rows: sets } = await pool.query("SELECT id, name FROM question_sets ORDER BY created_at");
-  const { rows: questions } = await pool.query("SELECT * FROM questions ORDER BY position");
+  // Explicit column list — omits photo_data (bytea) so every save/load
+  // round-trip doesn't drag every photo's bytes through for no reason;
+  // handlePhoto() queries photo_data separately, on demand.
+  const { rows: questions } = await pool.query(
+    "SELECT id, set_id, kind, word, visual_type, visual_value, direction, prompt, options, correct_index, answer_words FROM questions ORDER BY position"
+  );
   const bySet = new Map(sets.map((s) => [s.id, { id: s.id, name: s.name, questions: [] }]));
   for (const q of questions) {
     const set = bySet.get(q.set_id);
@@ -335,6 +340,63 @@ async function handleDeleteQuestion(setId, qid, res) {
   }
 }
 
+// The leaderboard is an append-only log of record-breaking plays for a
+// set, not a full history of every play — a row is only inserted when its
+// score beats every prior row for that set. That means "ORDER BY
+// created_at" already puts the current record holder last; there's no
+// separate "current best" query needed.
+async function handleGetLeaderboard(setId, res) {
+  try {
+    const { rows } = await pool.query(
+      "SELECT name, score, session_length, created_at FROM high_scores WHERE set_id = $1 ORDER BY created_at ASC",
+      [setId]
+    );
+    respondJson(
+      res,
+      200,
+      rows.map((r) => ({ name: r.name, score: r.score, sessionLength: r.session_length, createdAt: r.created_at }))
+    );
+  } catch (err) {
+    respondJson(res, 500, { error: err.message });
+  }
+}
+
+async function handlePostLeaderboard(setId, req, res) {
+  try {
+    const body = await readJsonBody(req, 1024);
+    const name = String(body.name || "").trim().slice(0, 20);
+    const score = Number(body.score);
+    // Stored alongside the score (rather than read live off the set at
+    // display time) so a record's denominator doesn't silently change if
+    // the teacher later adds/removes questions from the set.
+    const sessionLength = Number(body.sessionLength);
+    if (!name) return respondJson(res, 400, { error: "Enter a nickname." });
+    if (!Number.isInteger(score) || score < 0) return respondJson(res, 400, { error: "Invalid score." });
+    if (!Number.isInteger(sessionLength) || sessionLength < 1) {
+      return respondJson(res, 400, { error: "Invalid session length." });
+    }
+
+    const { rows: setRows } = await pool.query("SELECT id FROM question_sets WHERE id = $1", [setId]);
+    if (!setRows.length) return respondJson(res, 404, { error: "Set not found." });
+
+    const { rows: bestRows } = await pool.query(
+      "SELECT score FROM high_scores WHERE set_id = $1 ORDER BY score DESC LIMIT 1",
+      [setId]
+    );
+    if (bestRows.length && score <= bestRows[0].score) {
+      return respondJson(res, 400, { error: "Not a new record." });
+    }
+
+    await pool.query(
+      "INSERT INTO high_scores (set_id, name, score, session_length) VALUES ($1, $2, $3, $4)",
+      [setId, name, score, sessionLength]
+    );
+    return void handleGetLeaderboard(setId, res);
+  } catch (err) {
+    respondJson(res, 400, { error: err.message });
+  }
+}
+
 async function handlePhoto(id, res) {
   try {
     const { rows } = await pool.query(
@@ -379,6 +441,8 @@ function handleRequest(req, res) {
     if (setId && sub === "questions" && !qid && req.method === "POST") return void handleAddQuestion(setId, req, res);
     if (setId && sub === "questions" && qid && req.method === "PUT") return void handleEditQuestion(setId, qid, req, res);
     if (setId && sub === "questions" && qid && req.method === "DELETE") return void handleDeleteQuestion(setId, qid, res);
+    if (setId && sub === "leaderboard" && req.method === "GET") return void handleGetLeaderboard(setId, res);
+    if (setId && sub === "leaderboard" && req.method === "POST") return void handlePostLeaderboard(setId, req, res);
 
     respondJson(res, 404, { error: "Unknown question-sets route." });
     return;
