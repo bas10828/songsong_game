@@ -2,9 +2,10 @@
 // same way the target host will) plus a tiny JSON API (no framework) for
 // teacher-authored "question sets": named packs of up to 30 questions
 // (spell-the-word, translate, or sentence-builder), full CRUD on both the
-// set and its nested questions. Question sets live in Postgres (see
-// `pool` below, configured via standard PG* env vars); uploaded photos
-// stay on disk with just their path stored in the DB.
+// set and its nested questions. Everything — including uploaded photos,
+// as bytea — lives in Postgres (see `pool` below, configured via standard
+// PG* env vars), so there's no on-disk state to lose on a container
+// recreate.
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
@@ -13,15 +14,12 @@ const { Pool } = require("pg");
 
 const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
-const UPLOADS_DIR = path.join(ROOT, "uploads", "custom-words");
 const MAX_QUESTIONS_PER_SET = 30;
 // Bumped once per process start (i.e. every deploy/restart) and appended
 // as a query string to js/main.js in served HTML. Guarantees a fresh URL
 // after each deploy so CDN/browser caches of the old main.js can't get
 // served alongside a newer HTML — the two must always be fetched together.
 const BUILD_VERSION = Date.now();
-
-fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const pool = new Pool();
 
@@ -72,10 +70,18 @@ function readJsonBody(req, maxBytes) {
 }
 
 // Maps a `questions` row back to the API's question shape (only the
-// columns relevant to its `kind` are populated; the rest are NULL).
+// columns relevant to its `kind` are populated; the rest are NULL). A
+// photo's bytes never leave the DB via this path — visualValue is a URL
+// that serves them from `/api/photos/:id` on demand.
 function rowToQuestion(row) {
   if (row.kind === "spell") {
-    return { id: row.id, kind: "spell", word: row.word, visualType: row.visual_type, visualValue: row.visual_value };
+    return {
+      id: row.id,
+      kind: "spell",
+      word: row.word,
+      visualType: row.visual_type,
+      visualValue: row.visual_type === "photo" ? `/api/photos/${row.id}` : row.visual_value,
+    };
   }
   if (row.kind === "translate") {
     return { id: row.id, kind: "translate", direction: row.direction, prompt: row.prompt, options: row.options, correctIndex: row.correct_index };
@@ -96,13 +102,15 @@ async function loadSets() {
 
 async function insertQuestion(client, setId, position, q) {
   await client.query(
-    `INSERT INTO questions (id, set_id, position, kind, word, visual_type, visual_value, direction, prompt, options, correct_index, answer_words)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+    `INSERT INTO questions (id, set_id, position, kind, word, visual_type, visual_value, photo_data, photo_mime, direction, prompt, options, correct_index, answer_words)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
     [
       q.id, setId, position, q.kind,
       q.kind === "spell" ? q.word : null,
       q.kind === "spell" ? q.visualType : null,
-      q.kind === "spell" ? q.visualValue : null,
+      q.kind === "spell" && q.visualType === "emoji" ? q.visualValue : null,
+      q.kind === "spell" && q.visualType === "photo" ? q.photoData : null,
+      q.kind === "spell" && q.visualType === "photo" ? q.photoMime : null,
       q.kind !== "spell" ? q.direction : null,
       q.kind !== "spell" ? q.prompt : null,
       q.kind === "translate" ? JSON.stringify(q.options) : null,
@@ -125,48 +133,29 @@ function sanitizeWord(raw) {
 }
 
 // Resolves the visual half of a "spell" question from a request body.
-// On edit, a photo value that's already an "/uploads/..." path (rather
-// than a fresh data: URL) means the teacher didn't replace the photo, so
-// it's kept as-is instead of being re-decoded.
+// On edit, a photo value that's already this question's own `/api/photos/`
+// URL (rather than a fresh data: URL) means the teacher didn't replace the
+// photo, so the existing bytes are kept instead of being re-decoded.
 function resolveVisual(body, questionId) {
   if (body.visualType === "photo") {
-    if (typeof body.visualValue === "string" && body.visualValue.startsWith("/uploads/custom-words/")) {
-      return { visualType: "photo", visualValue: body.visualValue, wroteNewFile: false };
+    if (body.visualValue === `/api/photos/${questionId}`) {
+      return { visualType: "photo", keepExisting: true };
     }
     const match = /^data:image\/(png|jpe?g|webp);base64,(.+)$/.exec(body.visualValue || "");
     if (!match) return null;
     const buffer = Buffer.from(match[2], "base64");
     if (buffer.length > 3 * 1024 * 1024) return null;
-    const filename = `${questionId}-${Date.now()}.jpg`;
-    fs.writeFileSync(path.join(UPLOADS_DIR, filename), buffer);
-    return { visualType: "photo", visualValue: `/uploads/custom-words/${filename}`, wroteNewFile: true };
+    const mime = `image/${match[1] === "jpg" ? "jpeg" : match[1]}`;
+    return { visualType: "photo", photoData: buffer, photoMime: mime };
   }
   const emoji = String(body.visualValue || "").trim().slice(0, 8);
   if (!emoji) return null;
-  return { visualType: "emoji", visualValue: emoji, wroteNewFile: false };
-}
-
-function deleteOldPhotoIfReplaced(oldQuestion, newVisual) {
-  if (
-    oldQuestion &&
-    oldQuestion.kind === "spell" &&
-    oldQuestion.visualType === "photo" &&
-    oldQuestion.visualValue &&
-    oldQuestion.visualValue !== newVisual.visualValue
-  ) {
-    fs.unlink(path.join(ROOT, oldQuestion.visualValue), () => {});
-  }
-}
-
-function deletePhotoIfAny(question) {
-  if (question && question.kind === "spell" && question.visualType === "photo" && question.visualValue) {
-    fs.unlink(path.join(ROOT, question.visualValue), () => {});
-  }
+  return { visualType: "emoji", visualValue: emoji };
 }
 
 // Builds a validated question object from a request body, or returns
-// { error } if something's wrong. `id` is reused on edit so a replaced
-// photo file can be named deterministically-ish (id + timestamp).
+// { error } if something's wrong. `id` is reused on edit so an unchanged
+// photo's `/api/photos/:id` URL can be recognized (see resolveVisual).
 function sanitizeDirection(raw) {
   return raw === "en-th" ? "en-th" : raw === "th-en" ? "th-en" : null;
 }
@@ -205,7 +194,16 @@ function buildQuestion(body, id) {
   if (!word) return { error: "Word must be 2-12 letters." };
   const visual = resolveVisual(body, id);
   if (!visual) return { error: body.visualType === "photo" ? "Invalid or too-large photo." : "Pick an emoji first." };
-  return { id, kind: "spell", word, visualType: visual.visualType, visualValue: visual.visualValue, wroteNewFile: visual.wroteNewFile };
+  return {
+    id,
+    kind: "spell",
+    word,
+    visualType: visual.visualType,
+    visualValue: visual.visualValue,
+    photoData: visual.photoData,
+    photoMime: visual.photoMime,
+    keepExisting: visual.keepExisting,
+  };
 }
 
 async function handleListSets(res) {
@@ -246,13 +244,11 @@ async function handleRenameSet(id, req, res) {
 
 async function handleDeleteSet(id, res) {
   try {
-    const { rows: photoRows } = await pool.query(
-      "SELECT visual_value FROM questions WHERE set_id = $1 AND kind = 'spell' AND visual_type = 'photo' AND visual_value IS NOT NULL",
-      [id]
-    );
+    // Photos live in the deleted rows' own `photo_data` column, so
+    // ON DELETE CASCADE removes them along with the questions — no
+    // separate cleanup step needed.
     const { rowCount } = await pool.query("DELETE FROM question_sets WHERE id = $1", [id]);
     if (!rowCount) return respondJson(res, 404, { error: "Set not found." });
-    for (const row of photoRows) fs.unlink(path.join(ROOT, row.visual_value), () => {});
     respondJson(res, 200, await loadSets());
   } catch (err) {
     respondJson(res, 500, { error: err.message });
@@ -274,7 +270,6 @@ async function handleAddQuestion(setId, req, res) {
 
     const built = buildQuestion(body, crypto.randomUUID());
     if (built.error) return respondJson(res, 400, { error: built.error });
-    delete built.wroteNewFile;
 
     await insertQuestion(pool, setId, countRows[0].maxpos + 1, built);
     respondJson(res, 200, await loadSets());
@@ -286,33 +281,44 @@ async function handleAddQuestion(setId, req, res) {
 async function handleEditQuestion(setId, qid, req, res) {
   try {
     const body = await readJsonBody(req, 4 * 1024 * 1024);
-    const { rows } = await pool.query("SELECT * FROM questions WHERE id = $1 AND set_id = $2", [qid, setId]);
+    const { rows } = await pool.query("SELECT id FROM questions WHERE id = $1 AND set_id = $2", [qid, setId]);
     if (!rows.length) return respondJson(res, 404, { error: "Question not found." });
-    const oldQuestion = rowToQuestion(rows[0]);
 
     const built = buildQuestion(body, qid);
     if (built.error) return respondJson(res, 400, { error: built.error });
 
-    if (built.kind === "spell") deleteOldPhotoIfReplaced(oldQuestion, built);
-    else deletePhotoIfAny(oldQuestion); // switched away from a spell+photo question
-    delete built.wroteNewFile;
-
-    await pool.query(
-      `UPDATE questions SET kind=$1, word=$2, visual_type=$3, visual_value=$4, direction=$5, prompt=$6, options=$7, correct_index=$8, answer_words=$9
-       WHERE id = $10`,
-      [
-        built.kind,
-        built.kind === "spell" ? built.word : null,
-        built.kind === "spell" ? built.visualType : null,
-        built.kind === "spell" ? built.visualValue : null,
-        built.kind !== "spell" ? built.direction : null,
-        built.kind !== "spell" ? built.prompt : null,
-        built.kind === "translate" ? JSON.stringify(built.options) : null,
-        built.kind === "translate" ? built.correctIndex : null,
-        built.kind === "sentence" ? JSON.stringify(built.answerWords) : null,
-        qid,
-      ]
-    );
+    // When the photo is unchanged, leave photo_data/photo_mime untouched
+    // rather than re-writing them with nothing.
+    if (built.keepExisting) {
+      await pool.query(
+        `UPDATE questions SET kind=$1, word=$2, visual_type=$3, direction=$4, prompt=$5, options=$6, correct_index=$7, answer_words=$8
+         WHERE id = $9`,
+        [
+          built.kind, built.word, built.visualType,
+          null, null, null, null, null,
+          qid,
+        ]
+      );
+    } else {
+      await pool.query(
+        `UPDATE questions SET kind=$1, word=$2, visual_type=$3, visual_value=$4, photo_data=$5, photo_mime=$6, direction=$7, prompt=$8, options=$9, correct_index=$10, answer_words=$11
+         WHERE id = $12`,
+        [
+          built.kind,
+          built.kind === "spell" ? built.word : null,
+          built.kind === "spell" ? built.visualType : null,
+          built.kind === "spell" && built.visualType === "emoji" ? built.visualValue : null,
+          built.kind === "spell" && built.visualType === "photo" ? built.photoData : null,
+          built.kind === "spell" && built.visualType === "photo" ? built.photoMime : null,
+          built.kind !== "spell" ? built.direction : null,
+          built.kind !== "spell" ? built.prompt : null,
+          built.kind === "translate" ? JSON.stringify(built.options) : null,
+          built.kind === "translate" ? built.correctIndex : null,
+          built.kind === "sentence" ? JSON.stringify(built.answerWords) : null,
+          qid,
+        ]
+      );
+    }
     respondJson(res, 200, await loadSets());
   } catch (err) {
     respondJson(res, 400, { error: err.message });
@@ -321,13 +327,29 @@ async function handleEditQuestion(setId, qid, req, res) {
 
 async function handleDeleteQuestion(setId, qid, res) {
   try {
-    const { rows } = await pool.query("SELECT * FROM questions WHERE id = $1 AND set_id = $2", [qid, setId]);
-    if (!rows.length) return respondJson(res, 404, { error: "Question not found." });
-    await pool.query("DELETE FROM questions WHERE id = $1", [qid]);
-    deletePhotoIfAny(rowToQuestion(rows[0]));
+    const { rowCount } = await pool.query("DELETE FROM questions WHERE id = $1 AND set_id = $2", [qid, setId]);
+    if (!rowCount) return respondJson(res, 404, { error: "Question not found." });
     respondJson(res, 200, await loadSets());
   } catch (err) {
     respondJson(res, 500, { error: err.message });
+  }
+}
+
+async function handlePhoto(id, res) {
+  try {
+    const { rows } = await pool.query(
+      "SELECT photo_data, photo_mime FROM questions WHERE id = $1 AND kind = 'spell' AND visual_type = 'photo'",
+      [id]
+    );
+    if (!rows.length || !rows[0].photo_data) {
+      res.writeHead(404);
+      return void res.end("Not found");
+    }
+    res.writeHead(200, { "Content-Type": rows[0].photo_mime || "image/jpeg", "Cache-Control": "no-cache" });
+    res.end(rows[0].photo_data);
+  } catch (err) {
+    res.writeHead(500);
+    res.end(err.message);
   }
 }
 
@@ -360,6 +382,10 @@ function handleRequest(req, res) {
 
     respondJson(res, 404, { error: "Unknown question-sets route." });
     return;
+  }
+
+  if (parts[0] === "api" && parts[1] === "photos" && parts[2] && req.method === "GET") {
+    return void handlePhoto(parts[2], res);
   }
 
   let urlPath = rawPath;
