@@ -34,7 +34,9 @@ const categoryPlayBtn = document.getElementById("categoryPlayBtn");
 const categoriesBtn = document.getElementById("categoriesBtn");
 const modeOverlay = document.getElementById("modeOverlay");
 const modeSoloBtn = document.getElementById("modeSoloBtn");
+const modeTeamBtn = document.getElementById("modeTeamBtn");
 const scoreHud = document.getElementById("scoreHud");
+const teamTurnBanner = document.getElementById("teamTurnBanner");
 const summaryOverlay = document.getElementById("summaryOverlay");
 const summaryTitle = document.getElementById("summaryTitle");
 const summaryScore = document.getElementById("summaryScore");
@@ -261,6 +263,7 @@ function currentPool() {
 // --- Scoring session -----------------------------------------------------
 const ROUNDS_PER_SESSION_DEFAULT = 10;
 let sessionLength = ROUNDS_PER_SESSION_DEFAULT;
+let gameMode = "solo"; // "solo" | "team"
 let questionsAnswered = 0;
 let soloCorrectCount = 0;
 // Total points, not just a correct-count: base points for a correct
@@ -268,10 +271,14 @@ let soloCorrectCount = 0;
 // consecutive corrects = more) — see finishRound(). This is what gets
 // submitted to the leaderboard; soloCorrectCount stays around purely for
 // the "X/10 correct" readout, which the teacher still wants for grading
-// regardless of how fast/streaky a kid answered.
+// regardless of how fast/streaky a kid answered. Team mode doesn't use
+// any of this — it keeps the plain 1-point-per-correct scoring it always
+// had, kept deliberately simple/separate from the solo bonus system.
 let soloTotalPoints = 0;
 let currentStreak = 0;
 let roundStartTime = null;
+let teamScoreRed = 0;
+let teamScoreBlue = 0;
 // Set while the summary screen is offering to save a just-broken record —
 // only meaningful between showSummary() showing the prompt and the
 // teacher/student tapping Save.
@@ -287,17 +294,42 @@ let sessionSource = "pool"; // "pool" | "teacherSet"
 let activeTeacherSet = null;
 let teacherSetQueue = [];
 
+// Whose turn it is, in team mode, derived from how many questions have
+// already been answered this session — alternates Red/Blue every question
+// (1st, 3rd, 5th... = Red) rather than tracked as separate mutable state.
+function teamForIndex(answeredCount) {
+  return answeredCount % 2 === 0 ? "red" : "blue";
+}
+
 function resetSession() {
   questionsAnswered = 0;
   soloCorrectCount = 0;
   soloTotalPoints = 0;
   currentStreak = 0;
+  teamScoreRed = 0;
+  teamScoreBlue = 0;
   updateScoreHud();
 }
 
 function updateScoreHud() {
   const q = Math.min(questionsAnswered + 1, sessionLength);
-  scoreHud.textContent = `Q ${q}/${sessionLength} · ✅ ${soloCorrectCount} · 🌟 ${soloTotalPoints}`;
+  if (gameMode === "team") {
+    scoreHud.textContent = `Q ${q}/${sessionLength} · 🔴 ${teamScoreRed} - ${teamScoreBlue} 🔵`;
+  } else {
+    scoreHud.textContent = `Q ${q}/${sessionLength} · ✅ ${soloCorrectCount} · 🌟 ${soloTotalPoints}`;
+  }
+}
+
+function updateTeamTurnBanner() {
+  if (gameMode !== "team") {
+    teamTurnBanner.classList.add("hidden");
+    return;
+  }
+  const team = teamForIndex(questionsAnswered);
+  teamTurnBanner.classList.remove("hidden");
+  teamTurnBanner.classList.toggle("team-red", team === "red");
+  teamTurnBanner.classList.toggle("team-blue", team === "blue");
+  teamTurnBanner.textContent = team === "red" ? "🔴 Team Red's turn!" : "🔵 Team Blue's turn!";
 }
 
 async function showSummary() {
@@ -305,6 +337,17 @@ async function showSummary() {
   recordError.classList.add("hidden");
   recordSavedMsg.classList.add("hidden");
   pendingRecordSetId = null;
+
+  if (gameMode === "team") {
+    if (teamScoreRed === teamScoreBlue) {
+      summaryTitle.textContent = "🤝 It's a Tie!";
+    } else {
+      summaryTitle.textContent = teamScoreRed > teamScoreBlue ? "🔴 Team Red Wins!" : "🔵 Team Blue Wins!";
+    }
+    summaryScore.textContent = `🔴 Team Red: ${teamScoreRed}    🔵 Team Blue: ${teamScoreBlue}`;
+    summaryOverlay.classList.remove("hidden");
+    return;
+  }
 
   const stars =
     soloCorrectCount >= sessionLength ? "⭐⭐⭐" :
@@ -315,10 +358,11 @@ async function showSummary() {
 
   // Only teacher-authored sets have a leaderboard (built-in category
   // play draws a random pool each time, so there's no stable "set" to
-  // hold a record). The record is total points, not correct-count — it's
-  // the number that rewards fast/streaky play, which is what a "record"
-  // is meant to celebrate; correct-count alone is still shown above for
-  // grading, it just isn't what's being competed over.
+  // hold a record); team mode never participates either — points are a
+  // solo-only concept. The record is total points, not correct-count —
+  // it's the number that rewards fast/streaky play, which is what a
+  // "record" is meant to celebrate; correct-count alone is still shown
+  // above for grading, it just isn't what's being competed over.
   if (sessionSource === "teacherSet" && activeTeacherSet) {
     try {
       const res = await fetch(`/api/question-sets/${activeTeacherSet.id}/leaderboard`);
@@ -1319,7 +1363,12 @@ function pointsForCorrectAnswer() {
 // that text differs by kind.
 function finishRound(correct) {
   let breakdown = "";
-  if (correct) {
+  if (gameMode === "team") {
+    if (correct) {
+      if (teamForIndex(questionsAnswered) === "red") teamScoreRed++;
+      else teamScoreBlue++;
+    }
+  } else if (correct) {
     soloCorrectCount++;
     currentStreak++;
     const points = pointsForCorrectAnswer();
@@ -1416,6 +1465,7 @@ function showRoundIntro(round) {
   currentRound = round;
   renderVisual(promptDisplay, round);
   startBtn.textContent = cameraStarted ? "Next Round" : "Start Camera";
+  updateTeamTurnBanner();
   startOverlay.classList.remove("hidden");
 }
 
@@ -1584,6 +1634,18 @@ function startTeacherSetSession() {
 // built-in category picker, since the content is already chosen); picking
 // a mode any other way continues on to the category picker as before.
 modeSoloBtn.addEventListener("click", () => {
+  gameMode = "solo";
+  modeOverlay.classList.add("hidden");
+  if (sessionSource === "teacherSet" && activeTeacherSet) {
+    startTeacherSetSession();
+  } else {
+    sessionSource = "pool";
+    categoryOverlay.classList.remove("hidden");
+  }
+});
+
+modeTeamBtn.addEventListener("click", () => {
+  gameMode = "team";
   modeOverlay.classList.add("hidden");
   if (sessionSource === "teacherSet" && activeTeacherSet) {
     startTeacherSetSession();

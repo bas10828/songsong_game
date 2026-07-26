@@ -813,6 +813,28 @@ html, body {
   background: var(--color-primary);
 }
 
+#teamTurnBanner {
+  padding: 10px 24px;
+  border-radius: 999px;
+  font-family: var(--font-fun);
+  font-weight: 800;
+  font-size: clamp(16px, 2.4vw, 22px);
+  color: #fff;
+  box-shadow: var(--shadow-pop);
+}
+
+#teamTurnBanner.hidden {
+  display: none;
+}
+
+#teamTurnBanner.team-red {
+  background: #ff5577;
+}
+
+#teamTurnBanner.team-blue {
+  background: #4f8dff;
+}
+
 #summaryOverlay {
   position: absolute;
   inset: 0;
