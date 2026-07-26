@@ -15,6 +15,7 @@ const cameraSwitchBtn = document.getElementById("cameraSwitchBtn");
 const exitBtn = document.getElementById("exitBtn");
 const stage = document.getElementById("stage");
 const submitBtn = document.getElementById("submitBtn");
+const skipBtn = document.getElementById("skipBtn");
 const resultOverlay = document.getElementById("resultOverlay");
 const resultText = document.getElementById("resultText");
 const resultWord = document.getElementById("resultWord");
@@ -33,9 +34,7 @@ const categoryPlayBtn = document.getElementById("categoryPlayBtn");
 const categoriesBtn = document.getElementById("categoriesBtn");
 const modeOverlay = document.getElementById("modeOverlay");
 const modeSoloBtn = document.getElementById("modeSoloBtn");
-const modeTeamBtn = document.getElementById("modeTeamBtn");
 const scoreHud = document.getElementById("scoreHud");
-const teamTurnBanner = document.getElementById("teamTurnBanner");
 const summaryOverlay = document.getElementById("summaryOverlay");
 const summaryTitle = document.getElementById("summaryTitle");
 const summaryScore = document.getElementById("summaryScore");
@@ -262,11 +261,17 @@ function currentPool() {
 // --- Scoring session -----------------------------------------------------
 const ROUNDS_PER_SESSION_DEFAULT = 10;
 let sessionLength = ROUNDS_PER_SESSION_DEFAULT;
-let gameMode = "solo"; // "solo" | "team"
 let questionsAnswered = 0;
 let soloCorrectCount = 0;
-let teamScoreRed = 0;
-let teamScoreBlue = 0;
+// Total points, not just a correct-count: base points for a correct
+// answer, plus a time bonus (faster = more) and a streak bonus (more
+// consecutive corrects = more) — see finishRound(). This is what gets
+// submitted to the leaderboard; soloCorrectCount stays around purely for
+// the "X/10 correct" readout, which the teacher still wants for grading
+// regardless of how fast/streaky a kid answered.
+let soloTotalPoints = 0;
+let currentStreak = 0;
+let roundStartTime = null;
 // Set while the summary screen is offering to save a just-broken record —
 // only meaningful between showSummary() showing the prompt and the
 // teacher/student tapping Save.
@@ -282,40 +287,17 @@ let sessionSource = "pool"; // "pool" | "teacherSet"
 let activeTeacherSet = null;
 let teacherSetQueue = [];
 
-// Whose turn it is, in team mode, derived from how many questions have
-// already been answered this session — alternates Red/Blue every question
-// (1st, 3rd, 5th... = Red) rather than tracked as separate mutable state.
-function teamForIndex(answeredCount) {
-  return answeredCount % 2 === 0 ? "red" : "blue";
-}
-
 function resetSession() {
   questionsAnswered = 0;
   soloCorrectCount = 0;
-  teamScoreRed = 0;
-  teamScoreBlue = 0;
+  soloTotalPoints = 0;
+  currentStreak = 0;
   updateScoreHud();
 }
 
 function updateScoreHud() {
   const q = Math.min(questionsAnswered + 1, sessionLength);
-  if (gameMode === "team") {
-    scoreHud.textContent = `Q ${q}/${sessionLength} · 🔴 ${teamScoreRed} - ${teamScoreBlue} 🔵`;
-  } else {
-    scoreHud.textContent = `Q ${q}/${sessionLength} · ✅ ${soloCorrectCount}`;
-  }
-}
-
-function updateTeamTurnBanner() {
-  if (gameMode !== "team") {
-    teamTurnBanner.classList.add("hidden");
-    return;
-  }
-  const team = teamForIndex(questionsAnswered);
-  teamTurnBanner.classList.remove("hidden");
-  teamTurnBanner.classList.toggle("team-red", team === "red");
-  teamTurnBanner.classList.toggle("team-blue", team === "blue");
-  teamTurnBanner.textContent = team === "red" ? "🔴 Team Red's turn!" : "🔵 Team Blue's turn!";
+  scoreHud.textContent = `Q ${q}/${sessionLength} · ✅ ${soloCorrectCount} · 🌟 ${soloTotalPoints}`;
 }
 
 async function showSummary() {
@@ -324,39 +306,33 @@ async function showSummary() {
   recordSavedMsg.classList.add("hidden");
   pendingRecordSetId = null;
 
-  if (gameMode === "team") {
-    if (teamScoreRed === teamScoreBlue) {
-      summaryTitle.textContent = "🤝 It's a Tie!";
-    } else {
-      summaryTitle.textContent = teamScoreRed > teamScoreBlue ? "🔴 Team Red Wins!" : "🔵 Team Blue Wins!";
-    }
-    summaryScore.textContent = `🔴 Team Red: ${teamScoreRed}    🔵 Team Blue: ${teamScoreBlue}`;
-  } else {
-    const stars =
-      soloCorrectCount >= sessionLength ? "⭐⭐⭐" :
-      soloCorrectCount >= sessionLength * 0.7 ? "⭐⭐" :
-      soloCorrectCount >= sessionLength * 0.4 ? "⭐" : "";
-    summaryTitle.textContent = "Great job!";
-    summaryScore.textContent = `You got ${soloCorrectCount} / ${sessionLength} correct! ${stars}`;
+  const stars =
+    soloCorrectCount >= sessionLength ? "⭐⭐⭐" :
+    soloCorrectCount >= sessionLength * 0.7 ? "⭐⭐" :
+    soloCorrectCount >= sessionLength * 0.4 ? "⭐" : "";
+  summaryTitle.textContent = "Great job!";
+  summaryScore.textContent = `${soloCorrectCount} / ${sessionLength} correct ${stars}\n🌟 ${soloTotalPoints} points`;
 
-    // Only teacher-authored sets have a leaderboard (built-in category
-    // play draws a random pool each time, so there's no stable "set" to
-    // hold a record).
-    if (sessionSource === "teacherSet" && activeTeacherSet) {
-      try {
-        const res = await fetch(`/api/question-sets/${activeTeacherSet.id}/leaderboard`);
-        const board = await res.json();
-        const currentBest = board.length ? board[board.length - 1].score : -1;
-        if (soloCorrectCount > 0 && soloCorrectCount > currentBest) {
-          pendingRecordSetId = activeTeacherSet.id;
-          pendingRecordScore = soloCorrectCount;
-          pendingRecordSessionLength = sessionLength;
-          recordNameInput.value = "";
-          recordBlock.classList.remove("hidden");
-        }
-      } catch (err) {
-        console.error("Failed to check leaderboard:", err);
+  // Only teacher-authored sets have a leaderboard (built-in category
+  // play draws a random pool each time, so there's no stable "set" to
+  // hold a record). The record is total points, not correct-count — it's
+  // the number that rewards fast/streaky play, which is what a "record"
+  // is meant to celebrate; correct-count alone is still shown above for
+  // grading, it just isn't what's being competed over.
+  if (sessionSource === "teacherSet" && activeTeacherSet) {
+    try {
+      const res = await fetch(`/api/question-sets/${activeTeacherSet.id}/leaderboard`);
+      const board = await res.json();
+      const currentBest = board.length ? board[board.length - 1].score : -1;
+      if (soloTotalPoints > 0 && soloTotalPoints > currentBest) {
+        pendingRecordSetId = activeTeacherSet.id;
+        pendingRecordScore = soloTotalPoints;
+        pendingRecordSessionLength = sessionLength;
+        recordNameInput.value = "";
+        recordBlock.classList.remove("hidden");
       }
+    } catch (err) {
+      console.error("Failed to check leaderboard:", err);
     }
   }
   summaryOverlay.classList.remove("hidden");
@@ -525,6 +501,8 @@ function clearBoard() {
 function setupRound(round) {
   clearBoard();
   currentRound = round;
+  setSubmitConfirmArmed(false);
+  roundStartTime = performance.now();
 
   const isSentence = round.kind === "sentence";
   const tokens = isSentence ? round.answerWords : round.word.split("");
@@ -575,41 +553,81 @@ function computeMetrics() {
   return { rect, spacing, size };
 }
 
+// Word tiles get a width that grows with the round's longest word, instead
+// of the fixed square used for single letters — "elephant" needs more room
+// than "I". Every tile in a sentence round shares this one width (not each
+// one sized to its own word) — sizing each tile to its own word turned
+// width into a free hint, since a card only ever fits the slot it belongs
+// in.
+function tileWidthFor(m, isSentence) {
+  if (!isSentence) return m.size;
+  return Math.max(m.size, Math.max(...currentRound.answerWords.map((w) => w.length)) * m.size * 0.42 + m.size * 0.5);
+}
+
+// Lays `count` same-size tiles out in a row, wrapping to further balanced
+// rows (not one crammed/overflowing row, and not one near-empty last row)
+// once they wouldn't all fit at their natural width — used for both the
+// slot row and the card tray, so a long sentence wraps instead of running
+// its tiles into each other off the edge of the stage.
+function tileGrid(count, tileW, tileH, rect) {
+  const colPitch = tileW + tileW * 0.22;
+  const maxCols = Math.max(1, Math.floor((rect.width * 0.94) / colPitch));
+  const cols = Math.min(Math.max(count, 1), maxCols);
+  const rows = Math.max(1, Math.ceil(count / cols));
+  const perRow = Math.ceil(count / rows);
+  const rowCounts = [];
+  let remaining = count;
+  for (let r = 0; r < rows; r++) {
+    const n = Math.min(perRow, remaining);
+    rowCounts.push(n);
+    remaining -= n;
+  }
+  return { rowCounts, colPitch, rowPitch: tileH + tileH * 0.4 };
+}
+
+function tilePosition(index, grid, centerX, baseY) {
+  let row = 0;
+  let idx = index;
+  while (idx >= grid.rowCounts[row]) {
+    idx -= grid.rowCounts[row];
+    row++;
+  }
+  const itemsInRow = grid.rowCounts[row];
+  return {
+    x: centerX + (idx - (itemsInRow - 1) / 2) * grid.colPitch,
+    y: baseY + row * grid.rowPitch,
+  };
+}
+
 function slotPosition(index, metrics) {
   const m = metrics || computeMetrics();
-  return {
-    x: m.rect.width / 2 + (index - (slots.length - 1) / 2) * m.spacing,
-    y: m.rect.height * 0.3,
-  };
+  const isSentence = currentRound && currentRound.kind === "sentence";
+  const grid = tileGrid(slots.length, tileWidthFor(m, isSentence), m.size, m.rect);
+  return tilePosition(index, grid, m.rect.width / 2, m.rect.height * 0.22);
 }
 
 function layoutBoard() {
   const m = computeMetrics();
-  const trayY = m.rect.height * 0.75;
   const grabRadius = m.size * 0.85;
   const isSentence = currentRound && currentRound.kind === "sentence";
-
-  // Word cards get a width that grows with the word's length instead of
-  // the fixed square used for single letters — "elephant" needs more room
-  // than "I".
-  const tileWidth = (token) => {
-    if (!isSentence) return m.size;
-    return Math.max(m.size, token.length * m.size * 0.42 + m.size * 0.5);
-  };
+  const tileWidth = tileWidthFor(m, isSentence);
+  const slotGrid = tileGrid(slots.length, tileWidth, m.size, m.rect);
+  const cardGrid = tileGrid(cards.length, tileWidth, m.size, m.rect);
+  const trayBaseY = m.rect.height * 0.66;
 
   slots.forEach((s, i) => {
-    const pos = slotPosition(i, m);
-    const w = isSentence ? tileWidth(currentRound.answerWords[i]) : m.size;
+    const pos = tilePosition(i, slotGrid, m.rect.width / 2, m.rect.height * 0.22);
     s.el.style.left = `${pos.x}px`;
     s.el.style.top = `${pos.y}px`;
-    s.el.style.width = `${w + 6}px`;
+    s.el.style.width = `${tileWidth + 6}px`;
     s.el.style.height = `${m.size + 6}px`;
   });
 
   cards.forEach((c, i) => {
-    c.homeX = m.rect.width / 2 + (i - (cards.length - 1) / 2) * m.spacing;
-    c.homeY = trayY;
-    c.el.style.width = `${tileWidth(c.letter)}px`;
+    const homePos = tilePosition(i, cardGrid, m.rect.width / 2, trayBaseY);
+    c.homeX = homePos.x;
+    c.homeY = homePos.y;
+    c.el.style.width = `${tileWidth}px`;
     c.el.style.height = `${m.size}px`;
     c.el.style.fontSize = isSentence ? `${Math.max(13, m.size * 0.3)}px` : `${Math.max(16, m.size * 0.45)}px`;
     if (c.currentSlot === null) {
@@ -919,9 +937,16 @@ function processResult(result) {
     ring: isFingerExtended(landmarks, 16, 14, wrist, palmScale),
     pinky: isFingerExtended(landmarks, 20, 18, wrist, palmScale),
   };
-  const isThumbsUp = fingers.thumb && !fingers.index && !fingers.middle && !fingers.ring && !fingers.pinky;
+  // A fist with the thumb out reads as "thumb extended, everything else
+  // curled" regardless of which way it's pointing — up vs down needs an
+  // explicit direction check against the wrist, or a sideways/ambiguous
+  // thumb would count as both (or neither, unreliably).
+  const onlyThumbOut = fingers.thumb && !fingers.index && !fingers.middle && !fingers.ring && !fingers.pinky;
+  const thumbVerticalOffset = wrist.y - thumbTip.y; // + = thumb above wrist (up), - = below (down)
+  const isThumbsUp = onlyThumbOut && thumbVerticalOffset > palmScale * THUMB_DIRECTION_MARGIN;
+  const isThumbsDown = onlyThumbOut && thumbVerticalOffset < -palmScale * THUMB_DIRECTION_MARGIN;
   const isPeaceSign = fingers.index && fingers.middle && !fingers.ring && !fingers.pinky;
-  pinchDebugEl.textContent = `pinch: ${pinchRatio.toFixed(2)} ${isPinching ? "🤏" : ""} ${isThumbsUp ? "👍" : ""} ${isPeaceSign ? "✌️" : ""}`;
+  pinchDebugEl.textContent = `pinch: ${pinchRatio.toFixed(2)} ${isPinching ? "🤏" : ""} ${isThumbsUp ? "👍" : ""} ${isThumbsDown ? "👎" : ""} ${isPeaceSign ? "✌️" : ""}`;
 
   const pinchPoint = {
     x: mapX((thumbTip.x + indexTip.x) / 2, overlay.width),
@@ -953,6 +978,7 @@ function processResult(result) {
   if (!modalOpen) {
     handleGesture(isPinching, pinchPoint);
     handleThumbsUpGesture(isThumbsUp);
+    handleThumbsDownGesture(isThumbsDown);
     const roundActive = currentRound && startOverlay.classList.contains("hidden");
     handleZoomGesture(isPeaceSign && !isPinching && grabbedCardId === null && roundActive);
   }
@@ -966,6 +992,12 @@ function processResult(result) {
 // just "farther than the knuckle") so an ordinary half-open hand while
 // reaching for a card doesn't read as "extended".
 const FINGER_EXTEND_MARGIN = 0.28;
+
+// How far the thumb tip has to sit above/below the wrist (as a fraction of
+// palmScale) before a thumb-out fist counts as pointing "up" or "down"
+// rather than sideways/ambiguous — used by processResult() to tell
+// isThumbsUp apart from isThumbsDown.
+const THUMB_DIRECTION_MARGIN = 0.35;
 
 function isFingerExtended(landmarks, tipIdx, midIdx, wrist, palmScale) {
   const tip = landmarks[tipIdx];
@@ -983,27 +1015,119 @@ function isFingerExtended(landmarks, tipIdx, midIdx, wrist, palmScale) {
 // It still has to be held for THUMBS_UP_HOLD_MS before it fires (not just a
 // single rising-edge frame), as a second guard against one noisy MediaPipe
 // frame triggering an accidental Submit mid-round.
+//
+// Submit gets a further, stronger guard on top of that: a held-long-enough
+// thumbs-up doesn't submit, it only *arms* a confirm — the button flips to
+// "👍 Again?" and the actual submit needs a second thumbs-up hold, which
+// requires a genuine release in between (this function resets
+// thumbsUpHoldStart to null on every release). A hold-duration bump alone
+// can't stop a sustained false-positive (a resting hand MediaPipe keeps
+// reading as thumbs-up just sits out any timer), but it can never pass
+// through a release-then-re-hold cycle, so it can only ever arm the
+// confirm, never complete it, without an actual second gesture.
 const THUMBS_UP_HOLD_MS = 350;
+const THUMBS_UP_SUBMIT_HOLD_MS = 700;
+const SUBMIT_CONFIRM_TIMEOUT_MS = 4000;
 let thumbsUpHoldStart = null;
 let thumbsUpFired = false;
+let submitConfirmArmed = false;
+let submitConfirmTimeout = null;
+
+function setSubmitConfirmArmed(armed) {
+  submitConfirmArmed = armed;
+  clearTimeout(submitConfirmTimeout);
+  submitConfirmTimeout = null;
+  if (armed) {
+    submitBtn.textContent = "👍 Again?";
+    submitBtn.classList.add("confirm-pending");
+    submitConfirmTimeout = setTimeout(() => setSubmitConfirmArmed(false), SUBMIT_CONFIRM_TIMEOUT_MS);
+  } else {
+    submitBtn.textContent = "Submit";
+    submitBtn.classList.remove("confirm-pending");
+  }
+}
+
+// Camera started, board showing, not looking at a result yet — the window
+// where Submit/Skip are meaningful. Shared by thumbsUpTarget (below) and
+// the thumbs-down skip gesture.
+function isMidRound() {
+  return startOverlay.classList.contains("hidden") && resultOverlay.classList.contains("hidden");
+}
+
+function boardFullyFilled() {
+  return slots.length > 0 && slots.every((s) => s.cardId !== null);
+}
+
+// Whichever button a thumbs-up would currently click — shared by the fire
+// logic and the hold-progress preview so they can never disagree about
+// what's about to happen. Submit only becomes a target once every slot is
+// filled — an empty-handed thumbs-up mid-round used to just pop the "Fill
+// every slot first!" toast, which was easy to trigger by accident; now it
+// does nothing at all (use the thumbs-down skip gesture to bail out
+// instead of filling slots you don't want to answer with).
+function thumbsUpTarget() {
+  if (roundIntroPinchable() && !startBtn.disabled) return startBtn;
+  if (!resultOverlay.classList.contains("hidden")) return nextBtn;
+  if (isMidRound() && boardFullyFilled()) return submitBtn;
+  return null;
+}
 
 function handleThumbsUpGesture(isThumbsUp) {
   if (!isThumbsUp || isPinchingState || grabbedCardId !== null) {
     thumbsUpHoldStart = null;
     thumbsUpFired = false;
+    submitBtn.style.setProperty("--thumb-hold-progress", "0");
     return;
   }
   if (thumbsUpHoldStart === null) thumbsUpHoldStart = performance.now();
-  if (thumbsUpFired || performance.now() - thumbsUpHoldStart < THUMBS_UP_HOLD_MS) return;
-  thumbsUpFired = true;
 
-  if (roundIntroPinchable() && !startBtn.disabled) {
-    startBtn.click();
-  } else if (!resultOverlay.classList.contains("hidden")) {
-    nextBtn.click();
-  } else if (startOverlay.classList.contains("hidden")) {
-    submitBtn.click();
+  const target = thumbsUpTarget();
+  const holdMs = target === submitBtn ? THUMBS_UP_SUBMIT_HOLD_MS : THUMBS_UP_HOLD_MS;
+  const elapsed = performance.now() - thumbsUpHoldStart;
+  submitBtn.style.setProperty("--thumb-hold-progress", target === submitBtn ? String(Math.min(1, elapsed / holdMs)) : "0");
+
+  if (thumbsUpFired || elapsed < holdMs) return;
+  thumbsUpFired = true;
+  submitBtn.style.setProperty("--thumb-hold-progress", "0");
+
+  if (target === submitBtn) {
+    if (submitConfirmArmed) {
+      setSubmitConfirmArmed(false);
+      submitBtn.click();
+    } else {
+      setSubmitConfirmArmed(true);
+    }
+    return;
   }
+  if (target) target.click();
+}
+
+// Thumbs-down bails out of the current question without needing to fill
+// (or empty) the board first — a deliberate escape hatch, distinct in
+// both shape (pointing down, not up) and target from Submit, so it can't
+// be triggered by the same accidental gesture Submit was guarding
+// against. Simple hold-to-fire, no second-stage confirm: skipping is
+// always available and never destroys progress the way a false Submit
+// could, so the stakes don't call for it.
+const THUMBS_DOWN_HOLD_MS = 500;
+let thumbsDownHoldStart = null;
+let thumbsDownFired = false;
+
+function handleThumbsDownGesture(isThumbsDown) {
+  if (!isThumbsDown || isPinchingState || grabbedCardId !== null || !isMidRound()) {
+    thumbsDownHoldStart = null;
+    thumbsDownFired = false;
+    skipBtn.style.setProperty("--skip-hold-progress", "0");
+    return;
+  }
+  if (thumbsDownHoldStart === null) thumbsDownHoldStart = performance.now();
+  const elapsed = performance.now() - thumbsDownHoldStart;
+  skipBtn.style.setProperty("--skip-hold-progress", String(Math.min(1, elapsed / THUMBS_DOWN_HOLD_MS)));
+
+  if (thumbsDownFired || elapsed < THUMBS_DOWN_HOLD_MS) return;
+  thumbsDownFired = true;
+  skipBtn.style.setProperty("--skip-hold-progress", "0");
+  skipBtn.click();
 }
 
 // Holding up a peace sign (index + middle) magnifies the current round's
@@ -1053,6 +1177,9 @@ function roundIntroPinchable() {
 
 function updateButtonAffordance(pinchPoint) {
   submitBtn.classList.toggle("hover", pinchOverElement(pinchPoint, submitBtn));
+  if (isMidRound()) {
+    skipBtn.classList.toggle("hover", pinchOverElement(pinchPoint, skipBtn));
+  }
   if (!resultOverlay.classList.contains("hidden")) {
     nextBtn.classList.toggle("hover", pinchOverElement(pinchPoint, nextBtn));
   }
@@ -1074,6 +1201,10 @@ function handleGesture(isPinching, pinchPoint) {
     }
     if (pinchOverElement(pinchPoint, submitBtn)) {
       submitBtn.click();
+      return;
+    }
+    if (isMidRound() && pinchOverElement(pinchPoint, skipBtn)) {
+      skipBtn.click();
       return;
     }
     if (!resultOverlay.classList.contains("hidden") && pinchOverElement(pinchPoint, nextBtn)) {
@@ -1163,23 +1294,47 @@ function dropCard(card) {
   placeCardInSlot(card, targetSlot.index);
 }
 
+// Points for a correct answer: a flat base, a time bonus that tapers off
+// the longer it takes (full bonus inside TIME_BONUS_WINDOW_MS, none past
+// it), and a streak bonus that grows with consecutive corrects (capped, so
+// a long streak doesn't dwarf the other two). currentStreak is the streak
+// *including* this answer, so the first correct of a streak (streak = 1)
+// gets no streak bonus yet — it takes two in a row to earn one.
+const BASE_POINTS = 10;
+const TIME_BONUS_MAX = 5;
+const TIME_BONUS_WINDOW_MS = 15000;
+const STREAK_BONUS_PER_LEVEL = 2;
+const STREAK_BONUS_CAP = 10;
+
+function pointsForCorrectAnswer() {
+  const elapsedMs = performance.now() - roundStartTime;
+  const timeBonus = Math.round(Math.max(0, 1 - elapsedMs / TIME_BONUS_WINDOW_MS) * TIME_BONUS_MAX);
+  const streakBonus = Math.min(STREAK_BONUS_CAP, (currentStreak - 1) * STREAK_BONUS_PER_LEVEL);
+  return { total: BASE_POINTS + timeBonus + streakBonus, timeBonus, streakBonus };
+}
+
 // Shared by every question kind's answer check: applies the score, advances
 // the question counter, and shows the result overlay. Callers set
 // resultWord (the "here's the right answer" reveal) themselves first, since
 // that text differs by kind.
 function finishRound(correct) {
-  if (gameMode === "team") {
-    if (correct) {
-      if (teamForIndex(questionsAnswered) === "red") teamScoreRed++;
-      else teamScoreBlue++;
-    }
-  } else if (correct) {
+  let breakdown = "";
+  if (correct) {
     soloCorrectCount++;
+    currentStreak++;
+    const points = pointsForCorrectAnswer();
+    soloTotalPoints += points.total;
+    const extras = [];
+    if (points.timeBonus > 0) extras.push(`⏱️+${points.timeBonus}`);
+    if (points.streakBonus > 0) extras.push(`🔥+${points.streakBonus}`);
+    breakdown = ` +${points.total}pts${extras.length ? ` (${extras.join(" ")})` : ""}`;
+  } else {
+    currentStreak = 0;
   }
   questionsAnswered++;
   updateScoreHud();
 
-  resultText.textContent = correct ? "Correct! 🎉" : "Not quite!";
+  resultText.textContent = correct ? `Correct! 🎉${breakdown}` : "Not quite!";
   resultText.style.color = correct ? "#4caf50" : "#ff5252";
   nextBtn.textContent = questionsAnswered >= sessionLength ? "See Results 🏆" : "Next Word";
   resultOverlay.classList.remove("hidden");
@@ -1188,6 +1343,7 @@ function finishRound(correct) {
 // Handles both "spell" (letter tokens) and "sentence" (word tokens) rounds
 // — same drag-into-slots board, just a different unit per card.
 function checkSubmit() {
+  setSubmitConfirmArmed(false);
   const allFilled = slots.every((s) => s.cardId !== null);
   if (!allFilled) {
     resultText.textContent = "Fill every slot first!";
@@ -1212,7 +1368,20 @@ function checkSubmit() {
   finishRound(correct);
 }
 
+// Counts the same as a wrong answer (reveals the correct answer, advances
+// the session) — skipping isn't a free pass, it's for "I don't want to
+// guess this one," same as leaving it wrong would be.
+function skipQuestion() {
+  setSubmitConfirmArmed(false);
+  resultText.textContent = "Skipped";
+  resultText.style.color = "#ffb74d";
+  resultWord.textContent =
+    currentRound.kind === "sentence" ? currentRound.answerWords.join(" ") : currentRound.word.toUpperCase();
+  finishRound(false);
+}
+
 submitBtn.addEventListener("click", checkSubmit);
+skipBtn.addEventListener("click", skipQuestion);
 nextBtn.addEventListener("click", () => {
   resultOverlay.classList.add("hidden");
   if (questionsAnswered >= sessionLength) {
@@ -1247,7 +1416,6 @@ function showRoundIntro(round) {
   currentRound = round;
   renderVisual(promptDisplay, round);
   startBtn.textContent = cameraStarted ? "Next Round" : "Start Camera";
-  updateTeamTurnBanner();
   startOverlay.classList.remove("hidden");
 }
 
@@ -1416,18 +1584,6 @@ function startTeacherSetSession() {
 // built-in category picker, since the content is already chosen); picking
 // a mode any other way continues on to the category picker as before.
 modeSoloBtn.addEventListener("click", () => {
-  gameMode = "solo";
-  modeOverlay.classList.add("hidden");
-  if (sessionSource === "teacherSet" && activeTeacherSet) {
-    startTeacherSetSession();
-  } else {
-    sessionSource = "pool";
-    categoryOverlay.classList.remove("hidden");
-  }
-});
-
-modeTeamBtn.addEventListener("click", () => {
-  gameMode = "team";
   modeOverlay.classList.add("hidden");
   if (sessionSource === "teacherSet" && activeTeacherSet) {
     startTeacherSetSession();
@@ -1742,7 +1898,7 @@ async function showLeaderboard(set) {
 
       const score = document.createElement("div");
       score.className = "leaderboard-score";
-      score.textContent = `${entry.score}/${entry.sessionLength}`;
+      score.textContent = `🌟 ${entry.score} pts`;
       row.appendChild(score);
 
       const date = document.createElement("div");

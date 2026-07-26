@@ -267,11 +267,81 @@ html, body {
   box-shadow: var(--shadow-pop);
   transform: translate(-50%, -50%);
   transition: left 0.25s ease, top 0.25s ease, transform 0.15s ease, background 0.2s;
+  overflow: hidden;
+}
+
+/* A held thumbs-up sweeps this fill clockwise as a visible "still
+   holding, about to submit" confirmation — gives the player a chance to
+   see and cancel (lower the thumb) before an accidental gesture submits
+   a wrong/early answer. --thumb-hold-progress is only set while a
+   thumbs-up is targeting Submit specifically (see thumbsUpTarget() in
+   main.js); it's 0 the rest of the time, so this stays invisible. */
+#submitBtn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: conic-gradient(rgba(255, 255, 255, 0.6) calc(var(--thumb-hold-progress, 0) * 360deg), transparent 0);
+  pointer-events: none;
+}
+
+/* Fixed in the corner (unlike Submit, which moves to center once the
+   board's full) — always reachable so a stuck/unwanted question can be
+   escaped without needing to fill it first. Deliberately quieter than
+   Submit (smaller, translucent) since it's a secondary/rare action. */
+#skipBtn {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 20;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-family: var(--font-fun);
+  font-weight: 700;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+  transition: transform 0.15s ease;
+}
+
+#skipBtn.hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.7), var(--shadow-pop);
+}
+
+#skipBtn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: conic-gradient(rgba(255, 255, 255, 0.6) calc(var(--skip-hold-progress, 0) * 360deg), transparent 0);
+  pointer-events: none;
 }
 
 #submitBtn.ready {
   background: var(--color-success);
   transform: translate(-50%, -50%) scale(1.15);
+}
+
+/* Shown while a thumbs-up hold has armed the submit-confirm step (see
+   setSubmitConfirmArmed in main.js) — a second, separate thumbs-up hold
+   is needed to actually submit, so this needs to read as clearly
+   different from the normal "ready" green. */
+#submitBtn.confirm-pending {
+  background: #ffb300;
+  animation: confirmPulse 0.9s ease-in-out infinite;
+}
+
+@keyframes confirmPulse {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.22);
+  }
 }
 
 #submitBtn.hover {
@@ -743,28 +813,6 @@ html, body {
   background: var(--color-primary);
 }
 
-#teamTurnBanner {
-  padding: 10px 24px;
-  border-radius: 999px;
-  font-family: var(--font-fun);
-  font-weight: 800;
-  font-size: clamp(16px, 2.4vw, 22px);
-  color: #fff;
-  box-shadow: var(--shadow-pop);
-}
-
-#teamTurnBanner.hidden {
-  display: none;
-}
-
-#teamTurnBanner.team-red {
-  background: #ff5577;
-}
-
-#teamTurnBanner.team-blue {
-  background: #4f8dff;
-}
-
 #summaryOverlay {
   position: absolute;
   inset: 0;
@@ -807,6 +855,7 @@ html, body {
   font-size: clamp(18px, 3vw, 24px);
   margin-bottom: 24px;
   line-height: 1.6;
+  white-space: pre-line;
 }
 
 #recordBlock {
