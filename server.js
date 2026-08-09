@@ -12,6 +12,8 @@ const path = require("path");
 const crypto = require("crypto");
 const { Pool } = require("pg");
 
+require("dotenv").config();
+
 const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
 const MAX_QUESTIONS_PER_SET = 30;

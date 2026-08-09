@@ -441,6 +441,26 @@ function renderVisual(container, round) {
 let handLandmarker = null;
 let currentStream = null;
 let facingMode = "user";
+
+// Ask for the camera as soon as this page loads, decoupled from the
+// "Start Camera" click. Requesting it inside the click handler meant the
+// permission prompt (or a denial) landed *after* we'd already entered
+// fullscreen, leaving a broken camera view stuck fullscreen with no easy
+// way out. By preflighting here, the permission is usually already
+// resolved by the time the user clicks Start.
+let preflightStreamPromise = null;
+let preflightError = null;
+
+function preflightCamera() {
+  preflightStreamPromise = navigator.mediaDevices
+    .getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
+    .catch((err) => {
+      preflightError = err;
+      preflightStreamPromise = null;
+      throw err;
+    });
+}
+preflightCamera();
 let running = false;
 
 let lastFrameTime = performance.now();
@@ -603,9 +623,34 @@ function computeMetrics() {
 // one sized to its own word) — sizing each tile to its own word turned
 // width into a free hint, since a card only ever fits the slot it belongs
 // in.
+// Off-screen clone of a real word-card, reused to measure how wide a word
+// actually renders (font, weight, and the card's own padding all included,
+// since it's styled with the exact same classes) rather than guessing from
+// character count — a fixed per-character estimate was either too tight
+// for wide letters or, tuned safe, made every card oversized regardless of
+// what word it held (English and Thai glyphs aren't remotely the same
+// width, so no single constant multiplier could fit both well anyway).
+const wordMeasureEl = document.createElement("div");
+wordMeasureEl.className = "card word";
+wordMeasureEl.style.position = "absolute";
+wordMeasureEl.style.visibility = "hidden";
+wordMeasureEl.style.left = "-9999px";
+wordMeasureEl.style.top = "-9999px";
+wordMeasureEl.style.width = "auto";
+wordMeasureEl.style.animation = "none";
+document.body.appendChild(wordMeasureEl);
+
+function measureWordTileWidth(word, fontSizePx) {
+  wordMeasureEl.style.fontSize = `${fontSizePx}px`;
+  wordMeasureEl.textContent = word.toUpperCase();
+  return wordMeasureEl.getBoundingClientRect().width;
+}
+
 function tileWidthFor(m, isSentence) {
   if (!isSentence) return m.size;
-  return Math.max(m.size, Math.max(...currentRound.answerWords.map((w) => w.length)) * m.size * 0.42 + m.size * 0.5);
+  const fontSizePx = Math.max(13, m.size * 0.3);
+  const widths = currentRound.answerWords.map((w) => measureWordTileWidth(w, fontSizePx));
+  return Math.max(m.size, ...widths) + 4;
 }
 
 // Lays `count` same-size tiles out in a row, wrapping to further balanced
@@ -751,14 +796,18 @@ async function createHandLandmarker() {
 }
 
 async function startCamera() {
-  if (currentStream) {
-    currentStream.getTracks().forEach((t) => t.stop());
+  if (!cameraStarted && preflightStreamPromise) {
+    currentStream = await preflightStreamPromise;
+  } else {
+    if (currentStream) {
+      currentStream.getTracks().forEach((t) => t.stop());
+    }
+    const constraints = {
+      video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false,
+    };
+    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
   }
-  const constraints = {
-    video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
-    audio: false,
-  };
-  currentStream = await navigator.mediaDevices.getUserMedia(constraints);
   video.srcObject = currentStream;
   await new Promise((resolve) => {
     video.onloadedmetadata = () => resolve();
@@ -1557,6 +1606,13 @@ function requestFullscreenSafe() {
 }
 
 async function start() {
+  // Preflight already failed (permission denied / no camera) — bail before
+  // entering fullscreen instead of getting stuck there with a dead camera.
+  if (!cameraStarted && preflightError) {
+    statusEl.textContent = `Camera error: ${preflightError.message}`;
+    return;
+  }
+
   // Must fire synchronously inside the click handler (before any await) or
   // browsers drop the user-gesture and refuse the fullscreen request.
   requestFullscreenSafe();
