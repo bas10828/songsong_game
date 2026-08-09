@@ -104,5 +104,17 @@
       </div>
     </div>
   </div>
+  <script>
+    // Camera permission is per-origin, not per-page — asking here, as early
+    // as the very first page of the site, means it's already granted by the
+    // time a kid reaches the spelling game (game1.html) and goes fullscreen,
+    // instead of the prompt landing mid-fullscreen where a denial/slow
+    // response used to strand them with a broken camera and no easy way out.
+    // Not needed by this page itself, so stop the tracks right away.
+    navigator.mediaDevices
+      ?.getUserMedia({ video: true })
+      .then((stream) => stream.getTracks().forEach((t) => t.stop()))
+      .catch(() => {});
+  </script>
 </body>
 </html>

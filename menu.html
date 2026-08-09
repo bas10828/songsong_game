@@ -98,5 +98,15 @@
   </div>
 
   <img id="menuMascot" src="song_song_Body%20Spell%20Challenge/mascot.png" alt="" />
+
+  <script>
+    // Camera permission is per-origin — asking here too covers anyone who
+    // reaches this hub without going through index.html first, so it's
+    // already granted before either game goes fullscreen.
+    navigator.mediaDevices
+      ?.getUserMedia({ video: true })
+      .then((stream) => stream.getTracks().forEach((t) => t.stop()))
+      .catch(() => {});
+  </script>
 </body>
 </html>

