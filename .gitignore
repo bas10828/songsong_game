@@ -7,3 +7,6 @@ recorder/
 *.pid
 *_out.log
 *_err.log
+.env.local
+.gh-auth-*.txt
+server-*.log

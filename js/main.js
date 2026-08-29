@@ -32,6 +32,8 @@ const categoryOverlay = document.getElementById("categoryOverlay");
 const categoryList = document.getElementById("categoryList");
 const categoryPlayBtn = document.getElementById("categoryPlayBtn");
 const categoriesBtn = document.getElementById("categoriesBtn");
+const publicSetsSection = document.getElementById("publicSetsSection");
+const publicSetsList = document.getElementById("publicSetsList");
 const modeOverlay = document.getElementById("modeOverlay");
 const modeSoloBtn = document.getElementById("modeSoloBtn");
 const modeTeamBtn = document.getElementById("modeTeamBtn");
@@ -246,11 +248,11 @@ function COLOR_HEX(name) {
 // Teacher-authored "question sets" are a separate, curated concept (see
 // below) — not part of this random-sample pool.
 const CATEGORIES = [
-  { id: "colors", label: "🎨 Colors", rounds: THEMES.colors },
-  { id: "animals", label: "🐾 Animals", rounds: THEMES.animals },
-  { id: "fruits", label: "🍎 Fruits", rounds: THEMES.fruits },
-  { id: "vehicles", label: "🚗 Vehicles", rounds: THEMES.vehicles },
-  { id: "food", label: "🍕 Food", rounds: THEMES.food },
+  { id: "colors", label: "🎨  Colors", rounds: THEMES.colors },
+  { id: "animals", label: "🐾  Animals", rounds: THEMES.animals },
+  { id: "fruits", label: "🍎  Fruits", rounds: THEMES.fruits },
+  { id: "vehicles", label: "🚗  Vehicles", rounds: THEMES.vehicles },
+  { id: "food", label: "🍕  Food", rounds: THEMES.food },
 ];
 const selectedCategoryIds = new Set(CATEGORIES.map((c) => c.id));
 
@@ -318,6 +320,9 @@ function updateScoreHud() {
   } else {
     scoreHud.textContent = `Q ${q}/${sessionLength} · ✅ ${soloCorrectCount} · 🌟 ${soloTotalPoints}`;
   }
+  scoreHud.classList.remove("score-pop");
+  void scoreHud.offsetWidth;
+  scoreHud.classList.add("score-pop");
 }
 
 function updateTeamTurnBanner() {
@@ -481,12 +486,14 @@ let lastSparkleTime = 0;
 let lastDustTime = performance.now();
 
 function spawnSparkles(x, y, count = 6) {
+  const starGlyphs = ["✦", "✧", "✨", "⭐"];
   for (let i = 0; i < count; i++) {
     const s = document.createElement("span");
     s.className = "sparkle";
-    s.textContent = currentHandSkin.sparkleGlyphs[Math.floor(Math.random() * currentHandSkin.sparkleGlyphs.length)];
+    s.textContent = starGlyphs[Math.floor(Math.random() * starGlyphs.length)];
     const angle = Math.random() * Math.PI * 2;
     const dist = 24 + Math.random() * 24;
+    s.style.setProperty("--sparkle-size", `${12 + Math.random() * 9}px`);
     s.style.setProperty("--sx", `${Math.cos(angle) * dist}px`);
     s.style.setProperty("--sy", `${Math.sin(angle) * dist - 18}px`);
     s.style.left = `${x}px`;
@@ -1035,11 +1042,10 @@ function processResult(result) {
   // explicit direction check against the wrist, or a sideways/ambiguous
   // thumb would count as both (or neither, unreliably).
   const onlyThumbOut = fingers.thumb && !fingers.index && !fingers.middle && !fingers.ring && !fingers.pinky;
-  const thumbVerticalOffset = wrist.y - thumbTip.y; // + = thumb above wrist (up), - = below (down)
+  const thumbVerticalOffset = wrist.y - thumbTip.y;
   const isThumbsUp = onlyThumbOut && thumbVerticalOffset > palmScale * THUMB_DIRECTION_MARGIN;
-  const isThumbsDown = onlyThumbOut && thumbVerticalOffset < -palmScale * THUMB_DIRECTION_MARGIN;
   const isPeaceSign = fingers.index && fingers.middle && !fingers.ring && !fingers.pinky;
-  pinchDebugEl.textContent = `pinch: ${pinchRatio.toFixed(2)} ${isPinching ? "🤏" : ""} ${isThumbsUp ? "👍" : ""} ${isThumbsDown ? "👎" : ""} ${isPeaceSign ? "✌️" : ""}`;
+  pinchDebugEl.textContent = `pinch: ${pinchRatio.toFixed(2)} ${isPinching ? "🤏" : ""} ${isThumbsUp ? "👍" : ""} ${isPeaceSign ? "✌️" : ""}`;
 
   const pinchPoint = {
     x: mapX((thumbTip.x + indexTip.x) / 2, overlay.width),
@@ -1071,7 +1077,6 @@ function processResult(result) {
   if (!modalOpen) {
     handleGesture(isPinching, pinchPoint);
     handleThumbsUpGesture(isThumbsUp);
-    handleThumbsDownGesture(isThumbsDown);
     const roundActive = currentRound && startOverlay.classList.contains("hidden");
     handleZoomGesture(isPeaceSign && !isPinching && grabbedCardId === null && roundActive);
   }
@@ -1086,10 +1091,8 @@ function processResult(result) {
 // reaching for a card doesn't read as "extended".
 const FINGER_EXTEND_MARGIN = 0.28;
 
-// How far the thumb tip has to sit above/below the wrist (as a fraction of
-// palmScale) before a thumb-out fist counts as pointing "up" or "down"
-// rather than sideways/ambiguous — used by processResult() to tell
-// isThumbsUp apart from isThumbsDown.
+// How far the thumb tip has to sit above the wrist before a thumb-out fist
+// counts as thumbs-up rather than sideways or ambiguous.
 const THUMB_DIRECTION_MARGIN = 0.35;
 
 function isFingerExtended(landmarks, tipIdx, midIdx, wrist, palmScale) {
@@ -1125,6 +1128,58 @@ let thumbsUpHoldStart = null;
 let thumbsUpFired = false;
 let submitConfirmArmed = false;
 let submitConfirmTimeout = null;
+let gameAudioContext = null;
+
+function unlockGameAudio() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+  if (!gameAudioContext) gameAudioContext = new AudioContextClass();
+  if (gameAudioContext.state === "suspended") gameAudioContext.resume().catch(() => {});
+
+  // A silent one-frame sound created during the initial Start Camera tap
+  // unlocks Web Audio on mobile Safari/Chrome for later gesture-driven clicks.
+  const unlockOscillator = gameAudioContext.createOscillator();
+  const unlockGain = gameAudioContext.createGain();
+  unlockGain.gain.value = 0.0001;
+  unlockOscillator.connect(unlockGain);
+  unlockGain.connect(gameAudioContext.destination);
+  unlockOscillator.start();
+  unlockOscillator.stop(gameAudioContext.currentTime + 0.01);
+}
+
+async function playSubmitSound() {
+  unlockGameAudio();
+  if (!gameAudioContext) return;
+  if (gameAudioContext.state === "suspended") {
+    try {
+      await gameAudioContext.resume();
+    } catch {
+      return;
+    }
+  }
+  if (gameAudioContext.state !== "running") return;
+
+  const now = gameAudioContext.currentTime;
+  const notes = [523.25, 659.25, 783.99, 1046.5];
+  notes.forEach((frequency, index) => {
+    const oscillator = gameAudioContext.createOscillator();
+    const gain = gameAudioContext.createGain();
+    const startsAt = now + index * 0.065;
+    const endsAt = startsAt + 0.42;
+
+    oscillator.type = index === notes.length - 1 ? "sine" : "triangle";
+    oscillator.frequency.setValueAtTime(frequency, startsAt);
+    oscillator.frequency.exponentialRampToValueAtTime(frequency * 1.035, endsAt);
+    gain.gain.setValueAtTime(0.0001, startsAt);
+    gain.gain.exponentialRampToValueAtTime(0.22, startsAt + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, endsAt);
+
+    oscillator.connect(gain);
+    gain.connect(gameAudioContext.destination);
+    oscillator.start(startsAt);
+    oscillator.stop(endsAt);
+  });
+}
 
 function setSubmitConfirmArmed(armed) {
   submitConfirmArmed = armed;
@@ -1141,8 +1196,7 @@ function setSubmitConfirmArmed(armed) {
 }
 
 // Camera started, board showing, not looking at a result yet — the window
-// where Submit/Skip are meaningful. Shared by thumbsUpTarget (below) and
-// the thumbs-down skip gesture.
+// where Submit/Skip are meaningful.
 function isMidRound() {
   return startOverlay.classList.contains("hidden") && resultOverlay.classList.contains("hidden");
 }
@@ -1156,8 +1210,7 @@ function boardFullyFilled() {
 // what's about to happen. Submit only becomes a target once every slot is
 // filled — an empty-handed thumbs-up mid-round used to just pop the "Fill
 // every slot first!" toast, which was easy to trigger by accident; now it
-// does nothing at all (use the thumbs-down skip gesture to bail out
-// instead of filling slots you don't want to answer with).
+// does nothing at all.
 function thumbsUpTarget() {
   if (roundIntroPinchable() && !startBtn.disabled) return startBtn;
   if (!resultOverlay.classList.contains("hidden")) return nextBtn;
@@ -1193,34 +1246,6 @@ function handleThumbsUpGesture(isThumbsUp) {
     return;
   }
   if (target) target.click();
-}
-
-// Thumbs-down bails out of the current question without needing to fill
-// (or empty) the board first — a deliberate escape hatch, distinct in
-// both shape (pointing down, not up) and target from Submit, so it can't
-// be triggered by the same accidental gesture Submit was guarding
-// against. Simple hold-to-fire, no second-stage confirm: skipping is
-// always available and never destroys progress the way a false Submit
-// could, so the stakes don't call for it.
-const THUMBS_DOWN_HOLD_MS = 500;
-let thumbsDownHoldStart = null;
-let thumbsDownFired = false;
-
-function handleThumbsDownGesture(isThumbsDown) {
-  if (!isThumbsDown || isPinchingState || grabbedCardId !== null || !isMidRound()) {
-    thumbsDownHoldStart = null;
-    thumbsDownFired = false;
-    skipBtn.style.setProperty("--skip-hold-progress", "0");
-    return;
-  }
-  if (thumbsDownHoldStart === null) thumbsDownHoldStart = performance.now();
-  const elapsed = performance.now() - thumbsDownHoldStart;
-  skipBtn.style.setProperty("--skip-hold-progress", String(Math.min(1, elapsed / THUMBS_DOWN_HOLD_MS)));
-
-  if (thumbsDownFired || elapsed < THUMBS_DOWN_HOLD_MS) return;
-  thumbsDownFired = true;
-  skipBtn.style.setProperty("--skip-hold-progress", "0");
-  skipBtn.click();
 }
 
 // Holding up a peace sign (index + middle) magnifies the current round's
@@ -1320,7 +1345,7 @@ function handleGesture(isPinching, pinchPoint) {
       grabbedCardId = nearest.id;
       grabOriginSlot = nearest.currentSlot;
       nearest.el.dataset.grabbed = "true";
-      spawnSparkles(nearest.x, nearest.y, 7);
+      spawnSparkles(nearest.x, nearest.y, 5);
       grabOffset = { x: nearest.x - pinchPoint.x, y: nearest.y - pinchPoint.y };
       if (nearest.currentSlot !== null) {
         slots[nearest.currentSlot].cardId = null;
@@ -1478,7 +1503,10 @@ function skipQuestion() {
   finishRound(false);
 }
 
-submitBtn.addEventListener("click", checkSubmit);
+submitBtn.addEventListener("click", () => {
+  playSubmitSound();
+  checkSubmit();
+});
 skipBtn.addEventListener("click", skipQuestion);
 nextBtn.addEventListener("click", () => {
   resultOverlay.classList.add("hidden");
@@ -1615,6 +1643,7 @@ async function start() {
 
   // Must fire synchronously inside the click handler (before any await) or
   // browsers drop the user-gesture and refuse the fullscreen request.
+  unlockGameAudio();
   requestFullscreenSafe();
 
   startBtn.disabled = true;
@@ -1663,6 +1692,31 @@ function renderCategoryChips() {
   }
 }
 renderCategoryChips();
+
+async function loadPublicQuestionSets() {
+  try {
+    const res = await fetch("/api/public-question-sets");
+    if (!res.ok) throw new Error("Could not load public sets");
+    const publicSets = await res.json();
+    publicSetsList.innerHTML = "";
+    for (const set of publicSets) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "public-set-btn";
+      button.disabled = set.questions.length === 0;
+      button.innerHTML = `<span class="public-set-name"></span><span class="public-set-count"></span>`;
+      button.querySelector(".public-set-name").textContent = set.name;
+      button.querySelector(".public-set-count").textContent = `${set.questions.length} questions · PLAY ▶`;
+      button.addEventListener("click", () => playSet(set));
+      publicSetsList.appendChild(button);
+    }
+    publicSetsSection.classList.toggle("hidden", publicSets.length === 0);
+  } catch (err) {
+    console.error("Failed to load public question sets:", err);
+    publicSetsSection.classList.add("hidden");
+  }
+}
+loadPublicQuestionSets();
 
 categoryPlayBtn.addEventListener("click", () => {
   categoryOverlay.classList.add("hidden");
@@ -1905,6 +1959,14 @@ function renderSetsList() {
     count.textContent = `${set.questions.length}/${MAX_QUESTIONS_PER_SET}`;
     row.appendChild(count);
 
+    const visibilityBtn = document.createElement("button");
+    visibilityBtn.type = "button";
+    visibilityBtn.className = `visibility-btn ${set.isPublic ? "is-public" : "is-private"}`;
+    visibilityBtn.textContent = set.isPublic ? "🌐 Public" : "🔒 Private";
+    visibilityBtn.title = set.isPublic ? "Visible on the player home screen" : "Only teachers can see this set";
+    visibilityBtn.addEventListener("click", () => updateSetVisibility(set, visibilityBtn));
+    row.appendChild(visibilityBtn);
+
     const playBtn = document.createElement("button");
     playBtn.type = "button";
     playBtn.className = "play-btn";
@@ -1935,6 +1997,28 @@ function renderSetsList() {
     row.appendChild(delBtn);
 
     setsList.appendChild(row);
+  }
+}
+
+async function updateSetVisibility(set, button) {
+  button.disabled = true;
+  setsListError.classList.add("hidden");
+  try {
+    const res = await fetch(`/api/question-sets/${set.id}/visibility`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isPublic: !set.isPublic }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Could not change visibility.");
+    questionSets = data;
+    renderSetsList();
+    await loadPublicQuestionSets();
+    showSavedToast();
+  } catch (err) {
+    setsListError.textContent = err.message || "Network error — try again.";
+    setsListError.classList.remove("hidden");
+    button.disabled = false;
   }
 }
 
@@ -2045,12 +2129,12 @@ function openSet(id) {
   setDetailOverlay.classList.remove("hidden");
 }
 
-// Starting a teacher set is still gated behind the same login as managing
-// them (this whole screen only opens after the auth check) — students
-// don't get a self-serve way to pick and launch a set.
+// Public sets can launch from the home screen; private sets reach this same
+// path from the teacher-only management screen.
 function playSet(set) {
   sessionSource = "teacherSet";
   activeTeacherSet = set;
+  categoryOverlay.classList.add("hidden");
   setsListOverlay.classList.add("hidden");
   setDetailOverlay.classList.add("hidden");
   questionFormOverlay.classList.add("hidden");

@@ -17,6 +17,21 @@ require("dotenv").config();
 const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
 const MAX_QUESTIONS_PER_SET = 30;
+
+// Local development database settings. Environment variables supplied by
+// deployment always win; `.env.local` only fills values that are missing.
+const localEnvPath = path.join(ROOT, ".env.local");
+if (fs.existsSync(localEnvPath)) {
+  for (const line of fs.readFileSync(localEnvPath, "utf8").split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const separator = trimmed.indexOf("=");
+    if (separator < 1) continue;
+    const key = trimmed.slice(0, separator).trim();
+    const value = trimmed.slice(separator + 1).trim();
+    if (process.env[key] === undefined) process.env[key] = value;
+  }
+}
 // Bumped once per process start (i.e. every deploy/restart) and appended
 // as a query string to js/main.js in served HTML. Guarantees a fresh URL
 // after each deploy so CDN/browser caches of the old main.js can't get
@@ -91,15 +106,20 @@ function rowToQuestion(row) {
   return { id: row.id, kind: "sentence", direction: row.direction, prompt: row.prompt, answerWords: row.answer_words };
 }
 
-async function loadSets() {
-  const { rows: sets } = await pool.query("SELECT id, name FROM question_sets ORDER BY created_at");
+async function loadSets(publicOnly = false) {
+  const { rows: sets } = await pool.query(
+    `SELECT id, name, is_public
+       FROM question_sets
+      ${publicOnly ? "WHERE is_public = true" : ""}
+      ORDER BY created_at`
+  );
   // Explicit column list — omits photo_data (bytea) so every save/load
   // round-trip doesn't drag every photo's bytes through for no reason;
   // handlePhoto() queries photo_data separately, on demand.
   const { rows: questions } = await pool.query(
     "SELECT id, set_id, kind, word, visual_type, visual_value, direction, prompt, options, correct_index, answer_words FROM questions ORDER BY position"
   );
-  const bySet = new Map(sets.map((s) => [s.id, { id: s.id, name: s.name, questions: [] }]));
+  const bySet = new Map(sets.map((s) => [s.id, { id: s.id, name: s.name, isPublic: s.is_public, questions: [] }]));
   for (const q of questions) {
     const set = bySet.get(q.set_id);
     if (set) set.questions.push(rowToQuestion(q));
@@ -221,6 +241,14 @@ async function handleListSets(res) {
   }
 }
 
+async function handleListPublicSets(res) {
+  try {
+    respondJson(res, 200, await loadSets(true));
+  } catch (err) {
+    respondJson(res, 500, { error: err.message });
+  }
+}
+
 async function handleCreateSet(req, res) {
   try {
     const body = await readJsonBody(req, 16 * 1024);
@@ -241,6 +269,23 @@ async function handleRenameSet(id, req, res) {
     const { rowCount } = await pool.query(
       "UPDATE question_sets SET name = $1, updated_at = now() WHERE id = $2",
       [name, id]
+    );
+    if (!rowCount) return respondJson(res, 404, { error: "Set not found." });
+    respondJson(res, 200, await loadSets());
+  } catch (err) {
+    respondJson(res, 400, { error: err.message });
+  }
+}
+
+async function handleSetVisibility(id, req, res) {
+  try {
+    const body = await readJsonBody(req, 16 * 1024);
+    if (typeof body.isPublic !== "boolean") {
+      return respondJson(res, 400, { error: "isPublic must be true or false." });
+    }
+    const { rowCount } = await pool.query(
+      "UPDATE question_sets SET is_public = $1, updated_at = now() WHERE id = $2",
+      [body.isPublic, id]
     );
     if (!rowCount) return respondJson(res, 404, { error: "Set not found." });
     respondJson(res, 200, await loadSets());
@@ -431,6 +476,10 @@ function handleRequest(req, res) {
   const rawPath = decodeURIComponent(req.url.split("?")[0]);
   const parts = rawPath.split("/").filter(Boolean); // e.g. ["api","question-sets",":id","questions",":qid"]
 
+  if (parts[0] === "api" && parts[1] === "public-question-sets" && req.method === "GET") {
+    return void handleListPublicSets(res);
+  }
+
   if (parts[0] === "api" && parts[1] === "question-sets") {
     const setId = parts[2];
     const sub = parts[3]; // "questions" or undefined
@@ -439,6 +488,7 @@ function handleRequest(req, res) {
     if (!setId && req.method === "GET") return void handleListSets(res);
     if (!setId && req.method === "POST") return void handleCreateSet(req, res);
     if (setId && !sub && req.method === "PUT") return void handleRenameSet(setId, req, res);
+    if (setId && sub === "visibility" && req.method === "PUT") return void handleSetVisibility(setId, req, res);
     if (setId && !sub && req.method === "DELETE") return void handleDeleteSet(setId, res);
     if (setId && sub === "questions" && !qid && req.method === "POST") return void handleAddQuestion(setId, req, res);
     if (setId && sub === "questions" && qid && req.method === "PUT") return void handleEditQuestion(setId, qid, req, res);
@@ -487,9 +537,20 @@ function handleRequest(req, res) {
   });
 }
 
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Serving ${ROOT} at http://localhost:${PORT}`);
-  console.log(`Camera access requires a secure context. Plain http only works from` );
-  console.log(`"localhost" on this same machine — testing from a phone/iPad over`);
-  console.log(`LAN needs HTTPS. See README for a quick cloudflared tunnel.`);
+async function startServer() {
+  // Safe, repeatable migration for databases restored from an older backup.
+  await pool.query(
+    "ALTER TABLE question_sets ADD COLUMN IF NOT EXISTS is_public boolean NOT NULL DEFAULT false"
+  );
+  server.listen(PORT, "0.0.0.0", () => {
+    console.log(`Serving ${ROOT} at http://localhost:${PORT}`);
+    console.log(`Camera access requires a secure context. Plain http only works from` );
+    console.log(`"localhost" on this same machine — testing from a phone/iPad over`);
+    console.log(`LAN needs HTTPS. See README for a quick cloudflared tunnel.`);
+  });
+}
+
+startServer().catch((err) => {
+  console.error("Could not initialize the database:", err);
+  process.exitCode = 1;
 });
