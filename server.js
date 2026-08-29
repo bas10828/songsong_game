@@ -6,7 +6,7 @@
 // as bytea — lives in Postgres (see `pool` below, configured via standard
 // PG* env vars), so there's no on-disk state to lose on a container
 // recreate.
-const http = require("http");
+const https = require("https");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -16,6 +16,9 @@ require("dotenv").config();
 
 const PORT = process.env.PORT || 8080;
 const ROOT = __dirname;
+const TLS_DIR = path.join(ROOT, "certs");
+const TLS_KEY_PATH = path.join(TLS_DIR, "songsong-key.pem");
+const TLS_CERT_PATH = path.join(TLS_DIR, "songsong-cert.pem");
 const MAX_QUESTIONS_PER_SET = 30;
 
 // Local development database settings. Environment variables supplied by
@@ -462,7 +465,14 @@ async function handlePhoto(id, res) {
   }
 }
 
-const server = http.createServer((req, res) => {
+if (!fs.existsSync(TLS_KEY_PATH) || !fs.existsSync(TLS_CERT_PATH)) {
+  throw new Error("HTTPS certificate is missing. Expected certs/songsong-key.pem and certs/songsong-cert.pem.");
+}
+
+const server = https.createServer({
+  key: fs.readFileSync(TLS_KEY_PATH),
+  cert: fs.readFileSync(TLS_CERT_PATH),
+}, (req, res) => {
   try {
     handleRequest(req, res);
   } catch (err) {
@@ -507,6 +517,14 @@ function handleRequest(req, res) {
   let urlPath = rawPath;
   if (urlPath === "/") urlPath = "/index.html";
 
+  // Never expose local configuration, database dumps, logs, or TLS keys.
+  const firstSegment = urlPath.split("/").filter(Boolean)[0]?.toLowerCase();
+  if (["certs", "backups", "data", "node_modules"].includes(firstSegment) || urlPath.startsWith("/.")) {
+    res.writeHead(404);
+    res.end("Not found");
+    return;
+  }
+
   const filePath = path.normalize(path.join(ROOT, urlPath));
   if (!filePath.startsWith(ROOT)) {
     res.writeHead(403);
@@ -543,7 +561,7 @@ async function startServer() {
     "ALTER TABLE question_sets ADD COLUMN IF NOT EXISTS is_public boolean NOT NULL DEFAULT false"
   );
   server.listen(PORT, "0.0.0.0", () => {
-    console.log(`Serving ${ROOT} at http://localhost:${PORT}`);
+    console.log(`Serving ${ROOT} at https://localhost:${PORT}`);
     console.log(`Camera access requires a secure context. Plain http only works from` );
     console.log(`"localhost" on this same machine — testing from a phone/iPad over`);
     console.log(`LAN needs HTTPS. See README for a quick cloudflared tunnel.`);

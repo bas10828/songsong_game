@@ -1,6 +1,10 @@
+param(
+  [switch]$NoBrowser
+)
+
 $ErrorActionPreference = "Stop"
 $projectPath = $PSScriptRoot
-$gameUrl = "http://localhost:8080/menu.html"
+$gameUrl = "https://localhost:8080/menu.html"
 $serviceName = "postgresql-x64-17"
 
 Set-Location -LiteralPath $projectPath
@@ -13,7 +17,11 @@ function Test-IsAdministrator {
 
 $postgres = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
 if ($postgres -and $postgres.Status -ne "Running" -and -not (Test-IsAdministrator)) {
-  Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`""
+  $elevatedArguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`""
+  if ($NoBrowser) {
+    $elevatedArguments += " -NoBrowser"
+  }
+  Start-Process powershell.exe -Verb RunAs -ArgumentList $elevatedArguments
   exit 0
 }
 
@@ -73,4 +81,8 @@ if (-not $serverReady) {
   exit 1
 }
 
-Start-Process $gameUrl
+if (-not $NoBrowser) {
+  # Route the URL through the interactive Windows shell. This reliably opens
+  # the user's default browser even when this launcher runs as administrator.
+  Start-Process -FilePath "explorer.exe" -ArgumentList $gameUrl
+}

@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --font-fun: ui-rounded, "Segoe UI Rounded", "SF Rounded", "Comic Sans MS", system-ui, sans-serif;
   --color-primary: #ff6fae;
   --color-success: #c86bff;
@@ -10,6 +10,7 @@
   --radius-md: 14px;
   --shadow-pop: 0 8px 20px rgba(0, 0, 0, 0.35);
 }
+
 
 * {
   box-sizing: border-box;
@@ -236,7 +237,7 @@ html, body {
 }
 
 /* A held thumbs-up sweeps this fill clockwise as a visible "still
-   holding, about to submit" confirmation — gives the player a chance to
+   holding, about to submit" confirmation โ€” gives the player a chance to
    see and cancel (lower the thumb) before an accidental gesture submits
    a wrong/early answer. --thumb-hold-progress is only set while a
    thumbs-up is targeting Submit specifically (see thumbsUpTarget() in
@@ -251,7 +252,7 @@ html, body {
 }
 
 /* Fixed in the corner (unlike Submit, which moves to center once the
-   board's full) — always reachable so a stuck/unwanted question can be
+   board's full) โ€” always reachable so a stuck/unwanted question can be
    escaped without needing to fill it first. Deliberately quieter than
    Submit (smaller, translucent) since it's a secondary/rare action. */
 #skipBtn {
@@ -283,7 +284,7 @@ html, body {
 }
 
 /* Shown while a thumbs-up hold has armed the submit-confirm step (see
-   setSubmitConfirmArmed in main.js) — a second, separate thumbs-up hold
+   setSubmitConfirmArmed in main.js) โ€” a second, separate thumbs-up hold
    is needed to actually submit, so this needs to read as clearly
    different from the normal "ready" green. */
 #submitBtn.confirm-pending {
@@ -821,7 +822,7 @@ html, body {
 }
 
 .category-chip::before {
-  content: "◆";
+  content: "โ—";
   position: absolute;
   top: -14px;
   left: 50%;
@@ -893,7 +894,7 @@ html, body {
 }
 
 #categoryPlayBtn::before {
-  content: "✦";
+  content: "โฆ";
   position: absolute;
   left: -20px;
   top: 50%;
@@ -1047,7 +1048,7 @@ html, body {
 }
 
 #scoreHud::before {
-  content: "✦";
+  content: "โฆ";
   position: absolute;
   left: 12px;
   top: 50%;
@@ -1521,7 +1522,7 @@ html, body {
 
 /* --- Manage Question Sets -------------------------------------------------
    Shared chrome for the three teacher-authoring screens (set list, set
-   detail, question form) — same full-screen scrollable panel look. */
+   detail, question form) โ€” same full-screen scrollable panel look. */
 #setsListOverlay,
 #setDetailOverlay,
 #questionFormOverlay,
@@ -2197,4 +2198,127 @@ html, body {
 
 #savedToast.show {
   animation: savedToastPop 1.4s ease both;
+}
+
+/* Phone layout: tuned for modern iPhones including the 402x874 viewport of
+   iPhone 16 Pro. Keep controls inside safe areas and reserve the camera view. */
+@media (max-width: 480px) {
+  html, body { overscroll-behavior: none; }
+
+  #app {
+    min-height: 100svh;
+    height: 100dvh;
+  }
+
+  #hud {
+    min-height: 52px;
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding: max(6px, env(safe-area-inset-top)) 8px 6px;
+    font-size: 11px;
+  }
+  #fps, #pinchDebug, #status { display: none; }
+  #hud button {
+    min-height: 40px;
+    padding: 7px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  #scoreHud { margin-right: auto; }
+  #cameraSwitchBtn { margin-left: 0; }
+
+  #promptThumb {
+    top: calc(max(6px, env(safe-area-inset-top)) + 58px);
+    right: 8px;
+    width: 52px;
+    height: 52px;
+  }
+  #instructionHint {
+    top: calc(max(6px, env(safe-area-inset-top)) + 58px);
+    width: calc(100% - 80px);
+    max-width: none;
+    padding: 7px 10px;
+    font-size: 11px;
+  }
+  #skipBtn {
+    left: 10px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    min-height: 42px;
+    padding: 9px 14px;
+  }
+  #submitBtn { padding: 12px 20px; font-size: 16px; }
+
+  #categoryOverlay {
+    justify-content: flex-start;
+    gap: 8px;
+    padding: max(18px, env(safe-area-inset-top)) 12px max(16px, env(safe-area-inset-bottom));
+  }
+  #categoryTitle {
+    flex: 0 0 auto;
+    margin: 0 0 14px;
+    font-size: clamp(28px, 9vw, 38px);
+    line-height: 1.08;
+  }
+  #categoryTitle::before, #categoryTitle::after { width: 62px; top: calc(100% + 7px); }
+  #categoryList { width: 100%; gap: 8px; }
+  .category-chip {
+    min-height: 52px;
+    padding: 8px 9px;
+    border-width: 2px;
+    font-size: 15px;
+    line-height: 1.1;
+  }
+  .category-chip:nth-child(5) { width: 62%; }
+  #publicSetsSection { width: 100%; padding: 7px 8px 8px; }
+  #publicSetsTitle { margin-bottom: 5px; font-size: 15px; }
+  .public-set-btn { min-width: 0; width: 100%; padding: 7px 10px; }
+  #categoryPlayBtn {
+    width: min(310px, 86vw);
+    min-height: 58px;
+    padding: 8px 24px;
+    font-size: 30px;
+    border-width: 3px;
+  }
+  #categoryOverlay #manageWordsBtn { width: min(310px, 86vw); min-height: 42px; font-size: 14px; }
+  #mascotCategory { height: 74px; margin-top: -4px; }
+
+  #startOverlay {
+    gap: 14px;
+    padding: calc(max(62px, env(safe-area-inset-top) + 54px)) 14px max(14px, env(safe-area-inset-bottom));
+  }
+  #promptDisplay { width: min(72vw, 42vh); height: min(72vw, 42vh); }
+  #startBtn { min-height: 54px; padding: 12px 28px; font-size: 20px; }
+  #mascotCorner { width: 82px; max-height: 120px; }
+
+  #translateOverlay {
+    justify-content: flex-start;
+    gap: 9px;
+    padding: calc(max(62px, env(safe-area-inset-top) + 54px)) 10px max(12px, env(safe-area-inset-bottom));
+    overflow-y: auto;
+  }
+  #translatePromptCard { width: 100%; padding: 12px 13px; }
+  #translatePromptText { font-size: 19px; }
+  #translateOptions { width: 100%; gap: 8px; }
+  .translate-option { min-height: 52px; padding: 10px 12px; font-size: 15px; }
+  #translateHint { font-size: 11px; text-align: center; }
+
+  #modeOverlay, #summaryOverlay { padding: max(18px, env(safe-area-inset-top)) 14px max(18px, env(safe-area-inset-bottom)); }
+  #summaryOverlay { overflow-y: auto; }
+  #summaryTrophy { font-size: 48px; }
+  #summaryScore, #recordBlock { margin-bottom: 14px; }
+
+  #authOverlay, #setsListOverlay, #setDetailOverlay, #questionFormOverlay, #leaderboardOverlay {
+    padding-left: 12px;
+    padding-right: 12px;
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 480px) and (max-height: 760px) {
+  #mascotCategory { display: none; }
+  #categoryOverlay { gap: 6px; }
+  #categoryTitle { font-size: 27px; }
+  .category-chip { min-height: 46px; }
+  #categoryPlayBtn { min-height: 52px; font-size: 27px; }
 }

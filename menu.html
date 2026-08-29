@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Choose a Game</title>
   <link rel="stylesheet" href="css/style.css" />
   <style>
@@ -11,6 +11,9 @@
       min-height: 100vh;
       min-height: 100dvh;
       overflow: auto;
+      touch-action: pan-y;
+      overscroll-behavior-y: auto;
+      -webkit-overflow-scrolling: touch;
     }
     body {
       position: relative;
@@ -367,8 +370,39 @@
       .game-card { min-height: 430px; padding-top: 120px; }
     }
     @media (max-width: 620px) {
-      #gameCards { grid-template-columns: 1fr; width: min(430px, 90vw); gap: 80px; }
-      .game-card { min-height: 430px; padding-top: 120px; }
+      body {
+        justify-content: flex-start;
+        gap: 8px;
+        padding: max(18px, env(safe-area-inset-top)) 12px max(24px, env(safe-area-inset-bottom));
+        background-attachment: scroll;
+      }
+      #menuTitle { font-size: clamp(38px, 12vw, 52px); line-height: 1.05; }
+      #menuTitle::before, #menuTitle::after { width: 72px; }
+      #menuSubtitle { margin-top: 14px; font-size: 16px; }
+      #gameCards {
+        grid-template-columns: 1fr;
+        width: min(370px, 94vw);
+        gap: 54px;
+        margin-top: 48px;
+      }
+      .game-card {
+        min-height: 300px;
+        padding: 78px 16px 18px;
+        border-width: 3px;
+        border-radius: 28px 28px 38px 38px;
+        gap: 8px;
+      }
+      .game-card .emoji {
+        top: -44px;
+        width: 94px;
+        height: 94px;
+        border-width: 4px;
+        font-size: 46px;
+      }
+      .game-card .game-name { min-height: 0; font-size: 28px; }
+      .game-kicker { width: 96%; font-size: 13px; padding: 6px 10px; }
+      .game-card .game-desc { flex: 0 1 auto; font-size: 13px; line-height: 1.35; }
+      .card-play { min-height: 54px; width: min(250px, 88%); font-size: 27px; padding: 9px 18px; }
       #menuTagline { min-width: 0; width: 90vw; padding-inline: 18px; }
     }
   </style>

@@ -10,3 +10,5 @@ recorder/
 .env.local
 .gh-auth-*.txt
 server-*.log
+backups/
+certs/
