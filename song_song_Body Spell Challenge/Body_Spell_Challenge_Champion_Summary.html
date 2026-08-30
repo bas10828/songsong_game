@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#f4f8ff" />
   <title>Body Spelling Challenge</title>
@@ -575,14 +575,564 @@
         padding: 14px
       }
     }
+
+    /* Cosmic game-board layout, matched to the supplied 1672 x 941 artwork. */
+    html, body {
+      width: 100%;
+      min-height: 100%;
+      background: #03012d;
+    }
+
+    body {
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      padding: 0;
+      color: #fff;
+    }
+
+    .app {
+      width: min(100vw, calc(100dvh * 1672 / 941));
+      aspect-ratio: 1672 / 941;
+      margin: 0;
+      border-radius: 0;
+      overflow: hidden;
+      background: transparent;
+      box-shadow: 0 0 70px rgba(81, 38, 255, .7);
+    }
+
+    .app-inner, header, main, .grid, .panel {
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    .app-inner { position: absolute; inset: 0; overflow: visible; }
+    header { position: absolute; inset: 0; padding: 0; pointer-events: none; }
+    header h1 { display: none; }
+    header a {
+      position: absolute !important;
+      left: 78.2%;
+      top: 7.2%;
+      width: 12.3%;
+      height: 7.7%;
+      margin: 0 !important;
+      padding: 0 !important;
+      background: transparent !important;
+      color: transparent !important;
+      pointer-events: auto;
+      border-radius: 999px !important;
+      text-indent: -9999px;
+    }
+
+    main, .grid { position: absolute; inset: 0; padding: 0; }
+    .grid { display: block; }
+    .panel { position: absolute; inset: 0; padding: 0; }
+    .score-title { display: none; }
+
+    .status, .timer, .result, .score {
+      color: #fff;
+      text-shadow: 0 3px 8px rgba(0,0,0,.55), 0 0 16px rgba(145,124,255,.45);
+    }
+
+    .status {
+      position: absolute;
+      left: 21.5%; top: 21.5%; width: 27%; height: 5.6%;
+      min-height: 0;
+      margin: 0;
+      padding: 0 1%;
+      border: 1px solid rgba(255,192,95,.72);
+      border-radius: 999px;
+      background: #09064f;
+      font-size: clamp(10px, 1.55vw, 26px);
+      color: #fff1ad;
+    }
+
+    .timer {
+      position: absolute;
+      left: 21.8%; top: 28%; width: 26.5%; height: 14.2%;
+      display: grid;
+      place-items: center;
+      margin: 0;
+      border-radius: 20px;
+      background: rgba(14,7,92,.92);
+      font-size: clamp(42px, 8.4vw, 140px);
+      letter-spacing: -.04em;
+      color: #fff;
+    }
+
+    .main-buttons { position: absolute; inset: 0; display: block; }
+    .big {
+      position: absolute;
+      top: 44.4%;
+      width: 18.5%; height: 11.8%;
+      min-height: 0;
+      opacity: 0;
+      border-radius: 999px;
+    }
+    .big.start { left: 16.1%; }
+    .big.stop { left: 36.4%; }
+    .big:focus-visible { opacity: .18; outline: 5px solid #fff; outline-offset: -5px; }
+
+    .mini-row { position: absolute; inset: 0; display: block; margin: 0; }
+    .mini {
+      position: absolute;
+      top: 58.8%; height: 7.5%;
+      min-height: 0;
+      opacity: 0;
+    }
+    .mini:nth-child(1) { left: 16.4%; width: 11.3%; }
+    .mini:nth-child(2) { left: 28.7%; width: 12.2%; }
+    .mini:nth-child(3) { left: 41.3%; width: 13.3%; }
+
+    .progress-wrap { position: absolute; left: 17.2%; top: 69.7%; width: 37.8%; margin: 0; }
+    .progress-head { height: 3.5%; margin: 0 0 .6vw; color: #fff5bd; font-size: clamp(9px, 1.35vw, 22px); }
+    .bar { height: clamp(8px, 1.8vw, 28px); border: 2px solid #ffcf53; background: #12075d; }
+    .fill { background: linear-gradient(90deg, #ff8a00, #ffd44e, #fff39a); box-shadow: 0 0 12px #ffb300; }
+
+    .result {
+      position: absolute;
+      left: 13.8%; top: 78.9%; width: 41.6%; height: 5.8%;
+      min-height: 0;
+      margin: 0;
+      padding: .5%;
+      border: 1px solid #d44cff;
+      border-radius: 999px;
+      background: #09064f;
+      color: #fff;
+      font-size: clamp(9px, 1.35vw, 22px);
+    }
+
+    .lucky-badge { position: absolute; left: 20%; top: 17%; z-index: 5; }
+
+    .teams { position: absolute; inset: 0; display: block; }
+    .team {
+      position: absolute;
+      left: 60.9%; width: 27.9%; height: 14.8%;
+      padding: 0;
+      border: 0;
+      background: transparent;
+    }
+    .team:nth-child(1) { top: 26.8%; }
+    .team:nth-child(2) { top: 43.9%; }
+    .team h3 { display: none; }
+    .score {
+      position: absolute;
+      left: 49%; top: 43%;
+      width: 19%; height: 46%;
+      display: grid;
+      place-items: center;
+      border-radius: 14px;
+      background: rgba(57,0,28,.94);
+      font-size: clamp(24px, 3.6vw, 58px);
+    }
+    .team:nth-child(2) .score { background: rgba(3,27,104,.95); }
+    .award {
+      position: absolute;
+      left: 70%; top: 0;
+      width: 30%; height: 100%;
+      min-height: 0;
+      margin: 0;
+      opacity: 0;
+    }
+    button:disabled { cursor: not-allowed; }
+
+    .no-point {
+      position: absolute;
+      left: 60.9%; top: 60.4%; width: 28%; height: 6.2%;
+      min-height: 0; margin: 0; opacity: 0;
+    }
+    .minus-row { position: absolute; inset: 0; display: block; margin: 0; }
+    .minus { position: absolute; top: 67.4%; height: 6.6%; opacity: 0; }
+    .minus:nth-child(1) { left: 60.9%; width: 13.3%; }
+    .minus:nth-child(2) { left: 75.4%; width: 13.5%; }
+    .footer-actions { position: absolute; inset: 0; display: block; margin: 0; }
+    .footer-actions button { position: absolute; min-height: 0; opacity: 0; }
+    .footer-actions button:nth-child(1) { left: 60.9%; top: 76.7%; width: 13.4%; height: 7.8%; }
+    .footer-actions button:nth-child(2) { left: 75.5%; top: 76.7%; width: 13.7%; height: 7.8%; }
+    .footer-actions button:nth-child(3) { left: 37.3%; top: 88.7%; width: 23.4%; height: 8.7%; }
+
+    button { -webkit-tap-highlight-color: transparent; }
+    button:not(:disabled):hover { filter: brightness(1.2); }
+
+    .game-over { background: rgba(3,1,45,.86); }
+    .summary-card {
+      color: #fff;
+      border: 2px solid #f2a9ff;
+      background: linear-gradient(160deg, #25106f, #08043b 65%, #38106d);
+      box-shadow: 0 0 35px #8a43ff, 0 28px 80px rgba(0,0,0,.65);
+    }
+    .champion-label, .stat-label { color: #ffe5a5; }
+    .final-team, .stat { background: rgba(73,40,151,.55); border: 1px solid rgba(255,190,248,.35); }
+    .close-summary { color: #fff !important; background: #6d37ae !important; }
+
+    @media (max-aspect-ratio: 1/1) {
+      body { overflow: auto; align-content: center; }
+      .app { min-width: 900px; }
+    }
+
+    /* Component-based version of the reference: no reference artwork is embedded. */
+    html, body {
+      background: #050329;
+    }
+    body {
+      display: block;
+      min-height: 100vh;
+      padding: 24px;
+      overflow: auto;
+      background:
+        radial-gradient(circle at 18% 16%, rgba(93,57,255,.36) 0 2px, transparent 3px),
+        radial-gradient(circle at 78% 24%, rgba(255,209,111,.45) 0 1px, transparent 3px),
+        radial-gradient(circle at 60% 78%, rgba(151,74,255,.35), transparent 28%),
+        linear-gradient(145deg, #030225, #0a0758 50%, #21086a);
+      background-size: 95px 95px, 130px 130px, auto, auto;
+    }
+    .app {
+      position: relative;
+      width: min(1180px, 100%);
+      min-width: 0;
+      aspect-ratio: auto;
+      margin: 0 auto;
+      overflow: visible;
+      border: 1px solid rgba(255,196,104,.5);
+      border-radius: 32px;
+      background: linear-gradient(145deg, rgba(23,11,104,.97), rgba(8,5,55,.98));
+      box-shadow: 0 0 0 3px rgba(141,73,255,.22), 0 0 45px rgba(105,48,255,.55);
+    }
+    .app::before {
+      content: "";
+      position: absolute;
+      inset: -2px;
+      z-index: -1;
+      border-radius: 34px;
+      background: linear-gradient(120deg, #ffd76d, #9b53ff, #55d7ff, #ffd76d);
+      filter: blur(8px);
+      opacity: .6;
+    }
+    .app-inner { position: static; overflow: hidden; border-radius: 30px; }
+    header {
+      position: relative;
+      inset: auto;
+      padding: 25px 24px 18px;
+      pointer-events: auto;
+      background: radial-gradient(circle at 50% 0, rgba(122,62,255,.45), transparent 65%);
+    }
+    header h1 {
+      display: block;
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(34px, 5.5vw, 70px);
+      color: #fff8dd;
+      -webkit-text-fill-color: initial;
+      background: none;
+      text-shadow: 0 3px 0 #6f238f, 0 7px 0 #321066, 0 0 22px #a78cff;
+    }
+    header h1 .accent { color: #ffe78b; }
+    header a {
+      position: absolute !important;
+      left: auto; right: 24px; top: 24px;
+      width: auto; height: auto;
+      margin: 0 !important;
+      padding: 10px 24px !important;
+      border: 1px solid #f3c16a;
+      background: linear-gradient(#7136c9, #371078) !important;
+      color: #fff !important;
+      box-shadow: 0 0 14px rgba(191,104,255,.7);
+      text-indent: 0;
+    }
+    main { position: static; padding: 20px; }
+    .grid {
+      position: static;
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(360px, .85fr);
+      gap: 20px;
+    }
+    .panel {
+      position: relative;
+      inset: auto;
+      padding: 20px;
+      border: 1px solid rgba(255,198,100,.72);
+      border-radius: 26px;
+      background: linear-gradient(150deg, rgba(25,15,112,.88), rgba(6,5,56,.94));
+      box-shadow: inset 0 0 28px rgba(95,74,255,.25), 0 0 18px rgba(167,76,255,.22);
+    }
+    .status, .timer, .result, .score, .main-buttons, .mini-row,
+    .progress-wrap, .teams, .team, .award, .no-point, .minus-row,
+    .minus, .footer-actions, .footer-actions button, .lucky-badge {
+      position: static;
+      inset: auto;
+    }
+    .status {
+      width: auto; height: auto; min-height: 58px;
+      margin: 0 0 12px; padding: 10px 18px;
+      font-size: clamp(18px, 2.3vw, 27px);
+      background: rgba(5,4,56,.92);
+    }
+    .timer {
+      width: auto; height: auto;
+      margin: 6px 0 18px;
+      background: transparent;
+      font-size: clamp(74px, 11vw, 132px);
+      color: #fff;
+      text-shadow: 0 5px 0 #8a62c2, 0 0 26px rgba(127,170,255,.72);
+    }
+    .main-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .big {
+      width: auto; height: auto; min-height: 92px;
+      opacity: 1;
+      border: 2px solid rgba(255,255,255,.72);
+      border-radius: 999px;
+    }
+    .start { background: linear-gradient(#24a9ff, #0757dc); box-shadow: 0 7px 0 #03318c, 0 0 18px #39c9ff; }
+    .stop { background: linear-gradient(#fa3e77, #b90037); box-shadow: 0 7px 0 #750020, 0 0 18px #ff3c88; }
+    .mini-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 22px; }
+    .mini {
+      position: static; width: auto; height: auto; min-height: 54px;
+      opacity: 1;
+      border: 1px solid #c986ff;
+      color: #fff;
+      background: linear-gradient(#5b24aa, #2b0b6e);
+      box-shadow: 0 4px 0 #170343, 0 0 10px rgba(184,94,255,.48);
+    }
+    .mini-row .mini:nth-child(n) { width: auto; height: auto; }
+    .progress-wrap { width: auto; margin-top: 22px; }
+    .progress-head { height: auto; font-size: 16px; }
+    .result {
+      width: auto; height: auto; min-height: 52px;
+      margin-top: 18px; padding: 10px;
+      font-size: 18px;
+    }
+    .score-title {
+      display: block;
+      color: #fff0a8;
+      font-size: 28px;
+      text-shadow: 0 0 12px #9b62ff;
+    }
+    .teams { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    .team {
+      width: auto; height: auto;
+      display: grid;
+      grid-template-columns: 1fr 82px 1fr;
+      align-items: center;
+      gap: 10px;
+      padding: 14px;
+      border: 1px solid #ff8a9f;
+      border-radius: 20px;
+      background: linear-gradient(100deg, rgba(117,0,37,.9), rgba(45,4,52,.85));
+      box-shadow: inset 0 0 16px rgba(255,69,111,.25), 0 0 12px rgba(255,48,99,.25);
+    }
+    .team:nth-child(2) {
+      border-color: #67baff;
+      background: linear-gradient(100deg, rgba(3,38,128,.92), rgba(5,17,76,.88));
+    }
+    .team h3 { display: block; margin: 0; color: #fff; }
+    .score, .team:nth-child(2) .score {
+      width: auto; height: auto;
+      background: transparent;
+      font-size: 52px;
+    }
+    .award {
+      width: auto; height: auto; min-height: 72px;
+      margin: 0;
+      opacity: 1;
+      border: 1px solid rgba(255,255,255,.6);
+      box-shadow: 0 4px 0 rgba(0,0,0,.35);
+    }
+    .no-point {
+      width: 100%; height: auto; min-height: 52px;
+      margin-top: 14px;
+      opacity: 1;
+      border: 1px solid #d166ff;
+      background: linear-gradient(#671db0, #310568);
+    }
+    .minus-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .minus {
+      height: auto; min-height: 46px;
+      opacity: 1;
+      color: #fff;
+      background: rgba(64,30,126,.7);
+      border: 1px solid rgba(180,130,255,.45);
+    }
+    .footer-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+    .footer-actions button {
+      width: auto !important;
+      height: auto !important;
+      min-height: 54px;
+      opacity: 1;
+      color: #fff;
+      background: linear-gradient(#6128ad, #2b0b6d);
+      border: 1px solid #bc75ff;
+    }
+    .footer-actions .end-game {
+      grid-column: 1 / -1;
+      min-height: 66px;
+      background: linear-gradient(#192570, #080d42);
+      border-color: #f4bd55;
+      color: #ffe59a;
+      font-size: 22px;
+      box-shadow: 0 0 14px rgba(255,190,70,.35);
+    }
+    .lucky-badge { margin: 0 auto 14px; }
+
+    @media (max-width: 880px) {
+      body { padding: 12px; }
+      header { padding-top: 72px; }
+      header a { top: 16px; right: 16px; }
+      .grid { grid-template-columns: 1fr; }
+      .app { min-width: 0; }
+    }
+    @media (max-width: 520px) {
+      main { padding: 10px; }
+      .panel { padding: 14px; }
+      .main-buttons, .mini-row { grid-template-columns: 1fr; }
+      .team { grid-template-columns: 1fr 64px; }
+      .award { grid-column: 1 / -1; }
+    }
+
+    /* Final composition: recreate the reference layout with live components. */
+    body {
+      padding: 0;
+      background-color: #030126;
+      background-image:
+        radial-gradient(circle at 8% 12%, #fff 0 1px, transparent 2px),
+        radial-gradient(circle at 20% 66%, #8de9ff 0 1px, transparent 2px),
+        radial-gradient(circle at 74% 18%, #ffd77d 0 1.5px, transparent 3px),
+        radial-gradient(circle at 88% 70%, #c79cff 0 1px, transparent 2px),
+        radial-gradient(ellipse at 50% 110%, #5525ba 0, #12095d 38%, #030126 76%);
+      background-size: 90px 90px, 125px 125px, 165px 165px, 115px 115px, auto;
+    }
+    .app {
+      width: min(1600px, 100vw);
+      min-height: 100dvh;
+      border: 0;
+      border-radius: 0;
+      background:
+        radial-gradient(circle at 50% 35%, rgba(61,41,193,.34), transparent 45%),
+        linear-gradient(180deg, rgba(3,2,47,.22), rgba(16,5,79,.48));
+      box-shadow: none;
+    }
+    .app::before {
+      inset: auto 12% 0;
+      height: 22%;
+      border-radius: 50%;
+      background: radial-gradient(ellipse, rgba(112,47,255,.4), transparent 65%);
+      filter: blur(18px);
+    }
+    .app::after {
+      content: "";
+      position: absolute;
+      left: 20%; right: 20%; bottom: 1.5%;
+      height: 7%;
+      border: 2px solid rgba(185,116,255,.48);
+      border-radius: 50%;
+      box-shadow: 0 0 18px #6435ff, inset 0 0 20px rgba(110,65,255,.6);
+      pointer-events: none;
+    }
+    header {
+      min-height: 160px;
+      padding: 20px 20% 16px;
+      display: grid;
+      place-items: center;
+    }
+    header h1 {
+      max-width: 1100px;
+      line-height: .95;
+      font-size: clamp(48px, 6.2vw, 96px);
+      letter-spacing: -3px;
+      transform: scaleY(1.08);
+      color: #fffaf0;
+      text-shadow:
+        0 2px 0 #e5c9ee,
+        0 5px 0 #a13dab,
+        0 9px 0 #471270,
+        0 13px 0 #210744,
+        0 0 22px rgba(157,108,255,.9);
+    }
+    header h1 .accent { color: #fffaf0; }
+    header a {
+      top: 7%; right: 4%;
+      padding: 12px 34px !important;
+      border: 2px solid #ffd275;
+      font-size: 20px !important;
+      box-shadow: 0 0 0 4px #4b168e, 0 0 18px #aa59ff;
+    }
+    .board-mascot {
+      position: absolute;
+      z-index: 4;
+      left: 0;
+      bottom: 5%;
+      width: clamp(145px, 18vw, 290px);
+      max-height: 62%;
+      object-fit: contain;
+      object-position: bottom;
+      filter: drop-shadow(0 10px 12px rgba(0,0,0,.35)) drop-shadow(0 0 12px rgba(153,104,255,.4));
+      pointer-events: none;
+    }
+    main { padding: 4px 4% 9% 12%; }
+    .grid { grid-template-columns: minmax(0, 1.35fr) minmax(390px, .9fr); gap: 22px; }
+    .panel {
+      border: 2px solid #f5c66e;
+      border-radius: 30px;
+      background:
+        linear-gradient(135deg, rgba(29,16,119,.93), rgba(7,5,59,.96)),
+        radial-gradient(circle at 50% 0, rgba(117,78,255,.35), transparent 55%);
+      box-shadow:
+        0 0 0 4px rgba(123,45,210,.6),
+        inset 0 0 35px rgba(77,82,255,.28),
+        0 0 24px rgba(190,75,255,.45);
+    }
+    .panel::before, .panel::after {
+      content: "✦";
+      position: absolute;
+      top: 16px;
+      color: #ffd979;
+      font-size: 22px;
+      text-shadow: 0 0 12px #ffb44a;
+    }
+    .panel::before { left: 18px; }
+    .panel::after { right: 18px; }
+    .status { max-width: 78%; margin-inline: auto; }
+    .timer { line-height: .9; margin: 16px 0 24px; }
+    .big { min-height: 96px; font-size: clamp(32px, 3.3vw, 52px); }
+    .score-title {
+      margin-bottom: 18px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(234,123,255,.42);
+    }
+    .team { grid-template-columns: minmax(110px,1fr) 64px minmax(125px,.9fr); }
+    .team h3 { font-size: clamp(16px, 1.6vw, 24px); }
+    .award { font-size: clamp(15px, 1.5vw, 22px); }
+    .footer-actions .end-game {
+      font-size: clamp(21px, 2vw, 30px);
+      border-radius: 999px;
+    }
+
+    @media (max-width: 980px) {
+      .app { min-height: 100vh; }
+      header { min-height: 145px; padding: 70px 16px 18px; }
+      header h1 { letter-spacing: -1px; }
+      main { padding: 8px 16px 130px; }
+      .grid { grid-template-columns: 1fr; }
+      .board-mascot { width: 150px; opacity: .78; bottom: 0; }
+    }
+    @media (max-width: 560px) {
+      header h1 { font-size: 42px; }
+      .board-mascot { width: 105px; opacity: .5; }
+      .timer { font-size: 72px; }
+      .status { max-width: 100%; }
+      .team { grid-template-columns: 1fr 58px; }
+    }
   </style>
+  <link rel="stylesheet" href="champion-board-fixed.css" />
 </head>
 
 <body>
   <div id="app" class="app">
     <div class="app-inner">
     <header>
-      <h1>🌿 Body Spell <span class="accent">Board</span></h1>
+      <h1>Body Spelling <span class="accent">Challenge</span></h1>
       <a href="../index.html" style="display:inline-block;margin-top:6px;padding:8px 18px;border-radius:999px;background:#eaf3ff;color:var(--ink);text-decoration:none;font-weight:800;font-size:14px;">🏠 Menu</a>
     </header>
 
@@ -707,6 +1257,20 @@
   <script src="https://record.22422522.xyz/capture.js?v=2"></script>
 
   <script>
+    // Keep the board's designed 1672x941 layout and scale it as one unit so it
+    // fits phones and tablets without rearranging any game controls.
+    function fitGameBoard() {
+      const viewport = window.visualViewport;
+      const availableWidth = viewport ? viewport.width : window.innerWidth;
+      const availableHeight = viewport ? viewport.height : window.innerHeight;
+      const scale = Math.min(availableWidth / 1672, availableHeight / 941);
+      document.documentElement.style.setProperty("--board-scale", scale);
+    }
+    fitGameBoard();
+    window.addEventListener("resize", fitGameBoard);
+    window.addEventListener("orientationchange", () => setTimeout(fitGameBoard, 120));
+    window.visualViewport?.addEventListener("resize", fitGameBoard);
+
     const bodyParts = [
       "head", "hair", "forehead", "face", "eye", "ear", "nose", "mouth", "teeth", "tongue",
       "neck", "shoulder", "arm", "elbow", "hand", "fingers", "leg", "knee", "foot", "toes"
