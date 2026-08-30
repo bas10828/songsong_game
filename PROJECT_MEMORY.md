@@ -37,7 +37,7 @@ Last updated: 2026-08-09 (Asia/Bangkok)
 - Menu-facing text is English only.
 - Score display uses the highlighted magical badge and score-change animation.
 - Submit plays a sound whenever the Submit button is activated.
-- Thumbs-up remains a Submit confirmation gesture.
+- Thumbs-up submits on a single held gesture (the earlier hold-twice arm/confirm step was removed).
 - Thumbs-down Skip gesture has been removed; teachers use the on-screen Skip button.
 - Grabbing a card shows only small twinkling stars—no grab scaling, rotating aura, or heavy glow.
 

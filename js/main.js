@@ -1236,15 +1236,6 @@ function handleThumbsUpGesture(isThumbsUp) {
   thumbsUpFired = true;
   submitBtn.style.setProperty("--thumb-hold-progress", "0");
 
-  if (target === submitBtn) {
-    if (submitConfirmArmed) {
-      setSubmitConfirmArmed(false);
-      submitBtn.click();
-    } else {
-      setSubmitConfirmArmed(true);
-    }
-    return;
-  }
   if (target) target.click();
 }
 
@@ -2377,7 +2368,7 @@ saveQuestionBtn.addEventListener("click", async () => {
 
 // --- Entry point + login gate -----------------------------------------------
 manageWordsBtn.addEventListener("click", () => {
-  if (sessionStorage.getItem("wordsAuthed") === "1") {
+  if (localStorage.getItem("wordsAuthed") === "1") {
     categoryOverlay.classList.add("hidden");
     loadQuestionSets();
     setsListOverlay.classList.remove("hidden");
@@ -2391,7 +2382,7 @@ manageWordsBtn.addEventListener("click", () => {
 
 authSubmitBtn.addEventListener("click", () => {
   if (authUser.value === AUTH_USER && authPass.value === AUTH_PASS) {
-    sessionStorage.setItem("wordsAuthed", "1");
+    localStorage.setItem("wordsAuthed", "1");
     authOverlay.classList.add("hidden");
     categoryOverlay.classList.add("hidden");
     loadQuestionSets();
@@ -2403,6 +2394,12 @@ authSubmitBtn.addEventListener("click", () => {
 
 authCancelBtn.addEventListener("click", () => {
   authOverlay.classList.add("hidden");
+});
+
+[authUser, authPass].forEach((input) => {
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") authSubmitBtn.click();
+  });
 });
 
 cameraSwitchBtn.addEventListener("click", async () => {
