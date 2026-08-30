@@ -7,6 +7,7 @@
 // PG* env vars), so there's no on-disk state to lose on a container
 // recreate.
 const https = require("https");
+const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -465,14 +466,7 @@ async function handlePhoto(id, res) {
   }
 }
 
-if (!fs.existsSync(TLS_KEY_PATH) || !fs.existsSync(TLS_CERT_PATH)) {
-  throw new Error("HTTPS certificate is missing. Expected certs/songsong-key.pem and certs/songsong-cert.pem.");
-}
-
-const server = https.createServer({
-  key: fs.readFileSync(TLS_KEY_PATH),
-  cert: fs.readFileSync(TLS_CERT_PATH),
-}, (req, res) => {
+function requestListener(req, res) {
   try {
     handleRequest(req, res);
   } catch (err) {
@@ -480,7 +474,21 @@ const server = https.createServer({
     // question-sets.json) — fail this one request, not the whole process.
     respondJson(res, 500, { error: err.message });
   }
-});
+}
+
+// HTTPS needs a cert (LAN/classroom use, so getUserMedia gets a secure
+// context on other devices — see the console message in startServer).
+// Behind a TLS-terminating reverse proxy or tunnel (e.g. Cloudflare
+// Tunnel in production), the cert files won't exist and TLS is already
+// handled upstream, so this falls back to plain HTTP instead of refusing
+// to start — this used to throw and crash the process, which forced
+// production to stay pinned to an old commit (from before the whole
+// question-set visibility feature existed) just to avoid the cert
+// requirement.
+const hasTlsCert = fs.existsSync(TLS_KEY_PATH) && fs.existsSync(TLS_CERT_PATH);
+const server = hasTlsCert
+  ? https.createServer({ key: fs.readFileSync(TLS_KEY_PATH), cert: fs.readFileSync(TLS_CERT_PATH) }, requestListener)
+  : http.createServer(requestListener);
 
 function handleRequest(req, res) {
   const rawPath = decodeURIComponent(req.url.split("?")[0]);
@@ -561,10 +569,15 @@ async function startServer() {
     "ALTER TABLE question_sets ADD COLUMN IF NOT EXISTS is_public boolean NOT NULL DEFAULT false"
   );
   server.listen(PORT, "0.0.0.0", () => {
-    console.log(`Serving ${ROOT} at https://localhost:${PORT}`);
-    console.log(`Camera access requires a secure context. Plain http only works from` );
-    console.log(`"localhost" on this same machine — testing from a phone/iPad over`);
-    console.log(`LAN needs HTTPS. See README for a quick cloudflared tunnel.`);
+    const scheme = hasTlsCert ? "https" : "http";
+    console.log(`Serving ${ROOT} at ${scheme}://localhost:${PORT}`);
+    if (!hasTlsCert) {
+      console.log(`No certs/ found — serving plain HTTP (fine behind a TLS-terminating`);
+      console.log(`reverse proxy/tunnel). Camera access needs a secure context, so a`);
+      console.log(`browser hitting this directly (not through such a proxy) only gets`);
+      console.log(`getUserMedia on "localhost" — LAN/phone testing needs real HTTPS,`);
+      console.log(`see certs/ setup in the project notes.`);
+    }
   });
 }
 
