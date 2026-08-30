@@ -822,7 +822,7 @@ html, body {
 }
 
 .category-chip::before {
-  content: "โ—";
+  content: "◆";
   position: absolute;
   top: -14px;
   left: 50%;
@@ -894,7 +894,7 @@ html, body {
 }
 
 #categoryPlayBtn::before {
-  content: "โฆ";
+  content: "✦";
   position: absolute;
   left: -20px;
   top: 50%;
@@ -1048,7 +1048,7 @@ html, body {
 }
 
 #scoreHud::before {
-  content: "โฆ";
+  content: "✦";
   position: absolute;
   left: 12px;
   top: 50%;

@@ -12,3 +12,4 @@ recorder/
 server-*.log
 backups/
 certs/
+loadtest-demo/

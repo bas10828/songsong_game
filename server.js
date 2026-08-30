@@ -515,7 +515,7 @@ function handleRequest(req, res) {
   }
 
   let urlPath = rawPath;
-  if (urlPath === "/") urlPath = "/index.html";
+  if (urlPath === "/") urlPath = "/menu.html";
 
   // Never expose local configuration, database dumps, logs, or TLS keys.
   const firstSegment = urlPath.split("/").filter(Boolean)[0]?.toLowerCase();
