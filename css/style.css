@@ -155,6 +155,13 @@ html, body {
   background: rgba(200, 107, 255, 0.2);
 }
 
+.slot[data-drop-target="true"] {
+  border-style: solid;
+  border-color: #fff4b0;
+  background: rgba(255, 244, 176, 0.28);
+  box-shadow: 0 0 18px 4px rgba(255, 217, 138, 0.75);
+}
+
 .card {
   position: absolute;
   width: 64px;
@@ -281,24 +288,6 @@ html, body {
 #submitBtn.ready {
   background: var(--color-success);
   transform: translate(-50%, -50%) scale(1.15);
-}
-
-/* Shown while a thumbs-up hold has armed the submit-confirm step (see
-   setSubmitConfirmArmed in main.js) โ€” a second, separate thumbs-up hold
-   is needed to actually submit, so this needs to read as clearly
-   different from the normal "ready" green. */
-#submitBtn.confirm-pending {
-  background: #ffb300;
-  animation: confirmPulse 0.9s ease-in-out infinite;
-}
-
-@keyframes confirmPulse {
-  0%, 100% {
-    transform: translate(-50%, -50%) scale(1.1);
-  }
-  50% {
-    transform: translate(-50%, -50%) scale(1.22);
-  }
 }
 
 #submitBtn.hover {
@@ -2217,7 +2206,18 @@ html, body {
     padding: max(6px, env(safe-area-inset-top)) 8px 6px;
     font-size: 11px;
   }
-  #fps, #pinchDebug, #status { display: none; }
+  #pinchDebug, #status { display: none; }
+  #fps {
+    position: fixed;
+    left: 8px;
+    bottom: calc(60px + env(safe-area-inset-bottom));
+    z-index: 60;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font-size: 11px;
+  }
   #hud button {
     min-height: 40px;
     padding: 7px 10px;

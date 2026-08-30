@@ -476,7 +476,6 @@ let currentRound = null; // { word, type, value }
 let slots = []; // { index, el, cardId }
 let cards = []; // { id, letter, el, currentSlot, homeX, homeY, x, y }
 let grabbedCardId = null;
-let grabOffset = { x: 0, y: 0 };
 let grabOriginSlot = null; // slot index the grabbed card came from, or null (tray)
 let lastRoundWord = "";
 let cameraStarted = false;
@@ -572,7 +571,6 @@ function clearBoard() {
 function setupRound(round) {
   clearBoard();
   currentRound = round;
-  setSubmitConfirmArmed(false);
   roundStartTime = performance.now();
 
   const isSentence = round.kind === "sentence";
@@ -1047,9 +1045,12 @@ function processResult(result) {
   const isPeaceSign = fingers.index && fingers.middle && !fingers.ring && !fingers.pinky;
   pinchDebugEl.textContent = `pinch: ${pinchRatio.toFixed(2)} ${isPinching ? "🤏" : ""} ${isThumbsUp ? "👍" : ""} ${isPeaceSign ? "✌️" : ""}`;
 
+  // Anchored to the index fingertip rather than the thumb/index midpoint —
+  // players aim by eye along their pointing finger, so a cursor sitting back
+  // in the pinch gap reads as "not quite reaching" whatever it's aimed at.
   const pinchPoint = {
-    x: mapX((thumbTip.x + indexTip.x) / 2, overlay.width),
-    y: ((thumbTip.y + indexTip.y) / 2) * overlay.height,
+    x: mapX(indexTip.x, overlay.width),
+    y: indexTip.y * overlay.height,
   };
 
   drawHandSkeleton(landmarks);
@@ -1112,22 +1113,15 @@ function isFingerExtended(landmarks, tipIdx, midIdx, wrist, palmScale) {
 // single rising-edge frame), as a second guard against one noisy MediaPipe
 // frame triggering an accidental Submit mid-round.
 //
-// Submit gets a further, stronger guard on top of that: a held-long-enough
-// thumbs-up doesn't submit, it only *arms* a confirm — the button flips to
-// "👍 Again?" and the actual submit needs a second thumbs-up hold, which
-// requires a genuine release in between (this function resets
-// thumbsUpHoldStart to null on every release). A hold-duration bump alone
-// can't stop a sustained false-positive (a resting hand MediaPipe keeps
-// reading as thumbs-up just sits out any timer), but it can never pass
-// through a release-then-re-hold cycle, so it can only ever arm the
-// confirm, never complete it, without an actual second gesture.
+// Submit needs a much longer hold than other buttons (THUMBS_UP_SUBMIT_HOLD_MS
+// vs THUMBS_UP_HOLD_MS) so the fill progress on the button gives the player
+// a visible beat to notice it's about to fire and pull their hand away if
+// they want to fix their answer first — releasing early resets the hold
+// with no submit, no separate second gesture required.
 const THUMBS_UP_HOLD_MS = 350;
-const THUMBS_UP_SUBMIT_HOLD_MS = 700;
-const SUBMIT_CONFIRM_TIMEOUT_MS = 4000;
+const THUMBS_UP_SUBMIT_HOLD_MS = 1800;
 let thumbsUpHoldStart = null;
 let thumbsUpFired = false;
-let submitConfirmArmed = false;
-let submitConfirmTimeout = null;
 let gameAudioContext = null;
 
 function unlockGameAudio() {
@@ -1179,20 +1173,6 @@ async function playSubmitSound() {
     oscillator.start(startsAt);
     oscillator.stop(endsAt);
   });
-}
-
-function setSubmitConfirmArmed(armed) {
-  submitConfirmArmed = armed;
-  clearTimeout(submitConfirmTimeout);
-  submitConfirmTimeout = null;
-  if (armed) {
-    submitBtn.textContent = "👍 Again?";
-    submitBtn.classList.add("confirm-pending");
-    submitConfirmTimeout = setTimeout(() => setSubmitConfirmArmed(false), SUBMIT_CONFIRM_TIMEOUT_MS);
-  } else {
-    submitBtn.textContent = "Submit";
-    submitBtn.classList.remove("confirm-pending");
-  }
 }
 
 // Camera started, board showing, not looking at a result yet — the window
@@ -1337,7 +1317,6 @@ function handleGesture(isPinching, pinchPoint) {
       grabOriginSlot = nearest.currentSlot;
       nearest.el.dataset.grabbed = "true";
       spawnSparkles(nearest.x, nearest.y, 5);
-      grabOffset = { x: nearest.x - pinchPoint.x, y: nearest.y - pinchPoint.y };
       if (nearest.currentSlot !== null) {
         slots[nearest.currentSlot].cardId = null;
         slots[nearest.currentSlot].el.dataset.filled = "false";
@@ -1349,9 +1328,10 @@ function handleGesture(isPinching, pinchPoint) {
   if (grabbedCardId !== null) {
     const card = cards.find((c) => c.id === grabbedCardId);
     if (isPinching) {
-      card.x = pinchPoint.x + grabOffset.x;
-      card.y = pinchPoint.y + grabOffset.y;
+      card.x = pinchPoint.x;
+      card.y = pinchPoint.y;
       renderCard(card);
+      updateDropTargetHighlight(card);
       const now = performance.now();
       if (now - lastSparkleTime > 110) {
         lastSparkleTime = now;
@@ -1366,21 +1346,61 @@ function handleGesture(isPinching, pinchPoint) {
   }
 }
 
-function dropCard(card) {
-  const cardRect = card.el.getBoundingClientRect();
+// Picks whichever slot a card rect overlaps *most* (by area), instead of the
+// first slot found to overlap at all. On a small phone screen, tight slot
+// spacing means a dragged card often straddles two neighboring slots at
+// once — taking the first match in array order used to land the card in
+// whichever slot happened to come first, not the one actually under the
+// card. Falls back to the nearest slot center within one card-width if the
+// card missed every slot outright (imprecise camera/finger tracking), so a
+// near-miss still snaps in instead of bouncing back to the tray.
+function findTargetSlot(cardRect) {
   let targetSlot = null;
+  let bestOverlapArea = 0;
   for (const s of slots) {
     const slotRect = s.el.getBoundingClientRect();
-    const overlaps =
-      cardRect.left < slotRect.right &&
-      cardRect.right > slotRect.left &&
-      cardRect.top < slotRect.bottom &&
-      cardRect.bottom > slotRect.top;
-    if (overlaps) {
-      targetSlot = s;
-      break;
+    const overlapWidth = Math.min(cardRect.right, slotRect.right) - Math.max(cardRect.left, slotRect.left);
+    const overlapHeight = Math.min(cardRect.bottom, slotRect.bottom) - Math.max(cardRect.top, slotRect.top);
+    if (overlapWidth > 0 && overlapHeight > 0) {
+      const area = overlapWidth * overlapHeight;
+      if (area > bestOverlapArea) {
+        bestOverlapArea = area;
+        targetSlot = s;
+      }
     }
   }
+
+  if (!targetSlot) {
+    const cardCenterX = (cardRect.left + cardRect.right) / 2;
+    const cardCenterY = (cardRect.top + cardRect.bottom) / 2;
+    let bestDist = Infinity;
+    for (const s of slots) {
+      const slotRect = s.el.getBoundingClientRect();
+      const dx = cardCenterX - (slotRect.left + slotRect.right) / 2;
+      const dy = cardCenterY - (slotRect.top + slotRect.bottom) / 2;
+      const dist = Math.hypot(dx, dy);
+      const snapRadius = Math.max(cardRect.width, slotRect.width);
+      if (dist < snapRadius && dist < bestDist) {
+        bestDist = dist;
+        targetSlot = s;
+      }
+    }
+  }
+  return targetSlot;
+}
+
+// Highlights whichever slot a grabbed card is currently hovering, so the
+// player can see where it'll land before letting go.
+function updateDropTargetHighlight(card) {
+  const target = card ? findTargetSlot(card.el.getBoundingClientRect()) : null;
+  for (const s of slots) {
+    s.el.dataset.dropTarget = s === target ? "true" : "false";
+  }
+}
+
+function dropCard(card) {
+  const targetSlot = findTargetSlot(card.el.getBoundingClientRect());
+  updateDropTargetHighlight(null);
 
   if (!targetSlot) {
     if (grabOriginSlot !== null) {
@@ -1457,7 +1477,6 @@ function finishRound(correct) {
 // Handles both "spell" (letter tokens) and "sentence" (word tokens) rounds
 // — same drag-into-slots board, just a different unit per card.
 function checkSubmit() {
-  setSubmitConfirmArmed(false);
   const allFilled = slots.every((s) => s.cardId !== null);
   if (!allFilled) {
     resultText.textContent = "Fill every slot first!";
@@ -1486,7 +1505,6 @@ function checkSubmit() {
 // the session) — skipping isn't a free pass, it's for "I don't want to
 // guess this one," same as leaving it wrong would be.
 function skipQuestion() {
-  setSubmitConfirmArmed(false);
   resultText.textContent = "Skipped";
   resultText.style.color = "#ffb74d";
   resultWord.textContent =

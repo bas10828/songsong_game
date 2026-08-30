@@ -1,6 +1,6 @@
 # SongSong Game — Project Memory
 
-Last updated: 2026-08-09 (Asia/Bangkok)
+Last updated: 2026-08-30 (Asia/Bangkok)
 
 ## Running the game
 
@@ -37,9 +37,13 @@ Last updated: 2026-08-09 (Asia/Bangkok)
 - Menu-facing text is English only.
 - Score display uses the highlighted magical badge and score-change animation.
 - Submit plays a sound whenever the Submit button is activated.
-- Thumbs-up submits on a single held gesture (the earlier hold-twice arm/confirm step was removed).
+- Thumbs-up submits on a single hold (1.8s, shown via a fill on the Submit button) — releasing early cancels with no submit, no second gesture needed.
 - Thumbs-down Skip gesture has been removed; teachers use the on-screen Skip button.
 - Grabbing a card shows only small twinkling stars—no grab scaling, rotating aura, or heavy glow.
+- A grabbed card follows the index fingertip (not the thumb/index pinch-gap midpoint), and drop-target detection uses best-overlap-area (falling back to nearest slot center) instead of first-match, so tight slot spacing on phones doesn't misdrop into a neighbor.
+- The slot a dragged card is over lights up (`data-drop-target`) before release.
+- Question-set teacher login persists via `localStorage` (not `sessionStorage`) and the login form submits on Enter.
+- Root (`/`) serves `menu.html`, not `index.html`; every non-gameplay screen has a Home link back to it.
 
 ## Main URLs
 
