@@ -36,7 +36,7 @@
       animation: shimmer 8s ease-in-out infinite;
       mix-blend-mode: screen;
     }
-    .start-link, .menu-link {
+    .start-link {
       position: absolute;
       display: block;
       border-radius: 999px;
@@ -65,12 +65,29 @@
     }
     .start-link:active { transform: translateY(2px) scale(.99); }
     .menu-link {
-      left: 5.8%;
-      top: 5.2%;
-      width: 7%;
-      aspect-ratio: 1;
-      transform: rotate(14deg);
+      position: absolute;
+      top: 3.2%;
+      left: 2.2%;
+      z-index: 2;
+      display: inline-flex;
+      align-items: center;
+      gap: .45em;
+      padding: .58em 1em;
+      border: 2px solid rgba(255, 255, 255, .8);
+      border-radius: 999px;
+      background: linear-gradient(135deg, rgba(40, 18, 157, .92), rgba(18, 92, 220, .92));
+      box-shadow: 0 0 18px rgba(102, 220, 255, .65), inset 0 0 12px rgba(255, 255, 255, .18);
+      color: #fff;
+      font-size: clamp(12px, 1.45vw, 24px);
+      font-weight: 800;
+      line-height: 1;
+      text-decoration: none;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, .45);
+      -webkit-tap-highlight-color: transparent;
+      transition: transform .18s ease, filter .18s ease;
     }
+    .menu-link:hover { filter: brightness(1.2); transform: scale(1.04); }
+    .menu-link:active { transform: translateY(2px) scale(.98); }
     .menu-link:focus-visible { outline: 4px solid #fff; outline-offset: 5px; }
     @keyframes shimmer {
       0%, 62%, 100% { background-position: 130% 0; opacity: 0; }
@@ -82,7 +99,7 @@
 </head>
 <body>
   <main class="scene" aria-label="Body Spelling Challenge">
-    <a class="menu-link" href="menu.html" aria-label="Back to menu">Menu</a>
+    <a class="menu-link" href="menu.html" aria-label="Back to home">🏠 Home</a>
     <a class="start-link" href="song_song_Body%20Spell%20Challenge/how-to-play.html" aria-label="Start Body Spelling Challenge">Start</a>
   </main>
   <script>
