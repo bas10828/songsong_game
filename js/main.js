@@ -444,6 +444,7 @@ function renderVisual(container, round) {
 }
 
 let handLandmarker = null;
+let handLandmarkerPromise = null;
 let currentStream = null;
 let facingMode = "user";
 
@@ -459,10 +460,15 @@ let preflightError = null;
 function preflightCamera() {
   preflightStreamPromise = navigator.mediaDevices
     .getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
+    .then((stream) => {
+      preflightError = null;
+      return stream;
+    })
     .catch((err) => {
       preflightError = err;
-      preflightStreamPromise = null;
-      throw err;
+      // Some browsers reject page-load camera requests until a user gesture.
+      // Keep that failure recoverable so Start can retry on its first click.
+      return null;
     });
 }
 preflightCamera();
@@ -800,10 +806,26 @@ async function createHandLandmarker() {
   }
 }
 
+function ensureHandLandmarker() {
+  if (handLandmarker) return Promise.resolve(handLandmarker);
+  if (!handLandmarkerPromise) {
+    handLandmarkerPromise = createHandLandmarker()
+      .then(() => handLandmarker)
+      .catch((err) => {
+        handLandmarkerPromise = null;
+        throw err;
+      });
+  }
+  return handLandmarkerPromise;
+}
+
 async function startCamera() {
   if (!cameraStarted && preflightStreamPromise) {
     currentStream = await preflightStreamPromise;
-  } else {
+    preflightStreamPromise = null;
+  }
+
+  if (cameraStarted || !currentStream || !currentStream.active) {
     if (currentStream) {
       currentStream.getTracks().forEach((t) => t.stop());
     }
@@ -812,12 +834,28 @@ async function startCamera() {
       audio: false,
     };
     currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+    preflightError = null;
   }
   video.srcObject = currentStream;
-  await new Promise((resolve) => {
-    video.onloadedmetadata = () => resolve();
-  });
-  video.play();
+  if (video.readyState < HTMLMediaElement.HAVE_METADATA) {
+    await new Promise((resolve, reject) => {
+      const cleanup = () => {
+        video.removeEventListener("loadedmetadata", onLoaded);
+        video.removeEventListener("error", onError);
+      };
+      const onLoaded = () => {
+        cleanup();
+        resolve();
+      };
+      const onError = () => {
+        cleanup();
+        reject(video.error || new Error("Camera video could not be loaded"));
+      };
+      video.addEventListener("loadedmetadata", onLoaded, { once: true });
+      video.addEventListener("error", onError, { once: true });
+    });
+  }
+  await video.play();
   resizeCanvasToVideo();
 }
 
@@ -1643,13 +1681,7 @@ function requestFullscreenSafe() {
 }
 
 async function start() {
-  // Preflight already failed (permission denied / no camera) — bail before
-  // entering fullscreen instead of getting stuck there with a dead camera.
-  if (!cameraStarted && preflightError) {
-    statusEl.textContent = `Camera error: ${preflightError.message}`;
-    return;
-  }
-
+  // A failed page-load preflight is retried here from the user's click.
   // Must fire synchronously inside the click handler (before any await) or
   // browsers drop the user-gesture and refuse the fullscreen request.
   unlockGameAudio();
@@ -1668,7 +1700,13 @@ async function start() {
     }
 
     if (!handLandmarker) {
-      await createHandLandmarker();
+      try {
+        await ensureHandLandmarker();
+      } catch (err) {
+        statusEl.textContent = `Model load error: ${err.message}`;
+        startBtn.disabled = false;
+        return;
+      }
     }
     cameraStarted = true;
     running = true;
@@ -2464,6 +2502,6 @@ function exitGame() {
 
 exitBtn.addEventListener("click", exitGame);
 
-createHandLandmarker().catch((err) => {
+ensureHandLandmarker().catch((err) => {
   statusEl.textContent = `Model load error: ${err.message}`;
 });

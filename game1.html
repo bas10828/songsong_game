@@ -203,12 +203,14 @@
     </div>
 
     <div id="modeOverlay" class="hidden">
-      <div id="categoryTitle">How do you want to play?</div>
-      <div id="modeList">
-        <button id="modeSoloBtn" type="button" class="mode-btn">🙋 Solo Practice</button>
-        <button id="modeTeamBtn" type="button" class="mode-btn">🔴 vs 🔵 Team Battle</button>
+      <div id="modeArtwork" role="group" aria-label="Choose how you want to play">
+        <button id="modeSoloBtn" type="button" class="mode-hotspot mode-hotspot-solo" aria-label="Solo Practice">
+          <span>Solo Practice</span>
+        </button>
+        <button id="modeTeamBtn" type="button" class="mode-hotspot mode-hotspot-team" aria-label="Team Battle">
+          <span>Team Battle</span>
+        </button>
       </div>
-      <img id="mascotMode" src="images/2BBB9E2A-CDD6-4A4A-8AD1-786A09A5B1CE.png" alt="Game guide character" />
     </div>
 
     <div id="summaryOverlay" class="hidden">
