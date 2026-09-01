@@ -38,7 +38,10 @@ const submitBtn = document.getElementById("submitBtn");
 const skipBtn = document.getElementById("skipBtn");
 const resultOverlay = document.getElementById("resultOverlay");
 const resultText = document.getElementById("resultText");
+const resultScore = document.getElementById("resultScore");
+const resultPlayerAnswer = document.getElementById("resultPlayerAnswer");
 const resultWord = document.getElementById("resultWord");
+const resultCountdown = document.getElementById("resultCountdown");
 const nextBtn = document.getElementById("nextBtn");
 const zoomOverlay = document.getElementById("zoomOverlay");
 const zoomVisual = document.getElementById("zoomVisual");
@@ -328,6 +331,7 @@ function teamForIndex(answeredCount) {
 }
 
 function resetSession() {
+  clearResultAdvanceTimer();
   questionsAnswered = 0;
   soloCorrectCount = 0;
   soloTotalPoints = 0;
@@ -1249,7 +1253,7 @@ function isFingerExtended(landmarks, tipIdx, midIdx, wrist, palmScale) {
 // they want to fix their answer first — releasing early resets the hold
 // with no submit, no separate second gesture required.
 const THUMBS_UP_HOLD_MS = 350;
-const THUMBS_UP_SUBMIT_HOLD_MS = 10000;
+const THUMBS_UP_SUBMIT_HOLD_MS = 2000;
 let thumbsUpHoldStart = null;
 let thumbsUpFired = false;
 let gameAudioContext = null;
@@ -1323,7 +1327,9 @@ function boardFullyFilled() {
 // does nothing at all.
 function thumbsUpTarget() {
   if (roundIntroPinchable() && !startBtn.disabled) return startBtn;
-  if (!resultOverlay.classList.contains("hidden")) return nextBtn;
+  // Results advance automatically after their countdown; no gesture should
+  // skip the answer review early.
+  if (!resultOverlay.classList.contains("hidden")) return null;
   if (isMidRound() && boardFullyFilled()) return submitBtn;
   return null;
 }
@@ -1576,8 +1582,54 @@ function pointsForCorrectAnswer() {
 // the question counter, and shows the result overlay. Callers set
 // resultWord (the "here's the right answer" reveal) themselves first, since
 // that text differs by kind.
-function finishRound(correct) {
+const RESULT_COOLDOWN_SECONDS = 3;
+const NEXT_ROUND_PREVIEW_MS = 2500;
+let resultAdvanceTimer = null;
+let resultAdvanceDeadline = 0;
+let roundPreviewTimer = null;
+
+function clearResultAdvanceTimer() {
+  if (resultAdvanceTimer !== null) clearInterval(resultAdvanceTimer);
+  resultAdvanceTimer = null;
+  if (roundPreviewTimer !== null) clearTimeout(roundPreviewTimer);
+  roundPreviewTimer = null;
+}
+
+function advanceAfterResult() {
+  clearResultAdvanceTimer();
+  resultOverlay.classList.add("hidden");
+  if (questionsAnswered >= sessionLength) {
+    showSummary();
+    return;
+  }
+  showRoundIntro(pickNextQuestion());
+  startBtn.disabled = true;
+  startBtn.textContent = "Get ready…";
+  roundPreviewTimer = setTimeout(() => {
+    roundPreviewTimer = null;
+    startBtn.disabled = false;
+    beginRound();
+  }, NEXT_ROUND_PREVIEW_MS);
+}
+
+function startResultCountdown() {
+  clearResultAdvanceTimer();
+  nextBtn.classList.add("hidden");
+  resultAdvanceDeadline = performance.now() + RESULT_COOLDOWN_SECONDS * 1000;
+  const updateCountdown = () => {
+    const secondsLeft = Math.max(0, Math.ceil((resultAdvanceDeadline - performance.now()) / 1000));
+    resultCountdown.textContent = secondsLeft > 0
+      ? `Next question in ${secondsLeft} seconds…`
+      : "Loading next question…";
+    if (secondsLeft <= 0) advanceAfterResult();
+  };
+  updateCountdown();
+  resultAdvanceTimer = setInterval(updateCountdown, 250);
+}
+
+function finishRound(correct, playerAnswer, correctAnswer, wasSkipped = false) {
   let breakdown = "";
+  let pointsAwarded = 0;
   if (gameMode === "team") {
     if (correct) {
       if (teamForIndex(questionsAnswered) === "red") teamScoreRed++;
@@ -1587,6 +1639,7 @@ function finishRound(correct) {
     soloCorrectCount++;
     currentStreak++;
     const points = pointsForCorrectAnswer();
+    pointsAwarded = points.total;
     soloTotalPoints += points.total;
     const extras = [];
     if (points.timeBonus > 0) extras.push(`⏱️+${points.timeBonus}`);
@@ -1599,9 +1652,17 @@ function finishRound(correct) {
   updateScoreHud();
 
   resultText.textContent = correct ? `Correct! 🎉${breakdown}` : "Not quite!";
+  if (wasSkipped) resultText.textContent = "Skipped";
   resultText.style.color = correct ? "#4caf50" : "#ff5252";
-  nextBtn.textContent = questionsAnswered >= sessionLength ? "See Results 🏆" : "Next Word";
+  if (wasSkipped) resultText.style.color = "#ffb74d";
+  resultScore.textContent = gameMode === "team"
+    ? `Score: 🔴 ${teamScoreRed} - ${teamScoreBlue} 🔵`
+    : `Score: ${soloTotalPoints} points${pointsAwarded ? `  (+${pointsAwarded})` : ""}`;
+  resultPlayerAnswer.textContent = playerAnswer || "—";
+  resultPlayerAnswer.classList.toggle("wrong-answer", !correct && !wasSkipped);
+  resultWord.textContent = correctAnswer;
   resultOverlay.classList.remove("hidden");
+  startResultCountdown();
 }
 
 // Handles both "spell" (letter tokens) and "sentence" (word tokens) rounds
@@ -1609,10 +1670,7 @@ function finishRound(correct) {
 function checkSubmit() {
   const allFilled = slots.every((s) => s.cardId !== null);
   if (!allFilled) {
-    resultText.textContent = "Fill every slot first!";
-    resultText.style.color = "#ffb74d";
-    resultWord.textContent = "";
-    resultOverlay.classList.remove("hidden");
+    statusEl.textContent = "Fill every slot first!";
     return;
   }
 
@@ -1626,35 +1684,42 @@ function checkSubmit() {
     }
   }
 
-  resultWord.textContent =
-    currentRound.kind === "sentence" ? currentRound.answerWords.join(" ") : currentRound.word.toUpperCase();
-  finishRound(correct);
+  const playerAnswer = slots.map((slot) => cards.find((card) => card.id === slot.cardId)?.letter || "").join(
+    currentRound.kind === "sentence" ? " " : ""
+  );
+  const correctAnswer = currentRound.kind === "sentence"
+    ? currentRound.answerWords.join(" ")
+    : currentRound.word.toUpperCase();
+  finishRound(correct, playerAnswer, correctAnswer);
 }
 
 // Counts the same as a wrong answer (reveals the correct answer, advances
 // the session) — skipping isn't a free pass, it's for "I don't want to
 // guess this one," same as leaving it wrong would be.
 function skipQuestion() {
-  resultText.textContent = "Skipped";
-  resultText.style.color = "#ffb74d";
-  resultWord.textContent =
-    currentRound.kind === "sentence" ? currentRound.answerWords.join(" ") : currentRound.word.toUpperCase();
-  finishRound(false);
+  const correctAnswer = currentRound.kind === "sentence"
+    ? currentRound.answerWords.join(" ")
+    : currentRound.word.toUpperCase();
+  finishRound(false, "Skipped", correctAnswer, true);
 }
 
 submitBtn.addEventListener("click", () => {
   playSubmitSound();
   checkSubmit();
 });
-skipBtn.addEventListener("click", skipQuestion);
-nextBtn.addEventListener("click", () => {
-  resultOverlay.classList.add("hidden");
-  if (questionsAnswered >= sessionLength) {
-    showSummary();
-    return;
-  }
-  showRoundIntro(pickNextQuestion());
+let lastSkipTouchTime = -Infinity;
+skipBtn.addEventListener("pointerup", (event) => {
+  if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
+  if (!isMidRound()) return;
+  event.preventDefault();
+  lastSkipTouchTime = performance.now();
+  skipQuestion();
 });
+skipBtn.addEventListener("click", () => {
+  if (performance.now() - lastSkipTouchTime < 700 || !isMidRound()) return;
+  skipQuestion();
+});
+nextBtn.addEventListener("click", advanceAfterResult);
 
 // Running synchronous hand inference on every display refresh wastes work on
 // 60/120 Hz iPads and blocks taps/animation. 30 tracking updates per second
@@ -1733,9 +1798,10 @@ function beginTranslateRound() {
 
 function selectTranslateAnswer(index) {
   const correct = index === currentRound.correctIndex;
-  resultWord.textContent = currentRound.options[currentRound.correctIndex];
+  const playerAnswer = currentRound.options[index];
+  const correctAnswer = currentRound.options[currentRound.correctIndex];
   translateOverlay.classList.add("hidden");
-  finishRound(correct);
+  finishRound(correct, playerAnswer, correctAnswer);
 }
 
 // Pinch-and-hold-to-select: dwelling the pinch cursor over an option while
@@ -1745,9 +1811,21 @@ function selectTranslateAnswer(index) {
 const TRANSLATE_HOLD_MS = 650;
 let translateHoldIndex = null;
 let translateHoldStart = null;
+let translateSkipWasPinching = false;
 
 function handleTranslateSelection(isPinching, pinchPoint) {
-  if (translateOverlay.classList.contains("hidden")) return;
+  if (translateOverlay.classList.contains("hidden")) {
+    translateSkipWasPinching = false;
+    return;
+  }
+
+  const pinchStarted = isPinching && !translateSkipWasPinching;
+  translateSkipWasPinching = isPinching;
+  skipBtn.classList.toggle("hover", pinchOverElement(pinchPoint, skipBtn));
+  if (pinchStarted && pinchOverElement(pinchPoint, skipBtn)) {
+    skipBtn.click();
+    return;
+  }
 
   let hoveredIndex = null;
   for (let i = 0; i < translateOptionEls.length; i++) {

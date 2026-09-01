@@ -50,9 +50,20 @@
     </div>
 
     <div id="resultOverlay" class="hidden">
-      <div id="resultText"></div>
-      <div id="resultWord"></div>
-      <button id="nextBtn" type="button">Next Word</button>
+      <div id="resultCard">
+        <div id="resultText"></div>
+        <div id="resultScore"></div>
+        <div class="result-answer-row">
+          <span>Your answer</span>
+          <strong id="resultPlayerAnswer"></strong>
+        </div>
+        <div class="result-answer-row correct-answer-row">
+          <span>Correct answer</span>
+          <strong id="resultWord"></strong>
+        </div>
+        <div id="resultCountdown"></div>
+        <button id="nextBtn" type="button">Next Word</button>
+      </div>
     </div>
 
     <div id="startOverlay" class="hidden">

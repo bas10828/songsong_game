@@ -550,20 +550,20 @@ function handleRequest(req, res) {
     const cacheControl = urlPath.startsWith("/vendor/") || urlPath.startsWith("/models/")
       ? "public, max-age=604800"
       : "no-cache";
-    res.writeHead(200, {
-      "Content-Type": MIME[ext] || "application/octet-stream",
-      "Content-Length": data.length,
-      "Cache-Control": cacheControl,
-    });
+    let responseBody = data;
     if (ext === ".html") {
       const html = data.toString("utf8").replace(
         /src="(js\/main\.js)"/g,
         `src="$1?v=${BUILD_VERSION}"`
       );
-      res.end(html);
-    } else {
-      res.end(data);
+      responseBody = Buffer.from(html, "utf8");
     }
+    res.writeHead(200, {
+      "Content-Type": MIME[ext] || "application/octet-stream",
+      "Content-Length": responseBody.length,
+      "Cache-Control": cacheControl,
+    });
+    res.end(responseBody);
   });
 }
 
