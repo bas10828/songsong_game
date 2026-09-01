@@ -16,6 +16,15 @@
   box-sizing: border-box;
 }
 
+/* Tell mobile Safari that interactive controls are direct taps. */
+button,
+a,
+input,
+select {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -597,6 +606,11 @@ html, body {
   background: var(--color-success);
   color: #fff;
   box-shadow: var(--shadow-pop);
+}
+
+#startBtn:disabled {
+  opacity: 0.82;
+  cursor: wait;
 }
 
 #menuLink {
@@ -1769,6 +1783,38 @@ html, body {
   background-size: cover;
 }
 
+#setsHomeLink {
+  position: absolute;
+  z-index: 2;
+  top: max(14px, env(safe-area-inset-top));
+  left: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 9px 20px;
+  border: 2px solid rgba(255, 221, 151, .78);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(54, 70, 171, .94), rgba(27, 29, 111, .96));
+  color: #fff;
+  font-family: var(--font-fun);
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: inset 0 0 12px rgba(117, 195, 255, .25), 0 5px 14px rgba(12, 8, 66, .45);
+  transition: transform .15s ease, filter .15s ease, box-shadow .15s ease;
+}
+
+#setsHomeLink:hover,
+#setsHomeLink:focus-visible {
+  outline: none;
+  transform: translateY(-2px);
+  filter: brightness(1.18);
+  box-shadow: inset 0 0 14px rgba(117, 195, 255, .4), 0 0 0 3px rgba(255,255,255,.8), 0 7px 18px rgba(12,8,66,.5);
+}
+
+#setsHomeLink:active { transform: scale(.96); }
+
 #setsListOverlay .mgmt-title {
   margin: clamp(18px, 4vh, 42px) 0 8px;
   padding: 10px 30px;
@@ -2551,7 +2597,19 @@ html, body {
   #categoryPlayBtn { min-height: 52px; font-size: 27px; }
 }
 
-/* Mode picker artwork: preserve the source image's 1680:933 ratio on every
+@media (max-width: 560px) {
+  #setsHomeLink {
+    min-height: 38px;
+    padding: 7px 13px;
+    font-size: 12px;
+  }
+
+  #setsListOverlay .mgmt-title {
+    margin-top: 52px;
+  }
+}
+
+/* Mode picker artwork: preserve the source image's 1672:941 ratio on every
    viewport, then place real accessible buttons over the two illustrated cards. */
 #modeOverlay {
   display: grid;
@@ -2569,20 +2627,80 @@ html, body {
 
 #modeArtwork {
   position: relative;
-  width: min(100vw, 180.064vh);
+  width: min(100vw, 177.683vh);
   max-width: 100%;
-  aspect-ratio: 1680 / 933;
+  aspect-ratio: 1672 / 941;
   flex: none;
-  background: url("../images/ChatGPT Image Aug 31, 2026, 10_21_34 PM.png") center / 100% 100% no-repeat;
+  background: url("../images/ChatGPT Image Sep 1, 2026, 03_30_19 PM.png") center / 100% 100% no-repeat;
   filter: drop-shadow(0 0 28px rgba(79, 38, 255, .55));
 }
 
 @supports (height: 100dvh) {
-  #modeArtwork { width: min(100vw, 180.064dvh); }
+  #modeArtwork { width: min(100vw, 177.683dvh); }
+}
+
+#modeHomeLink {
+  position: absolute;
+  z-index: 5;
+  top: clamp(10px, 2.2%, 24px);
+  left: clamp(10px, 2%, 24px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 9px 20px;
+  border: 2px solid rgba(255, 226, 151, .9);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(78, 48, 190, .94), rgba(34, 20, 111, .96));
+  color: #fff;
+  font-family: var(--font-fun);
+  font-size: clamp(13px, 1.4vw, 18px);
+  font-weight: 800;
+  text-decoration: none;
+  text-shadow: 0 2px 3px rgba(20, 9, 80, .85);
+  box-shadow: inset 0 0 10px rgba(137, 207, 255, .35), 0 5px 14px rgba(0, 0, 0, .45), 0 0 12px rgba(208, 89, 255, .45);
+  transition: transform .15s ease, filter .15s ease, box-shadow .15s ease;
+}
+
+#modeHomeLink:hover,
+#modeHomeLink:focus-visible {
+  outline: none;
+  transform: translateY(-2px) scale(1.04);
+  filter: brightness(1.2);
+  box-shadow: inset 0 0 12px rgba(137, 207, 255, .5), 0 0 0 3px rgba(255,255,255,.85), 0 7px 18px rgba(0,0,0,.48);
+}
+
+#modeHomeLink:active {
+  transform: scale(.96);
+}
+
+#modeGuide {
+  position: absolute;
+  /* Keep the guide visually above the buttons' hover/focus frames while
+     pointer-events:none lets every click pass through to the hotspots. */
+  z-index: 3;
+  left: 50%;
+  bottom: -1.5%;
+  width: 18%;
+  height: 43%;
+  object-fit: contain;
+  object-position: center bottom;
+  pointer-events: none;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 12px 13px rgba(0, 0, 0, .72)) drop-shadow(0 0 12px rgba(91, 182, 255, .7));
+  -webkit-mask-image: radial-gradient(ellipse 68% 76% at 50% 52%, #000 64%, transparent 100%);
+  mask-image: radial-gradient(ellipse 68% 76% at 50% 52%, #000 64%, transparent 100%);
+  animation: modeGuideFloat 3.4s ease-in-out infinite;
+}
+
+@keyframes modeGuideFloat {
+  0%, 100% { transform: translateX(-50%) translateY(0) rotate(-1deg); }
+  50% { transform: translateX(-50%) translateY(-7px) rotate(1deg); }
 }
 
 .mode-hotspot {
   position: absolute;
+  z-index: 2;
   top: 35.5%;
   height: 49.5%;
   padding: 0;
@@ -2641,5 +2759,155 @@ html, body {
 
   #modeArtwork {
     box-shadow: 0 0 60px 20px rgba(79, 28, 178, .42);
+  }
+
+  #modeGuide {
+    width: 22%;
+    height: 38%;
+  }
+}
+
+@media (max-width: 560px) {
+  #modeHomeLink {
+    min-height: 38px;
+    padding: 7px 13px;
+    font-size: 12px;
+  }
+
+  #modeGuide {
+    bottom: 0;
+    width: 25%;
+    height: 34%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #modeGuide { animation: none; }
+}
+
+/* Illustrated rules shown between choosing a mode and starting setup. */
+#rulesOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 53;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: max(12px, env(safe-area-inset-top)) 14px max(12px, env(safe-area-inset-bottom));
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 32%, rgba(84, 37, 190, .52), transparent 48%),
+    #040124;
+}
+
+#rulesOverlay.hidden { display: none; }
+
+#rulesArtwork {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: min(100%, 720px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#rulesCard {
+  position: relative;
+  height: 100%;
+  max-width: min(100%, 1024px);
+  max-height: 1536px;
+  aspect-ratio: 2 / 3;
+}
+
+#rulesCard img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+#rulesActions {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  width: min(100%, 720px);
+}
+
+#rulesActions button {
+  min-height: 50px;
+  padding: 10px 24px;
+  border: 2px solid rgba(255, 221, 145, .82);
+  border-radius: 999px;
+  color: #fff;
+  font-family: var(--font-fun);
+  font-size: clamp(14px, 1.8vw, 19px);
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform .15s ease, filter .15s ease, box-shadow .15s ease;
+}
+
+#rulesBackBtn {
+  position: absolute;
+  z-index: 2;
+  top: .7%;
+  right: 1.2%;
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid rgba(255, 221, 145, .9);
+  border-radius: 999px;
+  background: linear-gradient(180deg, #554399, #282064);
+  color: #fff;
+  font-family: var(--font-fun);
+  font-size: clamp(9px, 1vw, 12px);
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: inset 0 0 12px rgba(137, 207, 255, .3), 0 5px 14px rgba(0,0,0,.5), 0 0 13px rgba(202,76,255,.6);
+  transition: transform .15s ease, filter .15s ease, box-shadow .15s ease;
+}
+
+#rulesContinueBtn {
+  flex: 1;
+  max-width: 390px;
+  background: linear-gradient(180deg, #785cff, #4920cd);
+  box-shadow: inset 0 0 18px rgba(255, 139, 250, .5), 0 0 20px rgba(211, 76, 255, .58);
+}
+
+#rulesActions button:hover,
+#rulesActions button:focus-visible,
+#rulesBackBtn:hover,
+#rulesBackBtn:focus-visible {
+  outline: none;
+  transform: translateY(-2px) scale(1.02);
+  filter: brightness(1.18);
+  box-shadow: 0 0 0 3px rgba(255,255,255,.88), 0 0 22px rgba(192,83,255,.7);
+}
+
+#rulesActions button:active { transform: scale(.97); }
+#rulesBackBtn:active { transform: scale(.96); }
+
+@media (max-width: 560px) {
+  #rulesOverlay {
+    gap: 9px;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  #rulesCard img { border-radius: 0; }
+  #rulesBackBtn {
+    top: .6%;
+    right: 1%;
+    min-height: 27px;
+    padding: 4px 8px;
+    font-size: 9px;
+  }
+  #rulesActions { gap: 7px; }
+  #rulesActions button {
+    min-height: 46px;
+    padding: 8px 13px;
+    font-size: 13px;
   }
 }

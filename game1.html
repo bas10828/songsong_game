@@ -59,12 +59,12 @@
       <div id="teamTurnBanner" class="hidden"></div>
       <div id="promptDisplay"></div>
       <button id="startBtn" type="button">Start Camera</button>
-      <a id="menuLink" href="menu.html">🏠 Back to Menu</a>
+      <a id="menuLink" href="menu.html">🏠 Home</a>
       <img id="mascotCorner" src="images/2BBB9E2A-CDD6-4A4A-8AD1-786A09A5B1CE.png" alt="Game guide character" />
     </div>
 
     <div id="categoryOverlay">
-      <a id="categoryMenuLink" href="menu.html" style="position:absolute;top:14px;left:14px;z-index:2;padding:10px 22px;font-size:15px;font-family:var(--font-fun);font-weight:700;color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,0.5);border-radius:999px;opacity:0.85;">🏠 Back to Menu</a>
+      <a id="categoryMenuLink" href="menu.html" style="position:absolute;top:14px;left:14px;z-index:2;padding:10px 22px;font-size:15px;font-family:var(--font-fun);font-weight:700;color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,0.5);border-radius:999px;opacity:0.85;">🏠 Home</a>
       <div id="categoryTitle">Pick what to play! 🌟</div>
       <div id="categoryList"></div>
       <div id="publicSetsSection" class="hidden">
@@ -90,6 +90,7 @@
     </div>
 
     <div id="setsListOverlay" class="hidden">
+      <a id="setsHomeLink" href="menu.html" aria-label="Back to home">🏠 Home</a>
       <div class="mgmt-title">📚 My Question Sets</div>
       <div id="setsList"></div>
       <div id="newSetRow">
@@ -204,12 +205,26 @@
 
     <div id="modeOverlay" class="hidden">
       <div id="modeArtwork" role="group" aria-label="Choose how you want to play">
+        <a id="modeHomeLink" href="menu.html" aria-label="Back to home">🏠 Home</a>
+        <img id="modeGuide" src="images/mode-guide-scout.png" alt="" aria-hidden="true" />
         <button id="modeSoloBtn" type="button" class="mode-hotspot mode-hotspot-solo" aria-label="Solo Practice">
           <span>Solo Practice</span>
         </button>
         <button id="modeTeamBtn" type="button" class="mode-hotspot mode-hotspot-team" aria-label="Team Battle">
           <span>Team Battle</span>
         </button>
+      </div>
+    </div>
+
+    <div id="rulesOverlay" class="hidden" role="dialog" aria-modal="true" aria-label="How to play">
+      <div id="rulesArtwork">
+        <div id="rulesCard">
+          <img src="images/ChatGPT Image Sep 1, 2026, 03_46_35 PM (1).png" alt="How to play: look at the picture and start the camera, pinch and drag letters into the boxes, submit your answer, earn points, then play the next word." />
+          <button id="rulesBackBtn" type="button">🏠 HOME</button>
+        </div>
+      </div>
+      <div id="rulesActions">
+        <button id="rulesContinueBtn" type="button">START</button>
       </div>
     </div>
 
@@ -228,7 +243,7 @@
         <div class="summary-actions">
           <button id="playAgainBtn" type="button">🔄 Play Again</button>
           <button id="newSetupBtn" type="button">🎯 New Setup</button>
-          <a id="summaryMenuLink" href="menu.html">🏠 Back to Menu</a>
+          <a id="summaryMenuLink" href="menu.html">🏠 Home</a>
         </div>
       </div>
     </div>

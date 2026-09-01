@@ -1,4 +1,24 @@
-import { HandLandmarker, FilesetResolver } from "../vendor/mediapipe/vision_bundle.mjs";
+// Load MediaPipe only when gameplay actually needs it. Parsing the large
+// bundle during page startup can block taps for several seconds on iPad.
+let HandLandmarker = null;
+let FilesetResolver = null;
+let visionModulePromise = null;
+
+function loadVisionModule() {
+  if (!visionModulePromise) {
+    visionModulePromise = import("../vendor/mediapipe/vision_bundle.mjs")
+      .then((module) => {
+        HandLandmarker = module.HandLandmarker;
+        FilesetResolver = module.FilesetResolver;
+        return module;
+      })
+      .catch((err) => {
+        visionModulePromise = null;
+        throw err;
+      });
+  }
+  return visionModulePromise;
+}
 
 const video = document.getElementById("video");
 const overlay = document.getElementById("overlay");
@@ -37,6 +57,9 @@ const publicSetsList = document.getElementById("publicSetsList");
 const modeOverlay = document.getElementById("modeOverlay");
 const modeSoloBtn = document.getElementById("modeSoloBtn");
 const modeTeamBtn = document.getElementById("modeTeamBtn");
+const rulesOverlay = document.getElementById("rulesOverlay");
+const rulesBackBtn = document.getElementById("rulesBackBtn");
+const rulesContinueBtn = document.getElementById("rulesContinueBtn");
 const scoreHud = document.getElementById("scoreHud");
 const teamTurnBanner = document.getElementById("teamTurnBanner");
 const summaryOverlay = document.getElementById("summaryOverlay");
@@ -788,6 +811,7 @@ function sendCardHome(card) {
 
 async function createHandLandmarker() {
   statusEl.textContent = "Loading model…";
+  await loadVisionModule();
   const vision = await FilesetResolver.forVisionTasks("vendor/mediapipe/wasm");
   try {
     handLandmarker = await HandLandmarker.createFromOptions(vision, {
@@ -1157,7 +1181,7 @@ function isFingerExtended(landmarks, tipIdx, midIdx, wrist, palmScale) {
 // they want to fix their answer first — releasing early resets the hold
 // with no submit, no separate second gesture required.
 const THUMBS_UP_HOLD_MS = 350;
-const THUMBS_UP_SUBMIT_HOLD_MS = 1800;
+const THUMBS_UP_SUBMIT_HOLD_MS = 10000;
 let thumbsUpHoldStart = null;
 let thumbsUpFired = false;
 let gameAudioContext = null;
@@ -1680,7 +1704,12 @@ function requestFullscreenSafe() {
   }
 }
 
+let startInProgress = false;
+
 async function start() {
+  if (startInProgress) return;
+  startInProgress = true;
+
   // A failed page-load preflight is retried here from the user's click.
   // Must fire synchronously inside the click handler (before any await) or
   // browsers drop the user-gesture and refuse the fullscreen request.
@@ -1688,33 +1717,33 @@ async function start() {
   requestFullscreenSafe();
 
   startBtn.disabled = true;
+  startBtn.setAttribute("aria-busy", "true");
+  startBtn.textContent = cameraStarted ? "Starting round…" : "Starting camera…";
 
-  if (!cameraStarted) {
-    statusEl.textContent = "Requesting camera…";
-    try {
+  try {
+    if (!cameraStarted) {
+      statusEl.textContent = "Requesting camera…";
       await startCamera();
-    } catch (err) {
-      statusEl.textContent = `Camera error: ${err.message}`;
-      startBtn.disabled = false;
-      return;
-    }
 
-    if (!handLandmarker) {
-      try {
+      if (!handLandmarker) {
+        startBtn.textContent = "Loading hand tracking…";
         await ensureHandLandmarker();
-      } catch (err) {
-        statusEl.textContent = `Model load error: ${err.message}`;
-        startBtn.disabled = false;
-        return;
       }
+      cameraStarted = true;
+      running = true;
+      loop();
     }
-    cameraStarted = true;
-    running = true;
-    loop();
-  }
 
-  beginRound();
-  startBtn.disabled = false;
+    beginRound();
+  } catch (err) {
+    const label = currentStream ? "Model load error" : "Camera error";
+    statusEl.textContent = `${label}: ${err.message}`;
+  } finally {
+    startInProgress = false;
+    startBtn.disabled = false;
+    startBtn.removeAttribute("aria-busy");
+    startBtn.textContent = cameraStarted ? "Next Round" : "Start Camera";
+  }
 }
 
 startBtn.addEventListener("click", start);
@@ -1786,30 +1815,32 @@ function startTeacherSetSession() {
   showRoundIntro(pickNextQuestion());
 }
 
-// Mode-select is shared by both entry paths: picking a mode after tapping
-// "Play" on a teacher set jumps straight into that set (skipping the
-// built-in category picker, since the content is already chosen); picking
-// a mode any other way continues on to the category picker as before.
-modeSoloBtn.addEventListener("click", () => {
-  gameMode = "solo";
+// Show the illustrated rules after a mode is chosen. Continuing preserves
+// the original routing: teacher sets start immediately, while normal play
+// continues to the category picker.
+function showRulesForMode(mode) {
+  gameMode = mode;
   modeOverlay.classList.add("hidden");
-  if (sessionSource === "teacherSet" && activeTeacherSet) {
-    startTeacherSetSession();
-  } else {
-    sessionSource = "pool";
-    categoryOverlay.classList.remove("hidden");
-  }
-});
+  rulesOverlay.classList.remove("hidden");
+  rulesOverlay.scrollTop = 0;
+}
 
-modeTeamBtn.addEventListener("click", () => {
-  gameMode = "team";
-  modeOverlay.classList.add("hidden");
+function continueAfterRules() {
+  rulesOverlay.classList.add("hidden");
   if (sessionSource === "teacherSet" && activeTeacherSet) {
     startTeacherSetSession();
   } else {
     sessionSource = "pool";
     categoryOverlay.classList.remove("hidden");
   }
+}
+
+modeSoloBtn.addEventListener("click", () => showRulesForMode("solo"));
+modeTeamBtn.addEventListener("click", () => showRulesForMode("team"));
+rulesContinueBtn.addEventListener("click", continueAfterRules);
+rulesBackBtn.addEventListener("click", () => {
+  rulesOverlay.classList.add("hidden");
+  modeOverlay.classList.remove("hidden");
 });
 
 playAgainBtn.addEventListener("click", () => {
@@ -2501,7 +2532,3 @@ function exitGame() {
 }
 
 exitBtn.addEventListener("click", exitGame);
-
-ensureHandLandmarker().catch((err) => {
-  statusEl.textContent = `Model load error: ${err.message}`;
-});
