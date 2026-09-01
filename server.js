@@ -547,9 +547,13 @@ function handleRequest(req, res) {
       return;
     }
     const ext = path.extname(filePath).toLowerCase();
+    const cacheControl = urlPath.startsWith("/vendor/") || urlPath.startsWith("/models/")
+      ? "public, max-age=604800"
+      : "no-cache";
     res.writeHead(200, {
       "Content-Type": MIME[ext] || "application/octet-stream",
-      "Cache-Control": "no-cache",
+      "Content-Length": data.length,
+      "Cache-Control": cacheControl,
     });
     if (ext === ".html") {
       const html = data.toString("utf8").replace(

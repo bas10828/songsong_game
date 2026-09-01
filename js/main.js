@@ -22,7 +22,7 @@ function loadVisionModule() {
 
 const video = document.getElementById("video");
 const overlay = document.getElementById("overlay");
-const ctx = overlay.getContext("2d");
+const ctx = overlay.getContext("2d", { alpha: true, desynchronized: true });
 const fpsEl = document.getElementById("fps");
 const pinchDebugEl = document.getElementById("pinchDebug");
 const statusEl = document.getElementById("status");
@@ -125,6 +125,7 @@ const sentCardInputs = document.getElementById("sentCardInputs");
 const questionFormError = document.getElementById("questionFormError");
 const saveQuestionBtn = document.getElementById("saveQuestionBtn");
 const cancelQuestionBtn = document.getElementById("cancelQuestionBtn");
+const IS_TOUCH_DEVICE = window.matchMedia("(pointer: coarse)").matches;
 
 // Hand-effect "skins" — each bundles the colors/glyphs used to draw the
 // hand skeleton, pinch orb, and particle trails, plus the two CSS magic-
@@ -470,35 +471,25 @@ let handLandmarker = null;
 let handLandmarkerPromise = null;
 let currentStream = null;
 let facingMode = "user";
-
-// Ask for the camera as soon as this page loads, decoupled from the
-// "Start Camera" click. Requesting it inside the click handler meant the
-// permission prompt (or a denial) landed *after* we'd already entered
-// fullscreen, leaving a broken camera view stuck fullscreen with no easy
-// way out. By preflighting here, the permission is usually already
-// resolved by the time the user clicks Start.
-let preflightStreamPromise = null;
-let preflightError = null;
-
-function preflightCamera() {
-  preflightStreamPromise = navigator.mediaDevices
-    .getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
-    .then((stream) => {
-      preflightError = null;
-      return stream;
-    })
-    .catch((err) => {
-      preflightError = err;
-      // Some browsers reject page-load camera requests until a user gesture.
-      // Keep that failure recoverable so Start can retry on its first click.
-      return null;
-    });
-}
-preflightCamera();
+const CAMERA_PROFILES = [
+  { width: 640, height: 480, label: "SD" },
+  { width: 960, height: 540, label: "HD" },
+  { width: 1280, height: 720, label: "HD+" },
+];
+let cameraProfileIndex = 0;
+let maxCameraProfileIndex = CAMERA_PROFILES.length - 1;
+let lastCameraTuneTime = 0;
+let cameraTuneInProgress = false;
 let running = false;
 
 let lastFrameTime = performance.now();
 let fpsSmoothed = 0;
+let pendingPinchDebug = "pinch: --";
+let lastHudRenderTime = 0;
+
+function useReducedVisualEffects() {
+  return IS_TOUCH_DEVICE || (fpsSmoothed > 0 && fpsSmoothed < 22);
+}
 
 // --- Board state ---------------------------------------------------------
 let currentRound = null; // { word, type, value }
@@ -813,19 +804,21 @@ async function createHandLandmarker() {
   statusEl.textContent = "Loading model…";
   await loadVisionModule();
   const vision = await FilesetResolver.forVisionTasks("vendor/mediapipe/wasm");
+
+  const createWithDelegate = (delegate) => HandLandmarker.createFromOptions(vision, {
+    baseOptions: { modelAssetPath: "models/hand_landmarker.task", delegate },
+    runningMode: "VIDEO",
+    numHands: 1,
+    minHandDetectionConfidence: 0.5,
+    minHandPresenceConfidence: 0.5,
+    minTrackingConfidence: 0.5,
+  });
+
   try {
-    handLandmarker = await HandLandmarker.createFromOptions(vision, {
-      baseOptions: { modelAssetPath: "models/hand_landmarker.task", delegate: "GPU" },
-      runningMode: "VIDEO",
-      numHands: 1,
-    });
+    handLandmarker = await createWithDelegate("GPU");
     statusEl.textContent = "Model ready (GPU)";
   } catch (err) {
-    handLandmarker = await HandLandmarker.createFromOptions(vision, {
-      baseOptions: { modelAssetPath: "models/hand_landmarker.task", delegate: "CPU" },
-      runningMode: "VIDEO",
-      numHands: 1,
-    });
+    handLandmarker = await createWithDelegate("CPU");
     statusEl.textContent = "Model ready (CPU fallback)";
   }
 }
@@ -844,21 +837,44 @@ function ensureHandLandmarker() {
 }
 
 async function startCamera() {
-  if (!cameraStarted && preflightStreamPromise) {
-    currentStream = await preflightStreamPromise;
-    preflightStreamPromise = null;
-  }
-
   if (cameraStarted || !currentStream || !currentStream.active) {
     if (currentStream) {
       currentStream.getTracks().forEach((t) => t.stop());
     }
-    const constraints = {
-      video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error("Camera is not supported in this browser or the page is not secure");
+    }
+
+    cameraProfileIndex = 0;
+    maxCameraProfileIndex = CAMERA_PROFILES.length - 1;
+    const initialProfile = CAMERA_PROFILES[cameraProfileIndex];
+    const preferredConstraints = {
+      video: {
+        facingMode: { ideal: facingMode },
+        width: { ideal: initialProfile.width, max: initialProfile.width },
+        height: { ideal: initialProfile.height, max: initialProfile.height },
+        frameRate: { ideal: 30, max: 30 },
+      },
       audio: false,
     };
-    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-    preflightError = null;
+
+    try {
+      currentStream = await navigator.mediaDevices.getUserMedia(preferredConstraints);
+    } catch (err) {
+      // Older Safari versions and some Android/webcam drivers reject max or
+      // frameRate constraints even though the camera itself works. Retry only
+      // constraint/API compatibility errors; never repeat a denied permission.
+      const canRetry = ["OverconstrainedError", "ConstraintNotSatisfiedError", "TypeError"].includes(err.name);
+      if (!canRetry) throw err;
+      currentStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: facingMode },
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+        },
+        audio: false,
+      });
+    }
   }
   video.srcObject = currentStream;
   if (video.readyState < HTMLMediaElement.HAVE_METADATA) {
@@ -883,6 +899,41 @@ async function startCamera() {
   resizeCanvasToVideo();
 }
 
+function tuneCameraQuality(now) {
+  if (cameraTuneInProgress || now - lastCameraTuneTime < 5000) return;
+  const track = currentStream?.getVideoTracks?.()[0];
+  if (!track?.applyConstraints || !fpsSmoothed) return;
+
+  let nextIndex = cameraProfileIndex;
+  if (fpsSmoothed >= 27 && cameraProfileIndex < maxCameraProfileIndex) {
+    nextIndex++;
+  } else if (fpsSmoothed < 22 && cameraProfileIndex > 0) {
+    nextIndex--;
+  } else {
+    lastCameraTuneTime = now;
+    return;
+  }
+
+  const previousIndex = cameraProfileIndex;
+  const profile = CAMERA_PROFILES[nextIndex];
+  cameraTuneInProgress = true;
+  lastCameraTuneTime = now;
+  track.applyConstraints({
+    width: { ideal: profile.width, max: profile.width },
+    height: { ideal: profile.height, max: profile.height },
+    frameRate: { ideal: 30, max: 30 },
+  }).then(() => {
+    cameraProfileIndex = nextIndex;
+    if (nextIndex < previousIndex) maxCameraProfileIndex = nextIndex;
+    video.dataset.quality = profile.label;
+  }).catch(() => {
+    // Do not keep requesting a quality tier unsupported by this camera.
+    if (nextIndex > previousIndex) maxCameraProfileIndex = previousIndex;
+  }).finally(() => {
+    cameraTuneInProgress = false;
+  });
+}
+
 function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
@@ -902,7 +953,7 @@ function drawMagicOrb(point, isPinching) {
   const radius = (isPinching ? 15 : 11) + pulse * (isPinching ? 5 : 3);
 
   ctx.save();
-  ctx.shadowBlur = 18 + pulse * 12;
+  ctx.shadowBlur = useReducedVisualEffects() ? 10 + pulse * 6 : 18 + pulse * 12;
   ctx.shadowColor = `rgba(${baseRgb}, 0.95)`;
 
   const gradient = ctx.createRadialGradient(
@@ -925,7 +976,7 @@ function drawMagicOrb(point, isPinching) {
 // than a plain dot. Glyphs come from the current hand skin.
 function drawOrbHalo(point, isPinching) {
   const glyphs = currentHandSkin.orbitGlyphs;
-  const count = isPinching ? 6 : 4;
+  const count = useReducedVisualEffects() ? (isPinching ? 4 : 3) : (isPinching ? 6 : 4);
   const radius = isPinching ? 30 : 24;
   const t = performance.now() / 480;
   ctx.save();
@@ -947,8 +998,12 @@ function drawOrbHalo(point, isPinching) {
 // the pinch point every frame, independent of grabbing a card, so the whole
 // hand cursor feels alive rather than just the moment of a grab.
 let dustParticles = [];
+const MAX_DUST_PARTICLES = 48;
 
 function spawnDust(x, y, count) {
+  const particleLimit = useReducedVisualEffects() ? 24 : MAX_DUST_PARTICLES;
+  const available = Math.max(0, particleLimit - dustParticles.length);
+  count = Math.min(count, available);
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
     const speed = 0.15 + Math.random() * 0.35;
@@ -979,7 +1034,7 @@ function updateAndDrawDust(dt) {
     const t = p.age / p.maxAge;
     const alpha = (1 - t) * 0.85;
     const r = p.size * (1 - t * 0.5);
-    ctx.shadowBlur = 5;
+    ctx.shadowBlur = useReducedVisualEffects() ? 2 : 5;
     ctx.shadowColor = `rgba(${p.rgb}, ${alpha})`;
     ctx.fillStyle = `rgba(${p.rgb}, ${alpha})`;
     ctx.beginPath();
@@ -1021,17 +1076,30 @@ function drawHandSkeleton(landmarks) {
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  for (const [aIdx, bIdx] of HAND_CONNECTIONS) {
-    const a = landmarks[aIdx];
-    const b = landmarks[bIdx];
-    const rgb = boneColor(aIdx);
+
+  // Batch bones sharing a color into one path. This keeps the same glove
+  // appearance while avoiding a separate shadowed stroke for every bone.
+  if (!currentHandSkin.boneGroups) {
+    const groups = new Map();
+    for (const connection of HAND_CONNECTIONS) {
+      const rgb = boneColor(connection[0]);
+      if (!groups.has(rgb)) groups.set(rgb, []);
+      groups.get(rgb).push(connection);
+    }
+    currentHandSkin.boneGroups = [...groups.entries()];
+  }
+  for (const [rgb, connections] of currentHandSkin.boneGroups) {
     ctx.strokeStyle = `rgba(${rgb}, ${0.75 + shimmer * 0.25})`;
-    ctx.shadowBlur = 8 + shimmer * 6;
+    ctx.shadowBlur = useReducedVisualEffects() ? 4 + shimmer * 3 : 8 + shimmer * 6;
     ctx.shadowColor = `rgba(${rgb}, 0.9)`;
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(mapX(a.x, overlay.width), a.y * overlay.height);
-    ctx.lineTo(mapX(b.x, overlay.width), b.y * overlay.height);
+    for (const [aIdx, bIdx] of connections) {
+      const a = landmarks[aIdx];
+      const b = landmarks[bIdx];
+      ctx.moveTo(mapX(a.x, overlay.width), a.y * overlay.height);
+      ctx.lineTo(mapX(b.x, overlay.width), b.y * overlay.height);
+    }
     ctx.stroke();
   }
 
@@ -1041,7 +1109,7 @@ function drawHandSkeleton(landmarks) {
     const y = lm.y * overlay.height;
     const twinkle = 0.5 + 0.5 * Math.sin(performance.now() / 260 + idx);
     const rgb = currentHandSkin.tipGlowRgb;
-    ctx.shadowBlur = 10 + twinkle * 6;
+    ctx.shadowBlur = useReducedVisualEffects() ? 5 + twinkle * 3 : 10 + twinkle * 6;
     ctx.shadowColor = `rgba(${rgb}, 0.95)`;
     ctx.fillStyle = `rgba(${rgb}, 0.95)`;
     ctx.beginPath();
@@ -1060,7 +1128,7 @@ function processResult(result) {
   updateAndDrawDust(dustDt);
 
   if (!result.landmarks || result.landmarks.length === 0) {
-    pinchDebugEl.textContent = "pinch: no hand";
+    pendingPinchDebug = "pinch: no hand";
     isPinchingState = false;
     if (grabbedCardId !== null) {
       const card = cards.find((c) => c.id === grabbedCardId);
@@ -1105,7 +1173,7 @@ function processResult(result) {
   const thumbVerticalOffset = wrist.y - thumbTip.y;
   const isThumbsUp = onlyThumbOut && thumbVerticalOffset > palmScale * THUMB_DIRECTION_MARGIN;
   const isPeaceSign = fingers.index && fingers.middle && !fingers.ring && !fingers.pinky;
-  pinchDebugEl.textContent = `pinch: ${pinchRatio.toFixed(2)} ${isPinching ? "🤏" : ""} ${isThumbsUp ? "👍" : ""} ${isPeaceSign ? "✌️" : ""}`;
+  pendingPinchDebug = `pinch: ${pinchRatio.toFixed(2)} ${isPinching ? "🤏" : ""} ${isThumbsUp ? "👍" : ""} ${isPeaceSign ? "✌️" : ""}`;
 
   // Anchored to the index fingertip rather than the thumb/index midpoint —
   // players aim by eye along their pointing finger, so a cursor sitting back
@@ -1588,11 +1656,19 @@ nextBtn.addEventListener("click", () => {
   showRoundIntro(pickNextQuestion());
 });
 
-function loop() {
+// Running synchronous hand inference on every display refresh wastes work on
+// 60/120 Hz iPads and blocks taps/animation. 30 tracking updates per second
+// remain responsive for gestures while leaving the browser time to render.
+const TRACKING_INTERVAL_MS = 1000 / 30;
+let lastDetectionTime = 0;
+
+function loop(frameTime = performance.now()) {
   if (!running) return;
   requestAnimationFrame(loop);
 
   if (video.readyState < 2) return;
+  if (frameTime - lastDetectionTime < TRACKING_INTERVAL_MS) return;
+  lastDetectionTime = frameTime;
 
   const now = performance.now();
   const result = handLandmarker.detectForVideo(video, now);
@@ -1601,9 +1677,17 @@ function loop() {
   lastFrameTime = now;
   const instFps = 1000 / dt;
   fpsSmoothed = fpsSmoothed ? fpsSmoothed * 0.9 + instFps * 0.1 : instFps;
-  fpsEl.textContent = `FPS: ${fpsSmoothed.toFixed(1)}`;
+  tuneCameraQuality(now);
 
   processResult(result);
+
+  // Debug text does not need to mutate the DOM on every inference frame.
+  // Four updates per second avoids repeated style/layout work in the HUD.
+  if (now - lastHudRenderTime >= 250) {
+    lastHudRenderTime = now;
+    fpsEl.textContent = `FPS: ${fpsSmoothed.toFixed(1)}`;
+    pinchDebugEl.textContent = pendingPinchDebug;
+  }
 }
 
 // Full-screen prompt shown before a round begins. On the very first round
@@ -1710,9 +1794,8 @@ async function start() {
   if (startInProgress) return;
   startInProgress = true;
 
-  // A failed page-load preflight is retried here from the user's click.
-  // Must fire synchronously inside the click handler (before any await) or
-  // browsers drop the user-gesture and refuse the fullscreen request.
+  // Camera access starts synchronously from this user gesture. Mobile Safari
+  // is unreliable when getUserMedia is requested automatically on page load.
   unlockGameAudio();
   requestFullscreenSafe();
 
@@ -1731,6 +1814,10 @@ async function start() {
       }
       cameraStarted = true;
       running = true;
+      lastDetectionTime = 0;
+      lastFrameTime = performance.now();
+      fpsSmoothed = 0;
+      lastCameraTuneTime = performance.now();
       loop();
     }
 
@@ -1746,7 +1833,19 @@ async function start() {
   }
 }
 
-startBtn.addEventListener("click", start);
+// iPad Safari can delay a synthesized click after a touch. Start directly on
+// pointerup, while keeping click for mouse, keyboard and older browsers.
+let lastTouchStartTime = -Infinity;
+startBtn.addEventListener("pointerup", (event) => {
+  if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
+  event.preventDefault();
+  lastTouchStartTime = performance.now();
+  start();
+});
+startBtn.addEventListener("click", () => {
+  if (performance.now() - lastTouchStartTime < 700) return;
+  start();
+});
 
 function renderCategoryChips() {
   categoryList.innerHTML = "";

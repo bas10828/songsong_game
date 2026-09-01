@@ -613,6 +613,32 @@ html, body {
   cursor: wait;
 }
 
+/* Live backdrop blurs are costly when Safari must recomposite a camera frame
+   underneath them. Use the same translucent look without blur on touch-first
+   devices such as iPad. */
+@media (pointer: coarse) {
+  #hud,
+  #startOverlay {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  /* Keep one-time entrance feedback, but remove continuous decorative
+     animation competing with camera compositing and hand tracking. */
+  .card {
+    animation: popIn 0.2s ease both;
+  }
+
+  #scoreHud::before,
+  #scoreHud::after,
+  #mascotCorner,
+  #promptDisplay .visual-color,
+  #promptDisplay .visual-emoji,
+  #promptDisplay .visual-photo {
+    animation: none;
+  }
+}
+
 #menuLink {
   padding: 10px 22px;
   font-size: 15px;
