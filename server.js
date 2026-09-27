@@ -547,10 +547,10 @@ function handleRequest(req, res) {
       return;
     }
     const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, {
-      "Content-Type": MIME[ext] || "application/octet-stream",
-      "Cache-Control": "no-cache",
-    });
+    const cacheControl = urlPath.startsWith("/vendor/") || urlPath.startsWith("/models/")
+      ? "public, max-age=604800"
+      : "no-cache";
+    let responseBody = data;
     if (ext === ".html") {
       // The CDN caches JS/CSS for hours independently of HTML, so version
       // every asset we actively change to avoid stale-asset skew after deploy.
@@ -559,10 +559,14 @@ function handleRequest(req, res) {
         .replace(/src="(js\/main\.js)"/g, `src="$1?v=${BUILD_VERSION}"`)
         .replace(/((?:\.\.\/|\.\/)?js\/scene3d\.js)"/g, `$1?v=${BUILD_VERSION}"`)
         .replace(/href="(css\/style\.css)"/g, `href="$1?v=${BUILD_VERSION}"`);
-      res.end(html);
-    } else {
-      res.end(data);
+      responseBody = Buffer.from(html, "utf8");
     }
+    res.writeHead(200, {
+      "Content-Type": MIME[ext] || "application/octet-stream",
+      "Content-Length": responseBody.length,
+      "Cache-Control": cacheControl,
+    });
+    res.end(responseBody);
   });
 }
 

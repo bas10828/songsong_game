@@ -4,7 +4,6 @@ param(
 
 $ErrorActionPreference = "Stop"
 $projectPath = $PSScriptRoot
-$gameUrl = "https://localhost:8080/menu.html"
 $serviceName = "postgresql-x64-17"
 
 Set-Location -LiteralPath $projectPath
@@ -14,6 +13,39 @@ function Test-IsAdministrator {
   $principal = [Security.Principal.WindowsPrincipal]::new($identity)
   return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
+
+function Get-LanIPv4Address {
+  $socket = [System.Net.Sockets.UdpClient]::new()
+  try {
+    # Connecting a UDP socket selects the active network route without
+    # sending any data. Its local endpoint is this computer's current LAN IP.
+    $socket.Connect("8.8.8.8", 53)
+    return ([System.Net.IPEndPoint]$socket.Client.LocalEndPoint).Address.ToString()
+  } catch {
+    return "localhost"
+  } finally {
+    $socket.Dispose()
+  }
+}
+
+function Test-GameServer {
+  $client = [System.Net.Sockets.TcpClient]::new()
+  try {
+    $connection = $client.BeginConnect("127.0.0.1", 8080, $null, $null)
+    if (-not $connection.AsyncWaitHandle.WaitOne(2000)) {
+      return $false
+    }
+    $client.EndConnect($connection)
+    return $true
+  } catch {
+    return $false
+  } finally {
+    $client.Dispose()
+  }
+}
+
+$gameHost = Get-LanIPv4Address
+$gameUrl = "https://${gameHost}:8080/menu.html"
 
 $postgres = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
 if ($postgres -and $postgres.Status -ne "Running" -and -not (Test-IsAdministrator)) {
@@ -42,11 +74,7 @@ try {
   exit 1
 }
 
-$serverReady = $false
-try {
-  $response = Invoke-WebRequest -Uri $gameUrl -UseBasicParsing -TimeoutSec 2
-  $serverReady = $response.StatusCode -eq 200
-} catch {}
+$serverReady = Test-GameServer
 
 if (-not $serverReady) {
   $nodePath = (Get-Command node -ErrorAction Stop).Source
@@ -60,13 +88,10 @@ if (-not $serverReady) {
 
   for ($attempt = 0; $attempt -lt 20; $attempt++) {
     Start-Sleep -Milliseconds 500
-    try {
-      $response = Invoke-WebRequest -Uri $gameUrl -UseBasicParsing -TimeoutSec 2
-      if ($response.StatusCode -eq 200) {
-        $serverReady = $true
-        break
-      }
-    } catch {}
+    if (Test-GameServer) {
+      $serverReady = $true
+      break
+    }
   }
 }
 

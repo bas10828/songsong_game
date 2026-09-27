@@ -1,8 +1,28 @@
-import { HandLandmarker, FilesetResolver } from "../vendor/mediapipe/vision_bundle.mjs";
+// Load MediaPipe only when gameplay actually needs it. Parsing the large
+// bundle during page startup can block taps for several seconds on iPad.
+let HandLandmarker = null;
+let FilesetResolver = null;
+let visionModulePromise = null;
+
+function loadVisionModule() {
+  if (!visionModulePromise) {
+    visionModulePromise = import("../vendor/mediapipe/vision_bundle.mjs")
+      .then((module) => {
+        HandLandmarker = module.HandLandmarker;
+        FilesetResolver = module.FilesetResolver;
+        return module;
+      })
+      .catch((err) => {
+        visionModulePromise = null;
+        throw err;
+      });
+  }
+  return visionModulePromise;
+}
 
 const video = document.getElementById("video");
 const overlay = document.getElementById("overlay");
-const ctx = overlay.getContext("2d");
+const ctx = overlay.getContext("2d", { alpha: true, desynchronized: true });
 const fpsEl = document.getElementById("fps");
 const pinchDebugEl = document.getElementById("pinchDebug");
 const statusEl = document.getElementById("status");
@@ -18,7 +38,10 @@ const submitBtn = document.getElementById("submitBtn");
 const skipBtn = document.getElementById("skipBtn");
 const resultOverlay = document.getElementById("resultOverlay");
 const resultText = document.getElementById("resultText");
+const resultScore = document.getElementById("resultScore");
+const resultPlayerAnswer = document.getElementById("resultPlayerAnswer");
 const resultWord = document.getElementById("resultWord");
+const resultCountdown = document.getElementById("resultCountdown");
 const nextBtn = document.getElementById("nextBtn");
 const zoomOverlay = document.getElementById("zoomOverlay");
 const zoomVisual = document.getElementById("zoomVisual");
@@ -37,6 +60,9 @@ const publicSetsList = document.getElementById("publicSetsList");
 const modeOverlay = document.getElementById("modeOverlay");
 const modeSoloBtn = document.getElementById("modeSoloBtn");
 const modeTeamBtn = document.getElementById("modeTeamBtn");
+const rulesOverlay = document.getElementById("rulesOverlay");
+const rulesBackBtn = document.getElementById("rulesBackBtn");
+const rulesContinueBtn = document.getElementById("rulesContinueBtn");
 const scoreHud = document.getElementById("scoreHud");
 const teamTurnBanner = document.getElementById("teamTurnBanner");
 const summaryOverlay = document.getElementById("summaryOverlay");
@@ -102,6 +128,7 @@ const sentCardInputs = document.getElementById("sentCardInputs");
 const questionFormError = document.getElementById("questionFormError");
 const saveQuestionBtn = document.getElementById("saveQuestionBtn");
 const cancelQuestionBtn = document.getElementById("cancelQuestionBtn");
+const IS_TOUCH_DEVICE = window.matchMedia("(pointer: coarse)").matches;
 
 // Hand-effect "skins" — each bundles the colors/glyphs used to draw the
 // hand skeleton, pinch orb, and particle trails, plus the two CSS magic-
@@ -304,6 +331,7 @@ function teamForIndex(answeredCount) {
 }
 
 function resetSession() {
+  clearResultAdvanceTimer();
   questionsAnswered = 0;
   soloCorrectCount = 0;
   soloTotalPoints = 0;
@@ -444,32 +472,28 @@ function renderVisual(container, round) {
 }
 
 let handLandmarker = null;
+let handLandmarkerPromise = null;
 let currentStream = null;
 let facingMode = "user";
-
-// Ask for the camera as soon as this page loads, decoupled from the
-// "Start Camera" click. Requesting it inside the click handler meant the
-// permission prompt (or a denial) landed *after* we'd already entered
-// fullscreen, leaving a broken camera view stuck fullscreen with no easy
-// way out. By preflighting here, the permission is usually already
-// resolved by the time the user clicks Start.
-let preflightStreamPromise = null;
-let preflightError = null;
-
-function preflightCamera() {
-  preflightStreamPromise = navigator.mediaDevices
-    .getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
-    .catch((err) => {
-      preflightError = err;
-      preflightStreamPromise = null;
-      throw err;
-    });
-}
-preflightCamera();
+const CAMERA_PROFILES = [
+  { width: 640, height: 480, label: "SD" },
+  { width: 960, height: 540, label: "HD" },
+  { width: 1280, height: 720, label: "HD+" },
+];
+let cameraProfileIndex = 0;
+let maxCameraProfileIndex = CAMERA_PROFILES.length - 1;
+let lastCameraTuneTime = 0;
+let cameraTuneInProgress = false;
 let running = false;
 
 let lastFrameTime = performance.now();
 let fpsSmoothed = 0;
+let pendingPinchDebug = "pinch: --";
+let lastHudRenderTime = 0;
+
+function useReducedVisualEffects() {
+  return IS_TOUCH_DEVICE || (fpsSmoothed > 0 && fpsSmoothed < 22);
+}
 
 // --- Board state ---------------------------------------------------------
 let currentRound = null; // { word, type, value }
@@ -782,43 +806,136 @@ function sendCardHome(card) {
 
 async function createHandLandmarker() {
   statusEl.textContent = "Loading model…";
+  await loadVisionModule();
   const vision = await FilesetResolver.forVisionTasks("vendor/mediapipe/wasm");
+
+  const createWithDelegate = (delegate) => HandLandmarker.createFromOptions(vision, {
+    baseOptions: { modelAssetPath: "models/hand_landmarker.task", delegate },
+    runningMode: "VIDEO",
+    numHands: 1,
+    minHandDetectionConfidence: 0.5,
+    minHandPresenceConfidence: 0.5,
+    minTrackingConfidence: 0.5,
+  });
+
   try {
-    handLandmarker = await HandLandmarker.createFromOptions(vision, {
-      baseOptions: { modelAssetPath: "models/hand_landmarker.task", delegate: "GPU" },
-      runningMode: "VIDEO",
-      numHands: 1,
-    });
+    handLandmarker = await createWithDelegate("GPU");
     statusEl.textContent = "Model ready (GPU)";
   } catch (err) {
-    handLandmarker = await HandLandmarker.createFromOptions(vision, {
-      baseOptions: { modelAssetPath: "models/hand_landmarker.task", delegate: "CPU" },
-      runningMode: "VIDEO",
-      numHands: 1,
-    });
+    handLandmarker = await createWithDelegate("CPU");
     statusEl.textContent = "Model ready (CPU fallback)";
   }
 }
 
+function ensureHandLandmarker() {
+  if (handLandmarker) return Promise.resolve(handLandmarker);
+  if (!handLandmarkerPromise) {
+    handLandmarkerPromise = createHandLandmarker()
+      .then(() => handLandmarker)
+      .catch((err) => {
+        handLandmarkerPromise = null;
+        throw err;
+      });
+  }
+  return handLandmarkerPromise;
+}
+
 async function startCamera() {
-  if (!cameraStarted && preflightStreamPromise) {
-    currentStream = await preflightStreamPromise;
-  } else {
+  if (cameraStarted || !currentStream || !currentStream.active) {
     if (currentStream) {
       currentStream.getTracks().forEach((t) => t.stop());
     }
-    const constraints = {
-      video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error("Camera is not supported in this browser or the page is not secure");
+    }
+
+    cameraProfileIndex = 0;
+    maxCameraProfileIndex = CAMERA_PROFILES.length - 1;
+    const initialProfile = CAMERA_PROFILES[cameraProfileIndex];
+    const preferredConstraints = {
+      video: {
+        facingMode: { ideal: facingMode },
+        width: { ideal: initialProfile.width, max: initialProfile.width },
+        height: { ideal: initialProfile.height, max: initialProfile.height },
+        frameRate: { ideal: 30, max: 30 },
+      },
       audio: false,
     };
-    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+    try {
+      currentStream = await navigator.mediaDevices.getUserMedia(preferredConstraints);
+    } catch (err) {
+      // Older Safari versions and some Android/webcam drivers reject max or
+      // frameRate constraints even though the camera itself works. Retry only
+      // constraint/API compatibility errors; never repeat a denied permission.
+      const canRetry = ["OverconstrainedError", "ConstraintNotSatisfiedError", "TypeError"].includes(err.name);
+      if (!canRetry) throw err;
+      currentStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: facingMode },
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+        },
+        audio: false,
+      });
+    }
   }
   video.srcObject = currentStream;
-  await new Promise((resolve) => {
-    video.onloadedmetadata = () => resolve();
-  });
-  video.play();
+  if (video.readyState < HTMLMediaElement.HAVE_METADATA) {
+    await new Promise((resolve, reject) => {
+      const cleanup = () => {
+        video.removeEventListener("loadedmetadata", onLoaded);
+        video.removeEventListener("error", onError);
+      };
+      const onLoaded = () => {
+        cleanup();
+        resolve();
+      };
+      const onError = () => {
+        cleanup();
+        reject(video.error || new Error("Camera video could not be loaded"));
+      };
+      video.addEventListener("loadedmetadata", onLoaded, { once: true });
+      video.addEventListener("error", onError, { once: true });
+    });
+  }
+  await video.play();
   resizeCanvasToVideo();
+}
+
+function tuneCameraQuality(now) {
+  if (cameraTuneInProgress || now - lastCameraTuneTime < 5000) return;
+  const track = currentStream?.getVideoTracks?.()[0];
+  if (!track?.applyConstraints || !fpsSmoothed) return;
+
+  let nextIndex = cameraProfileIndex;
+  if (fpsSmoothed >= 27 && cameraProfileIndex < maxCameraProfileIndex) {
+    nextIndex++;
+  } else if (fpsSmoothed < 22 && cameraProfileIndex > 0) {
+    nextIndex--;
+  } else {
+    lastCameraTuneTime = now;
+    return;
+  }
+
+  const previousIndex = cameraProfileIndex;
+  const profile = CAMERA_PROFILES[nextIndex];
+  cameraTuneInProgress = true;
+  lastCameraTuneTime = now;
+  track.applyConstraints({
+    width: { ideal: profile.width, max: profile.width },
+    height: { ideal: profile.height, max: profile.height },
+    frameRate: { ideal: 30, max: 30 },
+  }).then(() => {
+    cameraProfileIndex = nextIndex;
+    if (nextIndex < previousIndex) maxCameraProfileIndex = nextIndex;
+    video.dataset.quality = profile.label;
+  }).catch(() => {
+    // Do not keep requesting a quality tier unsupported by this camera.
+    if (nextIndex > previousIndex) maxCameraProfileIndex = previousIndex;
+  }).finally(() => {
+    cameraTuneInProgress = false;
+  });
 }
 
 function distance(a, b) {
@@ -840,7 +957,7 @@ function drawMagicOrb(point, isPinching) {
   const radius = (isPinching ? 15 : 11) + pulse * (isPinching ? 5 : 3);
 
   ctx.save();
-  ctx.shadowBlur = 18 + pulse * 12;
+  ctx.shadowBlur = useReducedVisualEffects() ? 10 + pulse * 6 : 18 + pulse * 12;
   ctx.shadowColor = `rgba(${baseRgb}, 0.95)`;
 
   const gradient = ctx.createRadialGradient(
@@ -863,7 +980,7 @@ function drawMagicOrb(point, isPinching) {
 // than a plain dot. Glyphs come from the current hand skin.
 function drawOrbHalo(point, isPinching) {
   const glyphs = currentHandSkin.orbitGlyphs;
-  const count = isPinching ? 6 : 4;
+  const count = useReducedVisualEffects() ? (isPinching ? 4 : 3) : (isPinching ? 6 : 4);
   const radius = isPinching ? 30 : 24;
   const t = performance.now() / 480;
   ctx.save();
@@ -885,8 +1002,12 @@ function drawOrbHalo(point, isPinching) {
 // the pinch point every frame, independent of grabbing a card, so the whole
 // hand cursor feels alive rather than just the moment of a grab.
 let dustParticles = [];
+const MAX_DUST_PARTICLES = 48;
 
 function spawnDust(x, y, count) {
+  const particleLimit = useReducedVisualEffects() ? 24 : MAX_DUST_PARTICLES;
+  const available = Math.max(0, particleLimit - dustParticles.length);
+  count = Math.min(count, available);
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
     const speed = 0.15 + Math.random() * 0.35;
@@ -917,7 +1038,7 @@ function updateAndDrawDust(dt) {
     const t = p.age / p.maxAge;
     const alpha = (1 - t) * 0.85;
     const r = p.size * (1 - t * 0.5);
-    ctx.shadowBlur = 5;
+    ctx.shadowBlur = useReducedVisualEffects() ? 2 : 5;
     ctx.shadowColor = `rgba(${p.rgb}, ${alpha})`;
     ctx.fillStyle = `rgba(${p.rgb}, ${alpha})`;
     ctx.beginPath();
@@ -959,17 +1080,30 @@ function drawHandSkeleton(landmarks) {
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  for (const [aIdx, bIdx] of HAND_CONNECTIONS) {
-    const a = landmarks[aIdx];
-    const b = landmarks[bIdx];
-    const rgb = boneColor(aIdx);
+
+  // Batch bones sharing a color into one path. This keeps the same glove
+  // appearance while avoiding a separate shadowed stroke for every bone.
+  if (!currentHandSkin.boneGroups) {
+    const groups = new Map();
+    for (const connection of HAND_CONNECTIONS) {
+      const rgb = boneColor(connection[0]);
+      if (!groups.has(rgb)) groups.set(rgb, []);
+      groups.get(rgb).push(connection);
+    }
+    currentHandSkin.boneGroups = [...groups.entries()];
+  }
+  for (const [rgb, connections] of currentHandSkin.boneGroups) {
     ctx.strokeStyle = `rgba(${rgb}, ${0.75 + shimmer * 0.25})`;
-    ctx.shadowBlur = 8 + shimmer * 6;
+    ctx.shadowBlur = useReducedVisualEffects() ? 4 + shimmer * 3 : 8 + shimmer * 6;
     ctx.shadowColor = `rgba(${rgb}, 0.9)`;
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(mapX(a.x, overlay.width), a.y * overlay.height);
-    ctx.lineTo(mapX(b.x, overlay.width), b.y * overlay.height);
+    for (const [aIdx, bIdx] of connections) {
+      const a = landmarks[aIdx];
+      const b = landmarks[bIdx];
+      ctx.moveTo(mapX(a.x, overlay.width), a.y * overlay.height);
+      ctx.lineTo(mapX(b.x, overlay.width), b.y * overlay.height);
+    }
     ctx.stroke();
   }
 
@@ -979,7 +1113,7 @@ function drawHandSkeleton(landmarks) {
     const y = lm.y * overlay.height;
     const twinkle = 0.5 + 0.5 * Math.sin(performance.now() / 260 + idx);
     const rgb = currentHandSkin.tipGlowRgb;
-    ctx.shadowBlur = 10 + twinkle * 6;
+    ctx.shadowBlur = useReducedVisualEffects() ? 5 + twinkle * 3 : 10 + twinkle * 6;
     ctx.shadowColor = `rgba(${rgb}, 0.95)`;
     ctx.fillStyle = `rgba(${rgb}, 0.95)`;
     ctx.beginPath();
@@ -998,7 +1132,7 @@ function processResult(result) {
   updateAndDrawDust(dustDt);
 
   if (!result.landmarks || result.landmarks.length === 0) {
-    pinchDebugEl.textContent = "pinch: no hand";
+    pendingPinchDebug = "pinch: no hand";
     isPinchingState = false;
     if (grabbedCardId !== null) {
       const card = cards.find((c) => c.id === grabbedCardId);
@@ -1043,7 +1177,7 @@ function processResult(result) {
   const thumbVerticalOffset = wrist.y - thumbTip.y;
   const isThumbsUp = onlyThumbOut && thumbVerticalOffset > palmScale * THUMB_DIRECTION_MARGIN;
   const isPeaceSign = fingers.index && fingers.middle && !fingers.ring && !fingers.pinky;
-  pinchDebugEl.textContent = `pinch: ${pinchRatio.toFixed(2)} ${isPinching ? "🤏" : ""} ${isThumbsUp ? "👍" : ""} ${isPeaceSign ? "✌️" : ""}`;
+  pendingPinchDebug = `pinch: ${pinchRatio.toFixed(2)} ${isPinching ? "🤏" : ""} ${isThumbsUp ? "👍" : ""} ${isPeaceSign ? "✌️" : ""}`;
 
   // Anchored to the index fingertip rather than the thumb/index midpoint —
   // players aim by eye along their pointing finger, so a cursor sitting back
@@ -1119,7 +1253,7 @@ function isFingerExtended(landmarks, tipIdx, midIdx, wrist, palmScale) {
 // they want to fix their answer first — releasing early resets the hold
 // with no submit, no separate second gesture required.
 const THUMBS_UP_HOLD_MS = 350;
-const THUMBS_UP_SUBMIT_HOLD_MS = 1800;
+const THUMBS_UP_SUBMIT_HOLD_MS = 2000;
 let thumbsUpHoldStart = null;
 let thumbsUpFired = false;
 let gameAudioContext = null;
@@ -1193,7 +1327,9 @@ function boardFullyFilled() {
 // does nothing at all.
 function thumbsUpTarget() {
   if (roundIntroPinchable() && !startBtn.disabled) return startBtn;
-  if (!resultOverlay.classList.contains("hidden")) return nextBtn;
+  // Results advance automatically after their countdown; no gesture should
+  // skip the answer review early.
+  if (!resultOverlay.classList.contains("hidden")) return null;
   if (isMidRound() && boardFullyFilled()) return submitBtn;
   return null;
 }
@@ -1446,8 +1582,54 @@ function pointsForCorrectAnswer() {
 // the question counter, and shows the result overlay. Callers set
 // resultWord (the "here's the right answer" reveal) themselves first, since
 // that text differs by kind.
-function finishRound(correct) {
+const RESULT_COOLDOWN_SECONDS = 3;
+const NEXT_ROUND_PREVIEW_MS = 2500;
+let resultAdvanceTimer = null;
+let resultAdvanceDeadline = 0;
+let roundPreviewTimer = null;
+
+function clearResultAdvanceTimer() {
+  if (resultAdvanceTimer !== null) clearInterval(resultAdvanceTimer);
+  resultAdvanceTimer = null;
+  if (roundPreviewTimer !== null) clearTimeout(roundPreviewTimer);
+  roundPreviewTimer = null;
+}
+
+function advanceAfterResult() {
+  clearResultAdvanceTimer();
+  resultOverlay.classList.add("hidden");
+  if (questionsAnswered >= sessionLength) {
+    showSummary();
+    return;
+  }
+  showRoundIntro(pickNextQuestion());
+  startBtn.disabled = true;
+  startBtn.textContent = "Get ready…";
+  roundPreviewTimer = setTimeout(() => {
+    roundPreviewTimer = null;
+    startBtn.disabled = false;
+    beginRound();
+  }, NEXT_ROUND_PREVIEW_MS);
+}
+
+function startResultCountdown() {
+  clearResultAdvanceTimer();
+  nextBtn.classList.add("hidden");
+  resultAdvanceDeadline = performance.now() + RESULT_COOLDOWN_SECONDS * 1000;
+  const updateCountdown = () => {
+    const secondsLeft = Math.max(0, Math.ceil((resultAdvanceDeadline - performance.now()) / 1000));
+    resultCountdown.textContent = secondsLeft > 0
+      ? `Next question in ${secondsLeft} seconds…`
+      : "Loading next question…";
+    if (secondsLeft <= 0) advanceAfterResult();
+  };
+  updateCountdown();
+  resultAdvanceTimer = setInterval(updateCountdown, 250);
+}
+
+function finishRound(correct, playerAnswer, correctAnswer, wasSkipped = false) {
   let breakdown = "";
+  let pointsAwarded = 0;
   if (gameMode === "team") {
     if (correct) {
       if (teamForIndex(questionsAnswered) === "red") teamScoreRed++;
@@ -1457,6 +1639,7 @@ function finishRound(correct) {
     soloCorrectCount++;
     currentStreak++;
     const points = pointsForCorrectAnswer();
+    pointsAwarded = points.total;
     soloTotalPoints += points.total;
     const extras = [];
     if (points.timeBonus > 0) extras.push(`⏱️+${points.timeBonus}`);
@@ -1469,9 +1652,17 @@ function finishRound(correct) {
   updateScoreHud();
 
   resultText.textContent = correct ? `Correct! 🎉${breakdown}` : "Not quite!";
+  if (wasSkipped) resultText.textContent = "Skipped";
   resultText.style.color = correct ? "#4caf50" : "#ff5252";
-  nextBtn.textContent = questionsAnswered >= sessionLength ? "See Results 🏆" : "Next Word";
+  if (wasSkipped) resultText.style.color = "#ffb74d";
+  resultScore.textContent = gameMode === "team"
+    ? `Score: 🔴 ${teamScoreRed} - ${teamScoreBlue} 🔵`
+    : `Score: ${soloTotalPoints} points${pointsAwarded ? `  (+${pointsAwarded})` : ""}`;
+  resultPlayerAnswer.textContent = playerAnswer || "—";
+  resultPlayerAnswer.classList.toggle("wrong-answer", !correct && !wasSkipped);
+  resultWord.textContent = correctAnswer;
   resultOverlay.classList.remove("hidden");
+  startResultCountdown();
 }
 
 // Handles both "spell" (letter tokens) and "sentence" (word tokens) rounds
@@ -1479,10 +1670,7 @@ function finishRound(correct) {
 function checkSubmit() {
   const allFilled = slots.every((s) => s.cardId !== null);
   if (!allFilled) {
-    resultText.textContent = "Fill every slot first!";
-    resultText.style.color = "#ffb74d";
-    resultWord.textContent = "";
-    resultOverlay.classList.remove("hidden");
+    statusEl.textContent = "Fill every slot first!";
     return;
   }
 
@@ -1496,41 +1684,56 @@ function checkSubmit() {
     }
   }
 
-  resultWord.textContent =
-    currentRound.kind === "sentence" ? currentRound.answerWords.join(" ") : currentRound.word.toUpperCase();
-  finishRound(correct);
+  const playerAnswer = slots.map((slot) => cards.find((card) => card.id === slot.cardId)?.letter || "").join(
+    currentRound.kind === "sentence" ? " " : ""
+  );
+  const correctAnswer = currentRound.kind === "sentence"
+    ? currentRound.answerWords.join(" ")
+    : currentRound.word.toUpperCase();
+  finishRound(correct, playerAnswer, correctAnswer);
 }
 
 // Counts the same as a wrong answer (reveals the correct answer, advances
 // the session) — skipping isn't a free pass, it's for "I don't want to
 // guess this one," same as leaving it wrong would be.
 function skipQuestion() {
-  resultText.textContent = "Skipped";
-  resultText.style.color = "#ffb74d";
-  resultWord.textContent =
-    currentRound.kind === "sentence" ? currentRound.answerWords.join(" ") : currentRound.word.toUpperCase();
-  finishRound(false);
+  const correctAnswer = currentRound.kind === "sentence"
+    ? currentRound.answerWords.join(" ")
+    : currentRound.word.toUpperCase();
+  finishRound(false, "Skipped", correctAnswer, true);
 }
 
 submitBtn.addEventListener("click", () => {
   playSubmitSound();
   checkSubmit();
 });
-skipBtn.addEventListener("click", skipQuestion);
-nextBtn.addEventListener("click", () => {
-  resultOverlay.classList.add("hidden");
-  if (questionsAnswered >= sessionLength) {
-    showSummary();
-    return;
-  }
-  showRoundIntro(pickNextQuestion());
+let lastSkipTouchTime = -Infinity;
+skipBtn.addEventListener("pointerup", (event) => {
+  if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
+  if (!isMidRound()) return;
+  event.preventDefault();
+  lastSkipTouchTime = performance.now();
+  skipQuestion();
 });
+skipBtn.addEventListener("click", () => {
+  if (performance.now() - lastSkipTouchTime < 700 || !isMidRound()) return;
+  skipQuestion();
+});
+nextBtn.addEventListener("click", advanceAfterResult);
 
-function loop() {
+// Running synchronous hand inference on every display refresh wastes work on
+// 60/120 Hz iPads and blocks taps/animation. 30 tracking updates per second
+// remain responsive for gestures while leaving the browser time to render.
+const TRACKING_INTERVAL_MS = 1000 / 30;
+let lastDetectionTime = 0;
+
+function loop(frameTime = performance.now()) {
   if (!running) return;
   requestAnimationFrame(loop);
 
   if (video.readyState < 2) return;
+  if (frameTime - lastDetectionTime < TRACKING_INTERVAL_MS) return;
+  lastDetectionTime = frameTime;
 
   const now = performance.now();
   const result = handLandmarker.detectForVideo(video, now);
@@ -1539,9 +1742,17 @@ function loop() {
   lastFrameTime = now;
   const instFps = 1000 / dt;
   fpsSmoothed = fpsSmoothed ? fpsSmoothed * 0.9 + instFps * 0.1 : instFps;
-  fpsEl.textContent = `FPS: ${fpsSmoothed.toFixed(1)}`;
+  tuneCameraQuality(now);
 
   processResult(result);
+
+  // Debug text does not need to mutate the DOM on every inference frame.
+  // Four updates per second avoids repeated style/layout work in the HUD.
+  if (now - lastHudRenderTime >= 250) {
+    lastHudRenderTime = now;
+    fpsEl.textContent = `FPS: ${fpsSmoothed.toFixed(1)}`;
+    pinchDebugEl.textContent = pendingPinchDebug;
+  }
 }
 
 // Full-screen prompt shown before a round begins. On the very first round
@@ -1587,9 +1798,10 @@ function beginTranslateRound() {
 
 function selectTranslateAnswer(index) {
   const correct = index === currentRound.correctIndex;
-  resultWord.textContent = currentRound.options[currentRound.correctIndex];
+  const playerAnswer = currentRound.options[index];
+  const correctAnswer = currentRound.options[currentRound.correctIndex];
   translateOverlay.classList.add("hidden");
-  finishRound(correct);
+  finishRound(correct, playerAnswer, correctAnswer);
 }
 
 // Pinch-and-hold-to-select: dwelling the pinch cursor over an option while
@@ -1599,9 +1811,21 @@ function selectTranslateAnswer(index) {
 const TRANSLATE_HOLD_MS = 650;
 let translateHoldIndex = null;
 let translateHoldStart = null;
+let translateSkipWasPinching = false;
 
 function handleTranslateSelection(isPinching, pinchPoint) {
-  if (translateOverlay.classList.contains("hidden")) return;
+  if (translateOverlay.classList.contains("hidden")) {
+    translateSkipWasPinching = false;
+    return;
+  }
+
+  const pinchStarted = isPinching && !translateSkipWasPinching;
+  translateSkipWasPinching = isPinching;
+  skipBtn.classList.toggle("hover", pinchOverElement(pinchPoint, skipBtn));
+  if (pinchStarted && pinchOverElement(pinchPoint, skipBtn)) {
+    skipBtn.click();
+    return;
+  }
 
   let hoveredIndex = null;
   for (let i = 0; i < translateOptionEls.length; i++) {
@@ -1642,44 +1866,64 @@ function requestFullscreenSafe() {
   }
 }
 
-async function start() {
-  // Preflight already failed (permission denied / no camera) — bail before
-  // entering fullscreen instead of getting stuck there with a dead camera.
-  if (!cameraStarted && preflightError) {
-    statusEl.textContent = `Camera error: ${preflightError.message}`;
-    return;
-  }
+let startInProgress = false;
 
-  // Must fire synchronously inside the click handler (before any await) or
-  // browsers drop the user-gesture and refuse the fullscreen request.
+async function start() {
+  if (startInProgress) return;
+  startInProgress = true;
+
+  // Camera access starts synchronously from this user gesture. Mobile Safari
+  // is unreliable when getUserMedia is requested automatically on page load.
   unlockGameAudio();
   requestFullscreenSafe();
 
   startBtn.disabled = true;
+  startBtn.setAttribute("aria-busy", "true");
+  startBtn.textContent = cameraStarted ? "Starting round…" : "Starting camera…";
 
-  if (!cameraStarted) {
-    statusEl.textContent = "Requesting camera…";
-    try {
+  try {
+    if (!cameraStarted) {
+      statusEl.textContent = "Requesting camera…";
       await startCamera();
-    } catch (err) {
-      statusEl.textContent = `Camera error: ${err.message}`;
-      startBtn.disabled = false;
-      return;
+
+      if (!handLandmarker) {
+        startBtn.textContent = "Loading hand tracking…";
+        await ensureHandLandmarker();
+      }
+      cameraStarted = true;
+      running = true;
+      lastDetectionTime = 0;
+      lastFrameTime = performance.now();
+      fpsSmoothed = 0;
+      lastCameraTuneTime = performance.now();
+      loop();
     }
 
-    if (!handLandmarker) {
-      await createHandLandmarker();
-    }
-    cameraStarted = true;
-    running = true;
-    loop();
+    beginRound();
+  } catch (err) {
+    const label = currentStream ? "Model load error" : "Camera error";
+    statusEl.textContent = `${label}: ${err.message}`;
+  } finally {
+    startInProgress = false;
+    startBtn.disabled = false;
+    startBtn.removeAttribute("aria-busy");
+    startBtn.textContent = cameraStarted ? "Next Round" : "Start Camera";
   }
-
-  beginRound();
-  startBtn.disabled = false;
 }
 
-startBtn.addEventListener("click", start);
+// iPad Safari can delay a synthesized click after a touch. Start directly on
+// pointerup, while keeping click for mouse, keyboard and older browsers.
+let lastTouchStartTime = -Infinity;
+startBtn.addEventListener("pointerup", (event) => {
+  if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
+  event.preventDefault();
+  lastTouchStartTime = performance.now();
+  start();
+});
+startBtn.addEventListener("click", () => {
+  if (performance.now() - lastTouchStartTime < 700) return;
+  start();
+});
 
 function renderCategoryChips() {
   categoryList.innerHTML = "";
@@ -1748,30 +1992,32 @@ function startTeacherSetSession() {
   showRoundIntro(pickNextQuestion());
 }
 
-// Mode-select is shared by both entry paths: picking a mode after tapping
-// "Play" on a teacher set jumps straight into that set (skipping the
-// built-in category picker, since the content is already chosen); picking
-// a mode any other way continues on to the category picker as before.
-modeSoloBtn.addEventListener("click", () => {
-  gameMode = "solo";
+// Show the illustrated rules after a mode is chosen. Continuing preserves
+// the original routing: teacher sets start immediately, while normal play
+// continues to the category picker.
+function showRulesForMode(mode) {
+  gameMode = mode;
   modeOverlay.classList.add("hidden");
-  if (sessionSource === "teacherSet" && activeTeacherSet) {
-    startTeacherSetSession();
-  } else {
-    sessionSource = "pool";
-    categoryOverlay.classList.remove("hidden");
-  }
-});
+  rulesOverlay.classList.remove("hidden");
+  rulesOverlay.scrollTop = 0;
+}
 
-modeTeamBtn.addEventListener("click", () => {
-  gameMode = "team";
-  modeOverlay.classList.add("hidden");
+function continueAfterRules() {
+  rulesOverlay.classList.add("hidden");
   if (sessionSource === "teacherSet" && activeTeacherSet) {
     startTeacherSetSession();
   } else {
     sessionSource = "pool";
     categoryOverlay.classList.remove("hidden");
   }
+}
+
+modeSoloBtn.addEventListener("click", () => showRulesForMode("solo"));
+modeTeamBtn.addEventListener("click", () => showRulesForMode("team"));
+rulesContinueBtn.addEventListener("click", continueAfterRules);
+rulesBackBtn.addEventListener("click", () => {
+  rulesOverlay.classList.add("hidden");
+  modeOverlay.classList.remove("hidden");
 });
 
 playAgainBtn.addEventListener("click", () => {
@@ -2463,7 +2709,3 @@ function exitGame() {
 }
 
 exitBtn.addEventListener("click", exitGame);
-
-createHandLandmarker().catch((err) => {
-  statusEl.textContent = `Model load error: ${err.message}`;
-});
