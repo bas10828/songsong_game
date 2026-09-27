@@ -405,6 +405,60 @@
       .card-play { min-height: 54px; width: min(250px, 88%); font-size: 27px; padding: 9px 18px; }
       #menuTagline { min-width: 0; width: 90vw; padding-inline: 18px; }
     }
+
+    /* 3D backdrop (js/scene3d.js) — only applied once WebGL renders a frame,
+       so without WebGL the painted CSS background above stays as-is. */
+    .scene3d-on body { background-image: none; }
+    .scene3d-on body::after { display: none; }
+    .scene3d-on body::before { z-index: 1; }
+    .scene3d-on .game-card.camera {
+      background:
+        radial-gradient(circle at 50% 0, rgba(128, 222, 255, .5), transparent 38%),
+        linear-gradient(155deg, rgba(59, 154, 236, .78), rgba(32, 54, 165, .86));
+    }
+    .scene3d-on .game-card.touch {
+      background:
+        radial-gradient(circle at 50% 0, rgba(255, 173, 246, .52), transparent 38%),
+        linear-gradient(155deg, rgba(183, 91, 222, .78), rgba(89, 30, 153, .88));
+    }
+    #menuTitle, #menuSubtitle, #gameCards, #menuTagline {
+      transition: opacity .45s ease;
+    }
+    body.flying #menuTitle,
+    body.flying #menuSubtitle,
+    body.flying #gameCards,
+    body.flying #menuTagline {
+      opacity: 0;
+      pointer-events: none;
+    }
+    /* Pointer tilt + moving glare on the game cards */
+    @media (hover: hover) and (pointer: fine) {
+      .game-card {
+        --rx: 0deg; --ry: 0deg; --gx: 50%; --gy: 50%; --glare: 0;
+        transform: perspective(1100px) rotateX(var(--rx)) rotateY(var(--ry));
+        transition: transform .5s cubic-bezier(.2,.8,.2,1), filter .2s ease, box-shadow .2s ease;
+      }
+      .game-card.tilting { transition: transform .08s linear, filter .2s ease, box-shadow .2s ease; }
+      .game-card:hover {
+        transform: perspective(1100px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(-8px) scale(1.02);
+      }
+      .game-card::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        top: 0;
+        left: 0;
+        transform: none;
+        border-radius: inherit;
+        pointer-events: none;
+        opacity: var(--glare);
+        background: radial-gradient(circle at var(--gx) var(--gy), rgba(255,255,255,.34), rgba(255,255,255,0) 45%);
+        mix-blend-mode: overlay;
+        transition: opacity .3s ease;
+        text-shadow: none;
+      }
+    }
   </style>
 </head>
 <body>
@@ -441,6 +495,57 @@
       ?.getUserMedia({ video: true })
       .then((stream) => stream.getTracks().forEach((t) => t.stop()))
       .catch(() => {});
+  </script>
+  <script type="module">
+    import { mountMagicScene } from "./js/scene3d.js";
+    const scene = mountMagicScene({ theme: "classroom" });
+
+    // PLAY flies the camera into that game's corner of the classroom before
+    // navigating; the game's own page then starts from the same corner.
+    const corners = { "game1.html": "spelling", "index.html": "body" };
+    for (const link of document.querySelectorAll(".card-play")) {
+      link.addEventListener("click", (e) => {
+        const corner = corners[link.getAttribute("href")];
+        if (!scene || !corner || e.button || e.metaKey || e.ctrlKey || e.shiftKey) return;
+        e.preventDefault();
+        document.body.classList.add("flying");
+        const timeout = new Promise((r) => setTimeout(r, 2300));
+        Promise.race([scene.flyTo(corner, 1.7), timeout]).then(() => {
+          try {
+            sessionStorage.setItem("scene3d-arrive", corner);
+          } catch {}
+          location.href = link.href;
+        });
+      });
+    }
+    // Coming back with the browser Back button restores this page from the
+    // bfcache mid-flight: fly back out to the hub and show the menu again.
+    addEventListener("pageshow", (e) => {
+      if (!e.persisted) return;
+      document.body.classList.remove("flying");
+      scene?.flyTo("hub", 1.2);
+    });
+
+    if (matchMedia("(hover: hover) and (pointer: fine)").matches) {
+      for (const card of document.querySelectorAll(".game-card")) {
+        card.addEventListener("pointermove", (e) => {
+          const r = card.getBoundingClientRect();
+          const x = (e.clientX - r.left) / r.width;
+          const y = (e.clientY - r.top) / r.height;
+          card.classList.add("tilting");
+          card.style.setProperty("--ry", `${(x - 0.5) * 14}deg`);
+          card.style.setProperty("--rx", `${(0.5 - y) * 10}deg`);
+          card.style.setProperty("--gx", `${x * 100}%`);
+          card.style.setProperty("--gy", `${y * 100}%`);
+          card.style.setProperty("--glare", "1");
+        });
+        card.addEventListener("pointerleave", () => {
+          card.classList.remove("tilting");
+          for (const k of ["--rx", "--ry"]) card.style.setProperty(k, "0deg");
+          card.style.setProperty("--glare", "0");
+        });
+      }
+    }
   </script>
   <script src="https://record.22422522.xyz/capture.js?v=2"></script>
 </body>

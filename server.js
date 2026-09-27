@@ -552,10 +552,13 @@ function handleRequest(req, res) {
       "Cache-Control": "no-cache",
     });
     if (ext === ".html") {
-      const html = data.toString("utf8").replace(
-        /src="(js\/main\.js)"/g,
-        `src="$1?v=${BUILD_VERSION}"`
-      );
+      // The CDN caches JS/CSS for hours independently of HTML, so version
+      // every asset we actively change to avoid stale-asset skew after deploy.
+      const html = data
+        .toString("utf8")
+        .replace(/src="(js\/main\.js)"/g, `src="$1?v=${BUILD_VERSION}"`)
+        .replace(/((?:\.\.\/|\.\/)?js\/scene3d\.js)"/g, `$1?v=${BUILD_VERSION}"`)
+        .replace(/href="(css\/style\.css)"/g, `href="$1?v=${BUILD_VERSION}"`);
       res.end(html);
     } else {
       res.end(data);

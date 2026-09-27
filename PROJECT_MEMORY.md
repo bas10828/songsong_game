@@ -44,6 +44,9 @@ Last updated: 2026-08-30 (Asia/Bangkok)
 - The slot a dragged card is over lights up (`data-drop-target`) before release.
 - Question-set teacher login persists via `localStorage` (not `sessionStorage`) and the login form submits on Enter.
 - Root (`/`) serves `menu.html`, not `index.html`; every non-gameplay screen has a Home link back to it.
+- 3D backdrops come from `js/scene3d.js` (Three.js self-hosted in `vendor/three/`, no CDN, so offline still works). Every screen now uses the `classroom` theme: a generic wizard-school classroom (no franchise names or crests) with a corner per game: `spelling` (desk, open book, orbiting letters) and `body` (easel with target). Menu PLAY fades the cards and flies the camera into that game's corner before navigating, and each game's pages start at their corner via `view`. The `castle`/`meadow` themes remain in the module but are unused. The canvas sits behind the DOM, and if WebGL is missing or reduced-motion is on, the original CSS backgrounds stay.
+- game1 hides the 3D scene whenever the category/sets overlays are closed and disposes it for good once the camera starts. Live camera gameplay stays WebGL-free because MediaPipe FPS on iPad is the bottleneck; cards and slots get depth from CSS only.
+- The Body Spelling board uses `mountFxLayer()` for 3D confetti on END GAME, spark bursts on +score, and a burst when time runs out. It is hooked in through observers/listeners, so the game logic itself is unchanged.
 
 ## Main URLs
 

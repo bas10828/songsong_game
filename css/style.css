@@ -2322,3 +2322,49 @@ html, body {
   .category-chip { min-height: 46px; }
   #categoryPlayBtn { min-height: 52px; font-size: 27px; }
 }
+
+/* ---- Gameplay depth, CSS only ----
+   The live camera stage deliberately gets no WebGL (MediaPipe FPS on iPad is
+   the bottleneck), so letter cards and slots get their 3D feel from shadows
+   and gloss alone. No transform/size changes: drag positioning relies on
+   those. */
+.card {
+  background:
+    radial-gradient(circle at 30% 22%, rgba(255, 255, 255, .55), transparent 42%),
+    linear-gradient(160deg, #ffc4e6 0%, #e08cff 55%, #b35cf0 100%);
+  box-shadow:
+    0 5px 0 #8a3fc9,
+    0 6px 0 #6c2aa6,
+    0 12px 20px rgba(20, 8, 50, .45),
+    inset 0 2px 0 rgba(255, 255, 255, .75),
+    inset 0 -3px 6px rgba(90, 20, 140, .35);
+  text-shadow: 0 2px 0 rgba(255, 255, 255, .65);
+}
+.card::after {
+  content: "";
+  position: absolute;
+  inset: 3px 5px auto;
+  height: 42%;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .55), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+.card[data-grabbed="true"] {
+  box-shadow:
+    0 5px 0 #8a3fc9,
+    0 6px 0 #6c2aa6,
+    0 26px 34px rgba(20, 8, 50, .5),
+    0 0 22px rgba(255, 217, 138, .6),
+    inset 0 2px 0 rgba(255, 255, 255, .75);
+}
+.slot {
+  box-shadow:
+    inset 0 5px 12px rgba(10, 4, 40, .45),
+    inset 0 -2px 0 rgba(255, 255, 255, .18),
+    0 1px 0 rgba(255, 255, 255, .25);
+}
+.slot[data-drop-target="true"] {
+  box-shadow:
+    inset 0 4px 10px rgba(10, 4, 40, .3),
+    0 0 18px 4px rgba(255, 217, 138, .75);
+}

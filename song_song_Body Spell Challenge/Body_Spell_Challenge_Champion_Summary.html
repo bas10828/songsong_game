@@ -575,6 +575,54 @@
         padding: 14px
       }
     }
+
+    /* ---- 3D classroom backdrop + FX (../js/scene3d.js) ----
+       Everything below only applies once WebGL has drawn a frame
+       (.scene3d-on) or the FX layer mounted (.fx3d-on). */
+    .scene3d-on body { background: #0e0810; }
+    .scene3d-on .app {
+      z-index: 1;
+      background: rgba(255, 251, 240, .88);
+      box-shadow:
+        0 0 0 3px rgba(255, 222, 150, .75),
+        0 0 0 9px rgba(120, 82, 40, .35),
+        0 34px 90px rgba(8, 5, 40, .6),
+        0 0 60px rgba(255, 226, 150, .25);
+    }
+    .scene3d-on .app-inner { background: transparent; }
+    .scene3d-on header { background: linear-gradient(180deg, rgba(255,255,255,.55), rgba(255,255,255,0)); }
+    .scene3d-on .panel {
+      background: rgba(255, 255, 255, .78);
+      border-color: rgba(214, 190, 140, .55);
+      box-shadow: 0 10px 26px rgba(40, 30, 90, .12), inset 0 1px 0 #fff;
+    }
+    .scene3d-on .team { box-shadow: 0 8px 18px rgba(40, 30, 90, .1), inset 0 1px 0 #fff; }
+    .scene3d-on .timer {
+      text-shadow:
+        0 1px 0 #c7d3e0, 0 2px 0 #b9c7d6, 0 3px 0 #abbacb, 0 4px 0 #9daec1,
+        0 5px 0 #8fa2b6, 0 6px 0 #8196ab, 0 12px 18px rgba(23, 50, 77, .3);
+    }
+    .scene3d-on .timer.danger {
+      text-shadow:
+        0 1px 0 #f5b3be, 0 2px 0 #eea0ad, 0 3px 0 #e68c9b, 0 4px 0 #de798a,
+        0 5px 0 #d66578, 0 10px 22px rgba(239, 79, 103, .45);
+    }
+    .scene3d-on .score {
+      text-shadow: 0 1px 0 #d9e2ec, 0 2px 0 #c9d5e2, 0 3px 0 #b9c8d8, 0 4px 0 #a9bbce, 0 8px 12px rgba(23, 50, 77, .25);
+    }
+    .scene3d-on #scoreA { color: #d93a55; }
+    .scene3d-on #scoreB { color: #2466d1; }
+    .score.pop { animation: scorePop .6s cubic-bezier(.2, 1.6, .4, 1); }
+    @keyframes scorePop {
+      0% { transform: scale(1); }
+      35% { transform: scale(1.45) rotate(-4deg); }
+      100% { transform: scale(1); }
+    }
+    .scene3d-on .game-over { background: rgba(12, 10, 45, .62); }
+    .scene3d-on .summary-card {
+      box-shadow: 0 0 0 4px rgba(255, 222, 150, .8), 0 30px 90px rgba(0, 0, 0, .5), 0 0 80px rgba(255, 220, 130, .45);
+    }
+    .fx3d-on .confetti-piece { display: none; }
   </style>
 </head>
 
@@ -582,7 +630,7 @@
   <div id="app" class="app">
     <div class="app-inner">
     <header>
-      <h1>🌿 Body Spell <span class="accent">Board</span></h1>
+      <h1>🌿 Body Spelling <span class="accent">Challenge</span></h1>
       <a href="../index.html" style="display:inline-block;margin-top:6px;padding:8px 18px;border-radius:999px;background:#eaf3ff;color:var(--ink);text-decoration:none;font-weight:800;font-size:14px;">🏠 Menu</a>
     </header>
 
@@ -1139,6 +1187,54 @@
     speechSynthesis.onvoiceschanged = () => getEnglishVoice();
     updateTimer();
     updateProgress();
+  </script>
+  <script type="module">
+    import { mountMagicScene, mountFxLayer } from "../js/scene3d.js";
+    mountMagicScene({ theme: "classroom", view: "body", intensity: 0.6, maxFps: 30 });
+
+    // Score pop works with or without WebGL.
+    for (const id of ["scoreA", "scoreB"]) {
+      const el = document.getElementById(id);
+      let prev = el.textContent;
+      new MutationObserver(() => {
+        if (el.textContent === prev) return;
+        const up = Number(el.textContent) > Number(prev);
+        prev = el.textContent;
+        if (!up) return;
+        el.classList.remove("pop");
+        void el.offsetWidth;
+        el.classList.add("pop");
+      }).observe(el, { childList: true, characterData: true, subtree: true });
+    }
+
+    const fx = mountFxLayer();
+    if (fx) {
+      document.documentElement.classList.add("fx3d-on");
+      const center = (el) => {
+        const r = el.getBoundingClientRect();
+        return [r.left + r.width / 2, r.top + r.height / 2];
+      };
+      for (const [btn, score, hex] of [["awardA", "scoreA", 0xef4f67], ["awardB", "scoreB", 0x2f80ed]]) {
+        document.getElementById(btn).addEventListener("click", () => {
+          fx.burst(...center(document.getElementById(score)), hex, 40);
+        });
+      }
+      // playEpicBoom() flashes #app when time runs out
+      const appEl = document.getElementById("app");
+      new MutationObserver(() => {
+        if (!appEl.classList.contains("screen-flash")) return;
+        const [x, y] = center(document.getElementById("timer"));
+        fx.burst(x, y, 0xff5a3c, 70);
+        setTimeout(() => fx.burst(x, y, 0xffc23c, 50), 180);
+      }).observe(appEl, { attributes: true, attributeFilter: ["class"] });
+      const overlay = document.getElementById("gameOver");
+      new MutationObserver(() => {
+        if (overlay.classList.contains("show")) {
+          fx.confetti(360);
+          setTimeout(() => fx.burst(innerWidth / 2, innerHeight * 0.22, 0xffd25a, 60), 250);
+        }
+      }).observe(overlay, { attributes: true, attributeFilter: ["class"] });
+    }
   </script>
 </body>
 

