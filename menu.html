@@ -421,13 +421,40 @@
         radial-gradient(circle at 50% 0, rgba(255, 173, 246, .52), transparent 38%),
         linear-gradient(155deg, rgba(183, 91, 222, .78), rgba(89, 30, 153, .88));
     }
-    #menuTitle, #menuSubtitle, #gameCards, #menuTagline {
+    #krathongLink {
+      position: relative;
+      z-index: 2;
+      /* same footprint as the cards' PLAY buttons */
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      min-height: clamp(62px, 8vh, 86px);
+      padding: clamp(9px, 1.5vh, 16px) clamp(26px, 3vw, 44px);
+      border: 4px solid #ffe39a;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #ff8fc4, #d94f97);
+      color: #fff;
+      font-family: "Thonburi", "Leelawadee UI", "Tahoma", var(--font-fun);
+      font-size: clamp(24px, 3vw, 40px);
+      font-weight: 800;
+      line-height: 1.2;
+      text-decoration: none;
+      text-shadow: 0 3px 2px rgba(110, 20, 70, .8);
+      box-shadow: inset 0 0 0 3px rgba(255,255,255,.35), inset 0 0 22px #ffb3e0, 0 0 0 3px #713491, 0 0 20px #ff7fc8;
+      animation: playMagicPulse 2.2s ease-in-out infinite;
+    }
+    @media (max-width: 620px) {
+      #krathongLink { min-height: 54px; font-size: 22px; padding: 9px 22px; }
+    }
+    #menuTitle, #menuSubtitle, #gameCards, #menuTagline, #krathongLink {
       transition: opacity .45s ease;
     }
     body.flying #menuTitle,
     body.flying #menuSubtitle,
     body.flying #gameCards,
-    body.flying #menuTagline {
+    body.flying #menuTagline,
+    body.flying #krathongLink {
       opacity: 0;
       pointer-events: none;
     }
@@ -486,6 +513,7 @@
   </div>
 
   <div id="menuTagline">Spell with confidence · Learn your body<br />Play, learn, and grow stronger every day!</div>
+  <a id="krathongLink" href="loykrathong.html">🌸 ลอยกระทงกับสองสอง</a>
 
   <script>
     // Camera permission is per-origin — asking here too covers anyone who

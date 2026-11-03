@@ -52,6 +52,7 @@ const MIME = {
   ".json": "application/json",
   ".wasm": "application/wasm",
   ".task": "application/octet-stream",
+  ".tflite": "application/octet-stream",
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".ico": "image/x-icon",
@@ -557,7 +558,7 @@ function handleRequest(req, res) {
       const html = data
         .toString("utf8")
         .replace(/src="(js\/main\.js)"/g, `src="$1?v=${BUILD_VERSION}"`)
-        .replace(/((?:\.\.\/|\.\/)?js\/scene3d\.js)"/g, `$1?v=${BUILD_VERSION}"`)
+        .replace(/((?:\.\.\/|\.\/)?js\/(?:scene3d|loykrathong)\.js)"/g, `$1?v=${BUILD_VERSION}"`)
         .replace(/href="(css\/style\.css)"/g, `href="$1?v=${BUILD_VERSION}"`);
       responseBody = Buffer.from(html, "utf8");
     }
