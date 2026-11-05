@@ -41,11 +41,15 @@ const TEACHER_YAW = 0.45;
 const TEACHER_YAW_FLOAT = 1.15;
 const MAX_SIMPLE = 16;
 const MAX_STUDENT = 80;
+const MAX_SKY = 40; // student lanterns, capped on their own
+const isSky = (rec) => rec?.kind === "lantern";
 
 const els = {
   canvas: document.getElementById("river"),
   loading: document.getElementById("loading"),
   floatBtn: document.getElementById("floatBtn"),
+  lanternBtn: document.getElementById("lanternBtn"),
+  kinds: document.getElementById("kindChips"),
   count: document.getElementById("count"),
   hint: document.getElementById("hint"),
   sound: document.getElementById("soundBtn"),
@@ -1986,12 +1990,147 @@ function mount() {
     return k;
   }
 
+  // ----- student sky lanterns (khom loi) -----
+  // Like a krathong, but drifting in the sky above the canal: a paper
+  // lantern lit from inside, with the student's cut-out photo hanging
+  // under it on two strings. Root origin = bottom of the photo.
+  const SKY_PHOTO_H = 1.2;
+  const SKY_GAP = 0.14; // photo top to the lantern's rim
+  const skyLanternGeo = (() => {
+    const { parts, add } = partList();
+    const paperLow = new THREE.Color(0xffe6a6);
+    const paperHigh = new THREE.Color(0xff8a3c);
+    const cap = new THREE.Color(0xc8582a);
+    const c = new THREE.Color();
+    // slightly bell-shaped paper body, open at the bottom
+    const prof = [[0.36, 0], [0.39, 0.25], [0.43, 0.6], [0.44, 0.86], [0.4, 0.96], [0.26, 1.03], [0, 1.05]];
+    add(new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y)), 18), 0xffffff, null, false, false, (y) => {
+      if (y > 0.93) return cap;
+      // thin glued seams across the paper
+      if (Math.abs(y - 0.33) < 0.012 || Math.abs(y - 0.66) < 0.012) return c.copy(paperHigh).multiplyScalar(0.8);
+      return c.copy(paperLow).lerp(paperHigh, smooth(clamp01(y / 0.95)));
+    });
+    // wire rim and the fuel cell hanging inside it
+    add(new THREE.TorusGeometry(0.36, 0.012, 5, 24), 0x6a3a1a, (d) => (d.rotation.x = Math.PI / 2));
+    add(new THREE.BoxGeometry(0.72, 0.012, 0.012), 0x6a3a1a, (d) => (d.position.y = 0.02));
+    add(new THREE.BoxGeometry(0.012, 0.012, 0.72), 0x6a3a1a, (d) => (d.position.y = 0.02));
+    add(new THREE.CylinderGeometry(0.06, 0.06, 0.05, 10), 0xfff2c0, (d) => (d.position.y = 0.04));
+    return mergeParts(parts);
+  })();
+  const skyLanternMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, fog: false });
+  const stringMat = new THREE.LineBasicMaterial({ color: 0xffe9b8, fog: false });
+
+  function buildSkyLantern({ catColor, card, bubble, tag }) {
+    const root = new THREE.Group();
+    const spin = new THREE.Group(); // the lantern, swaying on its own
+    root.add(spin);
+    const LB = card ? SKY_PHOTO_H + SKY_GAP : 0; // rim height above the root
+    spin.position.y = LB;
+    const body = new THREE.Mesh(skyLanternGeo, skyLanternMat.clone()); // own copy: dims while unlit
+    spin.add(body);
+    const flame = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: tex.flame, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    flame.position.y = 0.16;
+    flame.scale.set(0.12, 0.22, 1);
+    spin.add(flame);
+    const glow = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: tex.glow, color: 0xffa050, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })
+    );
+    glow.position.y = 0.5;
+    glow.scale.setScalar(3.2);
+    spin.add(glow);
+    // its warm light on the water far below (kept at y=0 every frame)
+    const pool = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.4, 2.4),
+      new THREE.MeshBasicMaterial({ map: tex.glow, color: 0xff9a40, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    pool.rotation.x = -Math.PI / 2;
+    root.add(pool);
+
+    const k = {
+      sky: true, root, spin, body, flame, glow, pool, streak: null, card: null, bubble: null, tag: null,
+      flameW: 0.12, flameH: 0.22, glowBase: 0.75,
+      speed: rand(0.1, 0.16), target: new THREE.Vector3(), vel: new THREE.Vector3(), retarget: 0,
+      phase: rand(0, TAU), spinRate: rand(-0.1, 0.1), placed: true, textures: [], lit: 1,
+      midY: LB + 0.5, rimY: LB,
+      // the category colour tints the paper, kept light so it stays warm
+      tint: new THREE.Color(0xffffff).lerp(new THREE.Color(catColor), 0.4),
+    };
+    body.userData.krathong = k;
+    pickables.push(body);
+
+    if (card) {
+      // one photo plane plus a white silhouette behind it (cheaper than the
+      // krathong's layered standee), hanging from the rim on two strings
+      const t = canvasTexture(card);
+      const sil = canvasTexture(silhouette(card));
+      k.textures.push(t, sil);
+      const h = SKY_PHOTO_H;
+      const w = (h * card.width) / card.height;
+      const standee = new THREE.Group();
+      const front = new THREE.Mesh(cardGeo, new THREE.MeshBasicMaterial({ map: t, alphaTest: 0.5 }));
+      front.scale.set(w, h, 1);
+      front.position.z = 0.01;
+      front.userData.krathong = k;
+      const back = new THREE.Mesh(cardGeo, new THREE.MeshLambertMaterial({ map: sil, alphaTest: 0.5, side: THREE.DoubleSide }));
+      back.scale.set(w, h, 1);
+      const sx = Math.min(w * 0.32, 0.3);
+      const strings = new THREE.LineSegments(
+        new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(-sx, h * 0.96, 0), new THREE.Vector3(-0.3, LB, 0),
+          new THREE.Vector3(sx, h * 0.96, 0), new THREE.Vector3(0.3, LB, 0),
+        ]),
+        stringMat
+      );
+      standee.add(front, back, strings);
+      root.add(standee);
+      k.card = front;
+      k.cardEdge = back;
+      k.strings = strings;
+      k.standee = standee;
+      k.cardYaw = 0;
+      pickables.push(front);
+    }
+    const topY = LB + 1.08;
+    if (bubble) {
+      const t = canvasTexture(bubble);
+      k.textures.push(t);
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, opacity: 0 }));
+      const w = 1.9;
+      s.scale.set(w, (w * bubble.height) / bubble.width, 1);
+      s.center.set(0.5, 0);
+      s.position.y = topY + 0.02;
+      s.renderOrder = 2;
+      root.add(s);
+      k.bubble = s;
+      k.bubbleScale = s.scale.clone();
+    }
+    if (tag) {
+      const t = canvasTexture(tag);
+      k.textures.push(t);
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false }));
+      const h = 0.3;
+      s.scale.set((h * tag.width) / tag.height, h, 1);
+      s.center.set(0.5, 0);
+      s.position.y = topY + 0.04;
+      s.renderOrder = 2;
+      s.userData.krathong = k;
+      root.add(s);
+      k.tag = s;
+      pickables.push(s);
+    }
+    scene.add(root);
+    return k;
+  }
+
   function disposeKrathong(k) {
     // Sprites share one geometry and the krathong mesh shares a cached
     // geometry + material, so only the per-krathong pieces are disposed.
     scene.remove(k.root);
-    for (const s of [k.flame, k.glow, k.card, k.cardEdge, k.bubble, k.tag]) s?.material.dispose();
-    k.cardEdge?.dispose();
+    for (const s of [k.flame, k.glow, k.card, k.cardEdge, k.bubble, k.tag, k.body]) s?.material.dispose();
+    if (!k.sky) k.cardEdge?.dispose(); // the krathong's edge is an InstancedMesh
+    k.strings?.geometry.dispose();
     k.pool.geometry.dispose();
     k.pool.material.dispose();
     for (const t of k.textures) t.dispose();
@@ -2001,7 +2140,7 @@ function mount() {
   }
 
   function unpick(k) {
-    for (const s of [k.card, k.tag]) {
+    for (const s of [k.card, k.tag, k.body]) {
       const i = pickables.indexOf(s);
       if (s && i >= 0) pickables.splice(i, 1);
     }
@@ -2013,17 +2152,27 @@ function mount() {
     k.sinking = 0;
     unpick(k);
     const p = k.root.position;
-    ripple(p.x, p.z, 1.6);
-    sound.plop();
+    if (k.sky) {
+      // a deleted lantern drifts up into the dark and goes out
+      burst(new THREE.Vector3(p.x, p.y + k.midY, p.z), 26, { speed: 1, colors: [0xffd27a, 0xffffff], life: 0.9 });
+      sound.chime();
+    } else {
+      ripple(p.x, p.z, 1.6);
+      sound.plop();
+    }
     if (camState.follow === k) camState.mode = "wide";
   }
 
   // Edit: build the updated krathong exactly where the old one floats.
+  // Switching krathong <-> lantern starts it at a fresh spot instead.
   async function rebuildKrathong(old, rec) {
-    const k = await studentKrathong(rec, { at: old.root.position, replacing: true });
-    k.target.copy(old.target);
-    k.vel.copy(old.vel);
-    k.spin.rotation.y = old.spin.rotation.y;
+    const same = !!old.sky === isSky(rec);
+    const k = await studentKrathong(rec, same ? { at: old.root.position, replacing: true } : { replacing: true });
+    if (same) {
+      k.target.copy(old.target);
+      k.vel.copy(old.vel);
+      k.spin.rotation.y = old.spin.rotation.y;
+    }
     const following = camState.follow === old;
     disposeKrathong(old);
     if (following) focusOn(k, 12);
@@ -2057,30 +2206,37 @@ function mount() {
         console.warn("[loykrathong] photo decode failed", err);
       }
     }
-    const k = buildKrathong({
+    const sky = isSky(rec);
+    const parts = {
       catColor: cat.color,
       card,
       bubble: drawBubble(rec.name, rec.wish, cat.color),
       tag: rec.name ? drawNameTag(rec.name, cat.color) : null,
-    });
+    };
+    const k = sky ? buildSkyLantern(parts) : buildKrathong(parts);
     k.rec = rec;
+    const spot = sky ? skySpot : randomSpot;
     if (at) {
       k.root.position.copy(at);
     } else if (atDrop) {
-      k.root.position.copy(DROP_POS);
+      // a lantern starts in Kru Song's hands (the performance carries it)
+      k.root.position.copy(sky ? TEACHER_POS : DROP_POS);
     } else {
-      randomSpot(k.root.position, false);
+      spot(k.root.position, false);
     }
-    randomSpot(k.target, false);
-    const students = krathongs.filter((x) => !x.simple && x.sinking == null);
-    if (!replacing && students.length >= MAX_STUDENT) disposeKrathong(students[0]);
+    spot(k.target, false);
+    // each kind has its own cap, oldest first
+    const same = krathongs.filter((x) => !x.simple && x.sinking == null && !!x.sky === sky);
+    if (!replacing && same.length >= (sky ? MAX_SKY : MAX_STUDENT)) disposeKrathong(same[0]);
     krathongs.push(k);
     updateCount();
     return k;
   }
 
   function updateCount() {
-    els.count.textContent = `🌸 ${krathongs.filter((k) => !k.simple && k.sinking == null).length}`;
+    const live = krathongs.filter((k) => !k.simple && k.sinking == null);
+    const sky = live.filter((k) => k.sky).length;
+    els.count.textContent = `🌸 ${live.length - sky}` + (sky ? ` · 🏮 ${sky}` : "");
   }
 
   // ----- characters: cute 3D people (big head, toon shading) -----
@@ -2250,7 +2406,10 @@ function mount() {
 
     // face painted on a patch of sphere just in front of the head
     const faces = { open: canvasTexture(drawFace(look.openEyes ? "open" : "closed")) };
-    if (look.openEyes) faces.blink = canvasTexture(drawFace("blink"));
+    if (look.openEyes) {
+      faces.blink = canvasTexture(drawFace("blink"));
+      faces.closed = faces.blink; // happy closed eyes, held for a wish
+    }
     const faceMat = new THREE.MeshToonMaterial({ map: faces.open, transparent: true, emissive: 0x24160c });
     const face = new THREE.Mesh(new THREE.SphereGeometry(HEAD_R + 0.004, 18, 12, Math.PI * 0.5 - 0.75, 1.5, Math.PI * 0.5 - 0.3, 0.84), faceMat);
     face.position.y = C;
@@ -2282,31 +2441,48 @@ function mount() {
 
     // arms hang from shoulder pivots; rotation.z swings them out to the
     // side, rotation.x reaches them forward
-    const armGeo = (() => {
+    // the forearm hangs from an elbow pivot so hands can come together
+    // (a wai, carrying a krathong at the chest)
+    const ELBOW_Y = -0.29;
+    const upperGeo = (() => {
       const { parts, add } = partList();
       if (look.puffSleeve) add(new THREE.SphereGeometry(0.07, 12, 10), sleeve, (d) => { d.position.y = -0.04; d.scale.set(1, 0.9, 1); });
       else add(new THREE.CylinderGeometry(0.048, 0.044, 0.16, 10), sleeve, (d) => (d.position.y = -0.07));
-      add(new THREE.CylinderGeometry(0.03, 0.027, 0.22, 10), skin, (d) => (d.position.y = -0.19));
-      add(new THREE.CylinderGeometry(0.027, 0.023, 0.2, 10), skin, (d) => (d.position.y = -0.38));
-      add(new THREE.SphereGeometry(0.034, 10, 8), skin, (d) => { d.position.y = -0.5; d.scale.set(1, 1.15, 0.8); });
+      add(new THREE.CylinderGeometry(0.03, 0.028, 0.24, 10), skin, (d) => (d.position.y = -0.18));
+      add(new THREE.SphereGeometry(0.029, 8, 6), skin, (d) => (d.position.y = ELBOW_Y));
+      return mergeParts(parts);
+    })();
+    const foreGeo = (() => {
+      const { parts, add } = partList();
+      add(new THREE.CylinderGeometry(0.027, 0.023, 0.2, 10), skin, (d) => (d.position.y = -0.09));
+      add(new THREE.SphereGeometry(0.034, 10, 8), skin, (d) => { d.position.y = -0.21; d.scale.set(1, 1.15, 0.8); });
       return mergeParts(parts);
     })();
     const arms = [];
+    const elbows = [];
+    const hands = [];
     for (const side of [-1, 1]) {
       const pivot = new THREE.Group();
       pivot.position.set(side * 0.165, 1.13, 0);
-      pivot.add(withOutline(new THREE.Mesh(armGeo, mat), 0.005, outline));
+      pivot.add(withOutline(new THREE.Mesh(upperGeo, mat), 0.005, outline));
+      const elbow = new THREE.Group();
+      elbow.position.y = ELBOW_Y;
+      elbow.rotation.x = -0.12;
+      elbow.add(withOutline(new THREE.Mesh(foreGeo, mat), 0.005, outline));
+      pivot.add(elbow);
+      const hand = new THREE.Object3D(); // palm, for carrying things
+      hand.position.y = -0.21;
+      elbow.add(hand);
       inner.add(pivot);
       arms.push(pivot);
+      elbows.push(elbow);
+      hands.push(hand);
     }
-    const hand = new THREE.Object3D(); // right hand tip, for carrying things
-    hand.position.y = -0.52;
-    arms[1].add(hand);
     group.rotation.y = yaw;
     scene.add(group);
     // top of the head (with a bun) in group space, for name tags
     const topY = (NECK_Y + 0.04 + (C + (look.bun ? 0.31 : HEAD_R + 0.03)) * hs) * (height / 1.8);
-    const p = { group, inner, head, arms, legs, stride: 0, walk: 0, hand, height, yaw, topY, faces, faceMat, blinkAt: rand(1, 4), t: rand(0, 10), pose: { tilt: 0, squat: 0, armL: -0.12, armR: 0.12 } };
+    const p = { group, inner, head, arms, elbows, hands, legs, stride: 0, walk: 0, height, yaw, topY, faces, faceMat, blinkAt: rand(1, 4), t: rand(0, 10), pose: { tilt: 0, squat: 0, armL: -0.12, armR: 0.12 } };
     people.push(p);
     return p;
   }
@@ -2493,6 +2669,30 @@ function mount() {
     }
     return out.set(rand(-2, 3), 0, simple ? rand(-12, -9) : rand(-6, -3));
   }
+  // Student lanterns hover in a band of sky above the canal that the wide
+  // shot sees: under the top bar, clear of the moon, and never so near the
+  // viewer that one fills the screen. `out` is the root (bottom of photo).
+  const moonNdc = new THREE.Vector3();
+  function inSky(x, y, z) {
+    probe.set(x, y + 0.2, z).project(wideCam);
+    // the photo hangs no lower than the far shore, over the water, and the
+    // name tag stays under the top bar
+    if (Math.abs(probe.x) > 0.85 || probe.y < 0.02 || probe.z > 1) return false;
+    probe.set(x, y + SKY_PHOTO_H + SKY_GAP + 1.4, z).project(wideCam);
+    if (probe.y > 0.84 || Math.abs(probe.x) > 0.85) return false;
+    moonNdc.copy(moon.position).project(wideCam);
+    probe.set(x, y + SKY_PHOTO_H, z).project(wideCam);
+    return Math.hypot((probe.x - moonNdc.x) * wideCam.aspect, probe.y - moonNdc.y) > 0.32;
+  }
+  function skySpot(out) {
+    for (let i = 0; i < 120; i++) {
+      const x = rand(-17, 17);
+      const z = rand(-15, -3);
+      const y = rand(3, 8);
+      if (inSky(x, y, z)) return out.set(x, y, z);
+    }
+    return out.set(rand(-3, 4), 3.4, rand(-9, -6));
+  }
 
   function focusOn(k, seconds = 9) {
     camState.mode = "follow";
@@ -2512,11 +2712,136 @@ function mount() {
     updateFloatBtn();
   }
 
+  // each button shows how many of its kind are still waiting for Kru Song
   function updateFloatBtn() {
-    els.floatBtn.textContent = performing || queue.length ? `🌸 กำลังลอย… (${queue.length + (performing ? 1 : 0)})` : "🌸 ลอยกระทงใบใหม่";
+    const waiting = [...queue, ...(performing ? [performing.k] : [])];
+    const sky = waiting.filter((k) => k.sky).length;
+    const water = waiting.length - sky;
+    els.floatBtn.textContent = water ? `🌸 กำลังลอย… (${water})` : "🌸 ลอยกระทง";
+    els.lanternBtn.textContent = sky ? `🏮 กำลังปล่อย… (${sky})` : "🏮 ปล่อยโคมลอย";
+  }
+
+  // ----- Kru Song's poses -----
+  // Her body is posed from named key poses. Each performance is a list of
+  // [time, pose] keys; the current key is the target and every joint eases
+  // toward it, so moves overlap and settle softly instead of snapping.
+  // Arms: x pitches the arm forward (negative = forward/up), o swings it
+  // out to the side (negative = across the body), e bends the elbow
+  // (negative = forearm forward/up), w rocks the forearm (a wave).
+  const ARM = {
+    rest: { x: -0.1, o: 0.1, e: -0.2 },
+    clasp: { x: -0.32, o: -0.42, e: -1.0 }, // hands together at the tummy
+    hold: { x: -0.62, o: -0.36, e: -1.0 }, // carrying at the chest
+    wish: { x: -0.5, o: -0.38, e: -1.2 }, // krathong held close, under the chin
+    wai: { x: -0.22, o: -0.4, e: -2.35 }, // palms together at the chest
+    reach: { x: -1.05, o: -0.18, e: -0.3 }, // down to the water
+    lift: { x: -1.95, o: -0.22, e: -0.45 }, // lantern raised up in front
+    open: { x: -2.2, o: 0.55, e: -0.25 }, // arms open after letting go
+    heart: { x: -0.3, o: -0.36, e: -1.85 }, // hands to the chest, happy
+    wave: { x: -0.25, o: 0.38, e: -2.15, w: 1 }, // hand up beside the face
+  };
+  const pose = (l, r, more = {}) => ({ l: ARM[l], r: ARM[r ?? l], dip: 0, lean: 0, rise: 0, hx: 0.06, hz: 0, eyes: 0, yaw: null, ...more });
+  const IDLE = pose("clasp", "clasp", { hz: 0.08 });
+  const IDLE_WAVE = pose("clasp", "wave", { hz: -0.14, hx: 0, yaw: TEACHER_YAW - 0.25 });
+  // krathong: show it, make a wish, kneel, set it on the water, wai to the
+  // river, stand, wave goodbye to it
+  // She faces the viewer to show the krathong and make her wish, turns to
+  // the water to set it down, and turns back to wave.
+  const FACE_CAM = 0.42;
+  const FACE_WATER = 1.5;
+  const FLOAT_KEYS = [
+    [0, pose("hold", "hold", { hx: 0.22, yaw: FACE_CAM })],
+    [0.9, pose("wish", "wish", { hx: 0.2, eyes: 1, hz: 0.1, yaw: FACE_CAM })],
+    [2.3, pose("hold", "hold", { dip: 0.08, lean: 0.06, hx: 0.3, yaw: FACE_WATER })],
+    [3.1, pose("reach", "reach", { dip: 0.14, lean: 0.16, hx: 0.42, yaw: FACE_WATER })],
+    [4.4, pose("wai", "wai", { dip: 0.12, lean: 0.1, hx: 0.36, eyes: 1, yaw: FACE_WATER })],
+    [5.9, pose("clasp", "clasp", { hx: 0.02, hz: 0.12, yaw: 0.8 })],
+    [6.6, pose("clasp", "wave", { hx: 0.05, hz: -0.12, yaw: FACE_CAM })],
+    [8.3, null],
+  ];
+  const FLOAT_LET_GO = 3.5; // krathong leaves her hands
+  const FLOAT_ON_WATER = 4.3; // ... and lands
+  const FLOAT_CAMERA = 7.7; // camera goes to the krathong, after her wave
+  // lantern: hold it while it fills with warm air (eyes closed, a wish),
+  // raise it, let go with open arms, watch it rise, hands to the heart, wave
+  // the lantern is held out toward the water so it never hides her face
+  const SKY_SIDE = 1.3;
+  const SKY_KEYS = [
+    [0, pose("hold", "hold", { hx: 0.18, yaw: SKY_SIDE })],
+    [1.0, pose("hold", "hold", { hx: 0.12, eyes: 1, hz: 0.1, yaw: SKY_SIDE })],
+    [2.6, pose("lift", "lift", { hx: -0.3, rise: 0.035, yaw: SKY_SIDE })],
+    [3.4, pose("open", "open", { hx: -0.5, rise: 0.05, yaw: SKY_SIDE })],
+    [4.4, pose("heart", "heart", { hx: -0.46, hz: 0.14, yaw: 0.8 })],
+    [5.9, pose("heart", "wave", { hx: -0.38, hz: -0.1, yaw: FACE_CAM })],
+    [7.6, null],
+  ];
+  const SKY_LET_GO = 3.4;
+  const SKY_CAMERA = 7.0;
+
+  // current, eased pose (arm values are copied, never the presets)
+  const cur = { l: { x: 0, o: 0.1, e: -0.2, w: 0 }, r: { x: 0, o: 0.1, e: -0.2, w: 0 }, dip: 0, lean: 0, rise: 0, hx: 0, hz: 0, eyes: 0 };
+  teacher.cur = cur;
+  let idleWaveAt = 6;
+  function teacherTarget() {
+    if (performing) {
+      const keys = performing.k.sky ? SKY_KEYS : FLOAT_KEYS;
+      let want = IDLE;
+      for (const [at, p] of keys) if (performing.t >= at && p) want = p;
+      return want;
+    }
+    // idle: hands clasped, swaying a little; now and then a small wave
+    if (teacher.t > idleWaveAt + 2.6) idleWaveAt = teacher.t + rand(9, 16);
+    return teacher.t > idleWaveAt && camState.mode === "wide" ? IDLE_WAVE : IDLE;
+  }
+  function easeTeacher(dt) {
+    const want = teacherTarget();
+    const k = 1 - Math.exp(-dt * 4.2);
+    for (const side of ["l", "r"]) {
+      const a = cur[side];
+      const b = want[side];
+      a.x += (b.x - a.x) * k;
+      a.o += (b.o - a.o) * k;
+      a.e += (b.e - a.e) * k;
+      a.w += ((b.w ?? 0) - a.w) * k;
+    }
+    for (const f of ["dip", "lean", "rise", "hx", "hz", "eyes"]) cur[f] += (want[f] - cur[f]) * k;
+    const yaw = want.yaw ?? (performing ? TEACHER_YAW_FLOAT : TEACHER_YAW);
+    teacher.group.rotation.y += wrapAngle(yaw - teacher.group.rotation.y) * Math.min(1, dt * 2.2);
+  }
+  function poseTeacher(p) {
+    const c = cur;
+    const t = p.t;
+    const s = p.height / 1.8;
+    // weight shifts gently from foot to foot; the back stays straight
+    const sway = Math.sin(t * 0.9);
+    p.inner.rotation.set(c.lean, 0, sway * 0.025 * (1 - c.dip * 2));
+    p.inner.position.set(sway * 0.012, (-c.dip * 0.95 + c.rise) * s, 0);
+    p.inner.scale.setScalar(s);
+    p.inner.scale.y = s * (1 + Math.sin(t * 1.6) * 0.006);
+    // kneeling folds the legs back under the skirt
+    p.legs[0].rotation.x = p.legs[1].rotation.x = c.dip * 3.2;
+    [c.l, c.r].forEach((a, i) => {
+      const side = i ? 1 : -1;
+      const drift = Math.sin(t * 1.3 + i) * 0.03;
+      p.arms[i].rotation.set(a.x + drift, 0, side * a.o);
+      p.elbows[i].rotation.set(a.e, 0, side * a.w * Math.sin(t * 5.2) * 0.38);
+    });
+    p.head.rotation.x = c.hx + Math.sin(t * 0.53) * 0.03;
+    p.head.rotation.z = c.hz + Math.sin(t * 0.8) * 0.05;
+    p.head.rotation.y = Math.sin(t * 0.31) * 0.08;
   }
 
   const handWorld = new THREE.Vector3();
+  const handB = new THREE.Vector3();
+  const fwd = new THREE.Vector3();
+  // between her palms, a little in front of them
+  function palms(out, ahead = 0.08) {
+    teacher.hands[0].getWorldPosition(out);
+    teacher.hands[1].getWorldPosition(handB);
+    out.add(handB).multiplyScalar(0.5);
+    fwd.set(0, 0, 1).applyQuaternion(teacher.group.quaternion);
+    return out.addScaledVector(fwd, ahead);
+  }
   function runPerformance(dt) {
     if (!performing && queue.length) {
       performing = { k: queue.shift(), t: 0 };
@@ -2532,50 +2857,99 @@ function mount() {
     const k = P.k;
     P.t += dt;
     const t = P.t;
-    const pose = teacher.pose;
-
-    // 0-0.8 pop into hands, 0.8-1.6 present, 1.6-2.9 crouch & lower,
-    // 2.9 release, 2.9-3.8 rise, 3.8-5.2 wave.
-    const hold = smooth(clamp01(t / 0.6));
-    const crouch = smooth(clamp01((t - 1.6) / 1.1)) * (1 - smooth(clamp01((t - 3.0) / 0.8)));
-    pose.tilt = -0.32 * crouch;
-    pose.squat = 0.28 * crouch;
-    pose.armL = lerp(-0.12, 0.95, hold) * (1 - smooth(clamp01((t - 3.0) / 0.6)));
-    pose.armR = lerp(0.12, -0.95, hold) * (1 - smooth(clamp01((t - 3.0) / 0.6)));
-    if (t > 3.8) pose.armR = 2.5 + Math.sin((t - 3.8) * 9) * 0.35;
-    if (t > 5.2) pose.armR = 0.12;
-
-    if (t < 2.9) {
-      // carried in front of her chest, then lowered onto the water
-      teacher.inner.updateMatrixWorld(true);
-      const chest = new THREE.Vector3(0, 1.0 - 0.15 * crouch, 0.45);
-      teacher.inner.localToWorld(chest);
-      const lower = smooth(clamp01((t - 1.6) / 1.3));
-      handWorld.lerpVectors(chest, DROP_POS, lower);
-      handWorld.y += Math.sin(lower * Math.PI) * 0.25 + (t > 0.8 && t < 1.6 ? Math.sin((t - 0.8) * 4) * 0.05 : 0);
+    if (k.sky) skyPerformance(P, k, t, dt);
+    else floatPerformance(P, k, t);
+    const keys = k.sky ? SKY_KEYS : FLOAT_KEYS;
+    if (t > keys[keys.length - 1][0]) {
+      performing = null;
+      updateFloatBtn();
+    }
+  }
+  function floatPerformance(P, k, t) {
+    if (t < FLOAT_LET_GO) {
+      palms(handWorld, 0.1);
+      handWorld.y -= 0.06;
       k.root.position.copy(handWorld);
-      const sc = smooth(clamp01(t / 0.5)) * lerp(0.62, 1, lower);
-      k.root.scale.setScalar(Math.max(0.001, sc));
-      if (t < 0.5 && !P.sparkled) {
+      k.root.scale.setScalar(Math.max(0.001, smooth(clamp01(t / 0.5)) * 0.6));
+      // the photo would hide her face; it pops up once it's on the water
+      if (k.standee) k.standee.visible = false;
+      if (!P.sparkled) {
         P.sparkled = true;
         burst(handWorld, 40, { speed: 1.4, colors: [0xfff3b0, 0xffb3e6, 0xffffff], life: 0.8 });
+      }
+      P.from = handWorld.clone();
+    } else if (t < FLOAT_ON_WATER) {
+      // glides from her hands down onto the water with a little trail
+      const u = smooth((t - FLOAT_LET_GO) / (FLOAT_ON_WATER - FLOAT_LET_GO));
+      k.root.position.lerpVectors(P.from, DROP_POS, u);
+      k.root.position.y += Math.sin(u * Math.PI) * 0.12;
+      k.root.scale.setScalar(lerp(0.6, 1, u));
+      P.trail = (P.trail ?? 0) - 1;
+      if (P.trail <= 0) {
+        P.trail = 3;
+        burst(k.root.position, 4, { speed: 0.3, colors: [0xfff3b0, 0xffffff], life: 0.6, up: 0.2 });
       }
     } else if (!P.released) {
       P.released = true;
       k.root.position.copy(DROP_POS);
       k.root.scale.setScalar(1);
       k.placed = true;
+      if (k.standee) {
+        k.standee.visible = true;
+        burst(new THREE.Vector3(DROP_POS.x, 0.9, DROP_POS.z), 36, { speed: 1.2, colors: [0xfff3b0, 0xffb3e6, 0xffffff], life: 0.8 });
+      }
       ripple(DROP_POS.x, DROP_POS.z, 1.8);
       ripple(DROP_POS.x, DROP_POS.z, 2.8);
       burst(new THREE.Vector3(DROP_POS.x, 0.1, DROP_POS.z), 30, { speed: 1.1, colors: [0xbfe6ff, 0xffffff], life: 0.6 });
       sound.plop();
+      camState.until = 0;
+    }
+    if (t > FLOAT_CAMERA && !P.followed) {
+      P.followed = true;
       focusOn(k, 8);
     }
-    if (t > 5.4) {
-      pose.armL = -0.12;
-      pose.armR = 0.12;
-      performing = null;
-      updateFloatBtn();
+  }
+  function skyPerformance(P, k, t, dt) {
+    if (t < SKY_LET_GO) {
+      // held by its rim, the photo tucked away until it flies; it lights
+      // up as it fills with hot air
+      palms(handWorld, 0.22);
+      const sc = Math.max(0.001, smooth(clamp01(t / 0.5)) * 0.55);
+      k.root.scale.setScalar(sc);
+      k.root.position.copy(handWorld);
+      k.root.position.y -= k.rimY * sc;
+      if (k.standee) k.standee.visible = false;
+      k.lit = 0.25 + 0.75 * smooth(clamp01((t - 0.8) / 1.8));
+      k.spin.position.y = k.rimY;
+      k.spin.rotation.set(Math.sin(t * 2) * 0.03, k.spin.rotation.y, Math.sin(t * 1.7) * 0.04);
+      if (!P.sparkled) {
+        P.sparkled = true;
+        burst(handWorld, 40, { speed: 1.4, colors: [0xfff3b0, 0xffd27a, 0xffffff], life: 0.8 });
+      }
+    } else if (!P.released) {
+      P.released = true;
+      k.lit = 1;
+      // full size grows in as it rises, the photo appears with a sparkle
+      P.from = k.root.position.clone();
+      P.grow = 0;
+      k.placed = true;
+      k.launch = 4.5;
+      k.vel.set(0, 0.35, 0);
+      sound.chime();
+    }
+    if (P.released && !P.shown && t > SKY_LET_GO + 1.1) {
+      // the photo appears with a sparkle once the lantern is above her head
+      P.shown = true;
+      if (k.standee) k.standee.visible = true;
+      burst(new THREE.Vector3(k.root.position.x, k.root.position.y + k.rimY * 0.55, k.root.position.z), 50, { speed: 1.6, colors: [0xfff3b0, 0xffd27a, 0xffb3e6, 0xffffff], life: 1 });
+    }
+    if (P.released && P.grow < 1) {
+      P.grow = Math.min(1, P.grow + dt * 0.7);
+      k.root.scale.setScalar(lerp(0.55, 1, smooth(P.grow)));
+    }
+    if (t > SKY_CAMERA && !P.followed) {
+      P.followed = true;
+      focusOn(k, 9);
     }
   }
 
@@ -2659,34 +3033,37 @@ function mount() {
       p.t += dt;
       const q = p.pose;
       if (p === teacher) {
-        const want = performing ? TEACHER_YAW_FLOAT : TEACHER_YAW;
-        p.group.rotation.y += (want - p.group.rotation.y) * Math.min(1, dt * 3);
+        easeTeacher(dt);
+        poseTeacher(p);
+      } else {
+        const breathe = Math.sin(p.t * 1.6) * 0.012;
+        // crouching leans forward over the water
+        p.inner.rotation.x = -q.tilt * 0.9;
+        p.inner.rotation.z = Math.sin(p.t * 0.9) * 0.02;
+        p.inner.scale.y = (p.height / 1.8) * (1 - q.squat * 0.25 + breathe);
+        p.inner.position.y = -q.squat * 0.1;
+        aimArm(p.arms[0], -1, q.armL, Math.sin(p.t * 1.3) * 0.04);
+        aimArm(p.arms[1], 1, q.armR, -Math.sin(p.t * 1.3 + 1) * 0.04);
+        // walking: legs stride, arms swing the other way, a little bob
+        if (p.walk > 0.001) {
+          const sw = Math.sin(p.stride);
+          p.legs[0].rotation.x = sw * 0.5 * p.walk;
+          p.legs[1].rotation.x = -sw * 0.5 * p.walk;
+          p.arms[0].rotation.x -= sw * 0.4 * p.walk;
+          p.arms[1].rotation.x += sw * 0.4 * p.walk;
+          p.inner.position.y += Math.abs(Math.cos(p.stride)) * 0.025 * p.walk;
+        } else if (p.legs[0].rotation.x !== 0) {
+          p.legs[0].rotation.x = p.legs[1].rotation.x = 0;
+        }
+        // a gentle head tilt
+        p.head.rotation.z = Math.sin(p.t * 0.8) * 0.07;
+        p.head.rotation.x = Math.sin(p.t * 0.53) * 0.04 + q.tilt * 0.3;
       }
-      const breathe = Math.sin(p.t * 1.6) * 0.012;
-      // crouching leans forward over the water
-      p.inner.rotation.x = -q.tilt * 0.9;
-      p.inner.rotation.z = Math.sin(p.t * 0.9) * 0.02;
-      p.inner.scale.y = (p.height / 1.8) * (1 - q.squat * 0.25 + breathe);
-      p.inner.position.y = -q.squat * 0.1;
-      aimArm(p.arms[0], -1, q.armL, Math.sin(p.t * 1.3) * 0.04);
-      aimArm(p.arms[1], 1, q.armR, -Math.sin(p.t * 1.3 + 1) * 0.04);
-      // walking: legs stride, arms swing the other way, a little bob
-      if (p.walk > 0.001) {
-        const sw = Math.sin(p.stride);
-        p.legs[0].rotation.x = sw * 0.5 * p.walk;
-        p.legs[1].rotation.x = -sw * 0.5 * p.walk;
-        p.arms[0].rotation.x -= sw * 0.4 * p.walk;
-        p.arms[1].rotation.x += sw * 0.4 * p.walk;
-        p.inner.position.y += Math.abs(Math.cos(p.stride)) * 0.025 * p.walk;
-      } else if (p.legs[0].rotation.x !== 0) {
-        p.legs[0].rotation.x = p.legs[1].rotation.x = 0;
-      }
-      // a gentle head tilt, and now and then a blink
-      p.head.rotation.z = Math.sin(p.t * 0.8) * 0.07;
-      p.head.rotation.x = Math.sin(p.t * 0.53) * 0.04 + q.tilt * 0.3;
+      // eyes closed while making a wish, otherwise a blink now and then
       if (p.faces.blink) {
         p.blinkAt -= dt;
-        p.faceMat.map = p.blinkAt < 0 ? p.faces.blink : p.faces.open;
+        const shut = p === teacher && teacher.cur.eyes > 0.5;
+        p.faceMat.map = shut || p.blinkAt < 0 ? p.faces.blink : p.faces.open;
         if (p.blinkAt < -0.13) p.blinkAt = rand(2, 5);
       }
       // fade anyone the camera gets right up against during a close-up
@@ -2826,6 +3203,18 @@ function mount() {
 
     // krathongs wander slowly around the visible water, keeping apart
     for (const k of [...krathongs]) {
+      if (k.sinking != null && k.sky) {
+        // deleted lantern: rises away, shrinking, and goes out
+        k.sinking += dt;
+        const u = clamp01(k.sinking / 1.8);
+        k.root.position.y += dt * (1 + u * 3);
+        k.root.scale.setScalar(Math.max(0.001, 1 - u));
+        if (u >= 1) {
+          disposeKrathong(k);
+          updateCount();
+        }
+        continue;
+      }
       if (k.sinking != null) {
         k.sinking += dt;
         const u = clamp01(k.sinking / 1.1);
@@ -2838,7 +3227,59 @@ function mount() {
         }
         continue;
       }
-      if (k.placed) {
+      if (k.placed && k.sky) {
+        // lanterns wander slowly in 3D through their band of sky
+        const p = k.root.position;
+        const tx = k.target.x - p.x;
+        const ty = k.target.y - p.y;
+        const tz = k.target.z - p.z;
+        const dist = Math.hypot(tx, ty, tz);
+        if (dist < 0.5 || clock > k.retarget) {
+          skySpot(k.target);
+          k.retarget = clock + rand(25, 45);
+        }
+        const sp = k.speed * Math.min(1, dist / 1.5);
+        let vx = (tx / (dist || 1)) * sp;
+        let vy = (ty / (dist || 1)) * sp;
+        let vz = (tz / (dist || 1)) * sp;
+        for (const o of krathongs) {
+          if (o === k || !o.sky || !o.placed || o.sinking != null) continue;
+          const dx = p.x - o.root.position.x;
+          const dy = p.y - o.root.position.y;
+          const dz = p.z - o.root.position.z;
+          const d = Math.hypot(dx, dy, dz);
+          if (d < 2.2 && d > 0.001) {
+            const push = (2.2 - d) * 0.35;
+            vx += (dx / d) * push;
+            vy += (dy / d) * push * 0.5;
+            vz += (dz / d) * push;
+          }
+        }
+        // just released: still climbing out of Kru Song's hands
+        if (k.launch > 0) {
+          k.launch -= dt;
+          vy += 0.9 * smooth(clamp01(k.launch / 2));
+        }
+        const ease = Math.min(1, dt * 0.6);
+        k.vel.x += (vx - k.vel.x) * ease;
+        k.vel.y += (vy - k.vel.y) * ease;
+        k.vel.z += (vz - k.vel.z) * ease;
+        p.x += k.vel.x * dt;
+        p.y += k.vel.y * dt;
+        p.z += k.vel.z * dt;
+        // a soft bob and sway on the warm air
+        k.spin.position.y = k.rimY + Math.sin(clock * 0.8 + k.phase) * 0.06;
+        k.spin.rotation.z = Math.sin(clock * 0.6 + k.phase) * 0.05;
+        k.spin.rotation.x = Math.sin(clock * 0.45 + k.phase * 1.3) * 0.04;
+        k.spin.rotation.y += k.spinRate * dt;
+        if (k.standee) k.standee.rotation.z = Math.sin(clock * 0.6 + k.phase - 0.5) * 0.04;
+      }
+      if (k.sky) {
+        // keep its pool of light on the water, fainter the higher it flies
+        k.pool.position.y = 0.012 - k.root.position.y;
+        k.pool.material.opacity = 0.26 * clamp01((9 - k.root.position.y) / 7) * k.lit;
+        k.pool.visible = k.placed;
+      } else if (k.placed) {
         const p = k.root.position;
         const tx = k.target.x - p.x;
         const tz = k.target.z - p.z;
@@ -2853,7 +3294,7 @@ function mount() {
         let vx = (tx / (dist || 1)) * sp;
         let vz = (tz / (dist || 1)) * sp;
         for (const o of krathongs) {
-          if (o === k || !o.placed || o.sinking != null) continue;
+          if (o === k || o.sky || !o.placed || o.sinking != null) continue;
           const dx = p.x - o.root.position.x;
           const dz = p.z - o.root.position.z;
           const d = Math.hypot(dx, dz);
@@ -2871,12 +3312,16 @@ function mount() {
         k.spin.rotation.y += k.spinRate * dt;
       }
       const flick = 1 + Math.sin(clock * 17 + k.phase) * 0.08 + Math.sin(clock * 29 + k.phase * 2) * 0.05;
-      k.flame.scale.set(0.09 * flick, 0.18 * (2 - flick), 1);
-      k.glow.material.opacity = 0.55 + (flick - 1) * 1.5;
+      const lit = k.lit ?? 1;
+      if (k.body) k.body.material.color.copy(k.tint).multiplyScalar(0.4 + 0.6 * lit);
+      k.flame.scale.set((k.flameW ?? 0.09) * flick, (k.flameH ?? 0.18) * (2 - flick), 1);
+      k.glow.material.opacity = ((k.glowBase ?? 0.55) + (flick - 1) * 1.5) * lit;
       camDist.subVectors(camera.position, k.root.position);
       const toCam = Math.atan2(camDist.x, camDist.z);
-      k.streak.visible = k.placed;
-      k.streak.rotation.y = toCam;
+      if (k.streak) {
+        k.streak.visible = k.placed;
+        k.streak.rotation.y = toCam;
+      }
       if (k.standee) {
         // faces the wide-shot viewer and only turns a little toward the
         // camera, so orbiting round shows the board's edge and back
@@ -2894,7 +3339,8 @@ function mount() {
         // their small name tags so they don't cover it
         const following = camState.mode === "follow";
         const focusedHere = following && camState.follow === k;
-        let near = k.placed && focusedHere ? clamp01((9 - d) / 3.5) : 0;
+        // (a lantern's close-up is framed from further back)
+        let near = k.placed && focusedHere ? clamp01(((k.sky ? 11.5 : 9) - d) / 3) : 0;
         // "show all wishes": every student krathong in the river shows its
         // bubble, grown a little with distance so far ones stay readable.
         // A close-up still shows only its own.
@@ -2956,12 +3402,25 @@ function mount() {
       api.onFocus?.(shown);
     }
     if (camState.mode === "follow") {
-      const p = camState.follow.root.position;
-      goalLook.set(p.x, 1.3, p.z);
-      goalPos.set(p.x + 0.25, 1.7, p.z + (camera.aspect < 1 ? 5.4 : 4.1));
+      const f = camState.follow;
+      const p = f.root.position;
+      if (f.sky) {
+        // a little below the lantern, looking up at it against the sky
+        goalLook.set(p.x, p.y + f.midY * 0.8, p.z);
+        goalPos.set(p.x + 0.3, p.y + f.midY * 0.55, p.z + (camera.aspect < 1 ? 8.4 : 6.6));
+      } else {
+        goalLook.set(p.x, 1.3, p.z);
+        goalPos.set(p.x + 0.25, 1.7, p.z + (camera.aspect < 1 ? 5.4 : 4.1));
+      }
     } else if (camState.mode === "teacher") {
-      goalLook.set(-2.6, 1.0, 1.6);
-      goalPos.set(-1.3, 2.0, camera.aspect < 1 ? 8.8 : 7.2);
+      if (performing?.k.sky) {
+        // a lantern release: a lower, wider shot with room above her
+        goalLook.set(-2.7, 1.7, 1.4);
+        goalPos.set(-1.0, 1.7, camera.aspect < 1 ? 9.6 : 7.8);
+      } else {
+        goalLook.set(-2.6, 1.0, 1.6);
+        goalPos.set(-1.3, 2.0, camera.aspect < 1 ? 8.8 : 7.2);
+      }
       if (!performing) camState.mode = "wide";
     } else {
       wideShot(goalPos, goalLook);
@@ -3019,6 +3478,7 @@ function mount() {
 
 function setupForm(river) {
   let selectedCat = CATEGORIES[0].id;
+  let kind = "krathong"; // or "lantern"
   let photoSrc = null; // downscaled original
   let sticker = null; // { canvas, cut }
   let processing = null;
@@ -3038,6 +3498,15 @@ function setupForm(river) {
     els.cats.appendChild(b);
   }
   selectCat(selectedCat);
+  // krathong or sky lantern; the titles follow the choice
+  const selectKind = (k) => {
+    kind = k === "lantern" ? "lantern" : "krathong";
+    for (const b of els.kinds.children) b.setAttribute("aria-pressed", String(b.dataset.kind === kind));
+    const sky = kind === "lantern";
+    els.sheetTitle.textContent = editing ? (sky ? "แก้ไขโคมลอย" : "แก้ไขกระทง") : sky ? "โคมลอยใบใหม่" : "กระทงใบใหม่";
+    els.submit.textContent = editing ? "บันทึก ✓" : sky ? "ปล่อยโคม 🏮" : "ลอยกระทง ✨";
+  };
+  for (const b of els.kinds.children) b.addEventListener("click", () => selectKind(b.dataset.kind));
   for (const w of WISH_PRESETS) {
     const b = document.createElement("button");
     b.type = "button";
@@ -3076,16 +3545,14 @@ function setupForm(river) {
     els.photoPick.classList.remove("has-photo");
     els.photoPreview.removeAttribute("src");
     els.photoStatus.textContent = "";
-    els.sheetTitle.textContent = "กระทงใบใหม่";
-    els.submit.textContent = "ลอยกระทง ✨";
+    selectKind(kind);
   };
 
   function openEdit(k) {
     reset();
     editing = k;
     const rec = k.rec;
-    els.sheetTitle.textContent = "แก้ไขกระทง";
-    els.submit.textContent = "บันทึก ✓";
+    selectKind(isSky(rec) ? "lantern" : "krathong");
     els.name.value = rec.name || "";
     els.wish.value = rec.wish || "";
     selectCat(rec.cat);
@@ -3100,12 +3567,15 @@ function setupForm(river) {
     open();
   }
 
-  els.floatBtn.addEventListener("click", () => {
+  const openNew = (k) => {
     sound.unlock();
     if (editing) reset();
+    selectKind(k);
     open();
     setTimeout(() => els.name.focus(), 320);
-  });
+  };
+  els.floatBtn.addEventListener("click", () => openNew("krathong"));
+  els.lanternBtn.addEventListener("click", () => openNew("lantern"));
   els.cancel.addEventListener("click", close);
   els.backdrop.addEventListener("click", close);
 
@@ -3120,10 +3590,11 @@ function setupForm(river) {
   els.unfocusBtn.addEventListener("click", () => river.unfocus());
   els.deleteBtn.addEventListener("click", async () => {
     const k = focused;
-    if (!k || !confirm(`ลบกระทงของ "${k.rec?.name || ""}" ?`)) return;
+    const what = k?.sky ? "โคมลอย" : "กระทง";
+    if (!k || !confirm(`ลบ${what}ของ "${k.rec?.name || ""}" ?`)) return;
     await db.remove(k.rec.id);
     river.sinkKrathong(k);
-    toast(`ลบกระทงของ ${k.rec?.name || ""} แล้ว`);
+    toast(`ลบ${what}ของ ${k.rec?.name || ""} แล้ว`);
   });
 
   // ----- list of every student krathong -----
@@ -3135,7 +3606,7 @@ function setupForm(river) {
     if (!items.length) {
       const d = document.createElement("div");
       d.className = "empty";
-      d.textContent = "ยังไม่มีกระทง";
+      d.textContent = "ยังไม่มีกระทงหรือโคมลอย";
       els.listItems.appendChild(d);
       return;
     }
@@ -3155,7 +3626,7 @@ function setupForm(river) {
         img.alt = "";
         b.appendChild(img);
       }
-      b.appendChild(document.createTextNode(k.rec.name || "(ไม่มีชื่อ)"));
+      b.appendChild(document.createTextNode(`${k.sky ? "🏮" : "🌸"} ${k.rec.name || "(ไม่มีชื่อ)"}`));
       b.addEventListener("click", () => {
         els.listPanel.hidden = true;
         if (k.placed) river.focusOn(k, 25);
@@ -3220,7 +3691,7 @@ function setupForm(river) {
     if (editing) {
       const old = editing;
       // a new photo replaces the old one; otherwise keep the stored image
-      const rec = { ...old.rec, name, wish, cat: selectedCat, image: image || old.rec.image };
+      const rec = { ...old.rec, kind, name, wish, cat: selectedCat, image: image || old.rec.image };
       await db.put(rec);
       if (old.sinking == null && river.krathongs.includes(old)) {
         editing = await river.rebuildKrathong(old, rec);
@@ -3229,7 +3700,7 @@ function setupForm(river) {
       toast("บันทึกแล้ว");
       return;
     }
-    const rec = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name, wish, cat: selectedCat, image, createdAt: Date.now() };
+    const rec = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, kind, name, wish, cat: selectedCat, image, createdAt: Date.now() };
     db.put(rec);
     const k = await river.studentKrathong(rec, { atDrop: true });
     river.enqueueFloat(k);
@@ -3238,7 +3709,7 @@ function setupForm(river) {
   });
 
   els.clear.addEventListener("click", async () => {
-    if (!confirm("ล้างกระทงของนักเรียนทั้งหมดออกจากแม่น้ำและเครื่องนี้?")) return;
+    if (!confirm("ล้างกระทงและโคมลอยของนักเรียนทั้งหมดออกจากเครื่องนี้?")) return;
     await db.clear();
     for (const k of [...river.krathongs]) if (!k.simple) river.disposeKrathong(k);
     river.updateCount();
@@ -3262,7 +3733,7 @@ function setupForm(river) {
       localStorage.setItem("lk.showWishes", river.showWishes ? "1" : "0");
     } catch {}
     paintWishes();
-    toast(river.showWishes ? "แสดงคำอวยพรทุกกระทง" : "ซ่อนคำอวยพร");
+    toast(river.showWishes ? "แสดงคำอวยพรทุกใบ" : "ซ่อนคำอวยพร");
   });
 
   // fullscreen toggle; hidden where the browser can't do it (iPhone Safari)
