@@ -126,7 +126,7 @@
       position: fixed;
       z-index: 6;
       left: 50%;
-      bottom: calc(max(20px, env(safe-area-inset-bottom)) + 80px);
+      bottom: calc(max(20px, env(safe-area-inset-bottom)) + var(--actions-h, 64px) + 16px);
       transform: translateX(-50%);
       display: flex;
       align-items: center;
@@ -170,11 +170,13 @@
       bottom: max(20px, env(safe-area-inset-bottom));
       transform: translateX(-50%);
       display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
       gap: 12px;
       width: max-content;
       max-width: calc(100vw - 24px);
     }
-    #floatBtn, #lanternBtn {
+    #floatBtn, #lanternBtn, #fireBtn {
       min-height: 64px;
       padding: 0 clamp(16px, 2.6vw, 34px);
       white-space: nowrap;
@@ -193,7 +195,12 @@
       text-shadow: 0 2px 2px rgba(110, 40, 10, 0.7);
       animation-delay: 1.2s;
     }
-    #floatBtn:active, #lanternBtn:active { transform: scale(0.96); }
+    #fireBtn {
+      background: linear-gradient(180deg, #9a8cff, #5a46d6);
+      text-shadow: 0 2px 2px rgba(30, 20, 90, 0.7);
+      animation-delay: 0.6s;
+    }
+    #floatBtn:active, #lanternBtn:active, #fireBtn:active { transform: scale(0.96); }
     #floatBtn[disabled] { opacity: 0.55; animation: none; }
     #kindChips button { flex: 1; min-height: 48px; font-size: 17px; }
     #kindChips button[aria-pressed="true"] {
@@ -210,7 +217,7 @@
       position: fixed;
       z-index: 4;
       left: 50%;
-      bottom: calc(max(20px, env(safe-area-inset-bottom)) + 76px);
+      bottom: calc(max(20px, env(safe-area-inset-bottom)) + var(--actions-h, 64px) + 12px);
       transform: translateX(-50%);
       padding: 6px 14px;
       border-radius: 999px;
@@ -440,6 +447,7 @@
   <div id="actions">
     <button id="floatBtn" type="button">🌸 ลอยกระทง</button>
     <button id="lanternBtn" type="button">🏮 ปล่อยโคมลอย</button>
+    <button id="fireBtn" type="button">🎆 จุดพลุ</button>
   </div>
 
   <div id="sheetBackdrop"></div>

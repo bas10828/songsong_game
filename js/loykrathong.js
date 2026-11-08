@@ -49,6 +49,7 @@ const els = {
   loading: document.getElementById("loading"),
   floatBtn: document.getElementById("floatBtn"),
   lanternBtn: document.getElementById("lanternBtn"),
+  fireBtn: document.getElementById("fireBtn"),
   kinds: document.getElementById("kindChips"),
   count: document.getElementById("count"),
   hint: document.getElementById("hint"),
@@ -518,8 +519,10 @@ function shade(hex, amt) {
 // feet at the bottom edge.
 // The face painted onto the front of a 3D head, on a transparent canvas
 // (drawn at 2x for crisp lines). Layout units are 256 x 144.
-// style "open": big warm anime eyes and an open smile (Song Song);
-// "blink" / default: happy closed eyes.
+// Styles: "open" big warm anime eyes and an open smile (Song Song);
+// "blink" / default: happy closed eyes. Song Song's cartoon reactions:
+// "wince" (squeezed >< eyes), "huh" (puzzled), "daze" (blank round eyes
+// after a bang), "cry" / "cry2" (wailing with streaming tears, two frames).
 function drawFace(style = "closed") {
   const c = makeCanvas(512, 288);
   const g = c.getContext("2d");
@@ -529,53 +532,63 @@ function drawFace(style = "closed") {
   g.scale(1.22, 1.22);
   g.translate(-128, -84);
   const EYES = [84, 172];
-  const EY = 73;
+  const EY = 78;
+  const sad = style === "cry" || style === "cry2" || style === "wince";
   g.lineCap = "round";
   g.lineJoin = "round";
   // soft blush with a few tiny hatch strokes
-  for (const bx of [50, 206]) {
-    const grad = g.createRadialGradient(bx, 98, 2, bx, 98, 22);
-    grad.addColorStop(0, "rgba(255,120,150,0.6)");
+  for (const bx of [46, 210]) {
+    const grad = g.createRadialGradient(bx, 106, 2, bx, 106, 20);
+    grad.addColorStop(0, "rgba(255,120,150,0.65)");
     grad.addColorStop(1, "rgba(255,120,150,0)");
     g.fillStyle = grad;
     g.beginPath();
-    g.ellipse(bx, 98, 24, 13, 0, 0, TAU);
+    g.ellipse(bx, 106, 21, 13, 0, 0, TAU);
     g.fill();
     g.strokeStyle = "rgba(235,90,120,0.45)";
     g.lineWidth = 1.6;
     for (let i = -1; i <= 1; i++) {
       g.beginPath();
-      g.moveTo(bx + i * 6 - 2, 102);
-      g.lineTo(bx + i * 6 + 2, 95);
+      g.moveTo(bx + i * 6 - 2, 110);
+      g.lineTo(bx + i * 6 + 2, 103);
       g.stroke();
     }
   }
-  // thin, soft brows, high and gently arched
+  // short, soft, low brows (young), worried (inner ends up) when sad,
+  // one raised when puzzled
   g.strokeStyle = "#5a3424";
-  g.lineWidth = 2.4;
+  g.lineWidth = 3;
   for (const ex of EYES) {
     const s = ex < 128 ? -1 : 1;
     g.beginPath();
-    g.moveTo(ex - 12 * s, 37);
-    g.quadraticCurveTo(ex + 1 * s, 30, ex + 15 * s, 35);
+    if (sad) {
+      g.moveTo(ex - 9 * s, 40);
+      g.quadraticCurveTo(ex + 1 * s, 41, ex + 11 * s, 47);
+    } else if (style === "huh" && s > 0) {
+      g.moveTo(ex - 9, 40);
+      g.quadraticCurveTo(ex + 1, 33, ex + 12, 38);
+    } else {
+      g.moveTo(ex - 9 * s, 47);
+      g.quadraticCurveTo(ex + 1 * s, 42, ex + 11 * s, 46);
+    }
     g.stroke();
   }
-  if (style === "open") {
+  const openEyes = () => {
     for (const ex of EYES) {
       const s = ex < 128 ? -1 : 1;
       // white of the eye
       g.fillStyle = "#ffffff";
       g.beginPath();
-      g.ellipse(ex, EY + 2, 19, 23, 0, 0, TAU);
+      g.ellipse(ex, EY + 2, 19, 21, 0, 0, TAU);
       g.fill();
-      // big iris: dark at the top, warm amber at the bottom
-      const iris = g.createLinearGradient(0, EY - 20, 0, EY + 25);
+      // big round iris: dark at the top, warm amber at the bottom
+      const iris = g.createLinearGradient(0, EY - 18, 0, EY + 22);
       iris.addColorStop(0, "#24120c");
       iris.addColorStop(0.45, "#5c3020");
       iris.addColorStop(1, "#d39255");
       g.fillStyle = iris;
       g.beginPath();
-      g.ellipse(ex, EY + 4, 16, 21, 0, 0, TAU);
+      g.ellipse(ex, EY + 3, 16.5, 19, 0, 0, TAU);
       g.fill();
       // a lighter ring low in the iris
       g.strokeStyle = "rgba(255,200,140,0.55)";
@@ -598,52 +611,130 @@ function drawFace(style = "closed") {
       g.beginPath();
       g.arc(ex - 7 * s, EY - 6, 1.4, 0, TAU);
       g.fill();
-      // thick upper lash line, two flicks at the outer corner
+      // a round, even upper lash line (no grown-up cat-eye flick)
       g.strokeStyle = "#1c0e0a";
-      g.lineWidth = 4.5;
+      g.lineWidth = 4.2;
       g.beginPath();
-      g.moveTo(ex - 20 * s, EY - 5);
-      g.quadraticCurveTo(ex - 2 * s, EY - 27, ex + 20 * s, EY - 11);
-      g.stroke();
-      g.lineWidth = 2.6;
-      g.beginPath();
-      g.moveTo(ex + 18 * s, EY - 12);
-      g.quadraticCurveTo(ex + 24 * s, EY - 15, ex + 27 * s, EY - 21);
-      g.moveTo(ex + 19 * s, EY - 7);
-      g.quadraticCurveTo(ex + 24 * s, EY - 7, ex + 28 * s, EY - 11);
-      g.stroke();
-      // a hint of lower lashes at the outer corner
-      g.lineWidth = 1.4;
-      g.beginPath();
-      g.moveTo(ex + 3 * s, EY + 25);
-      g.quadraticCurveTo(ex + 13 * s, EY + 23, ex + 18 * s, EY + 15);
+      g.moveTo(ex - 19 * s, EY - 3);
+      g.quadraticCurveTo(ex, EY - 25, ex + 19 * s, EY - 5);
       g.stroke();
     }
-    // tiny nose, open happy smile with a tongue
-    g.strokeStyle = "rgba(190,110,95,0.75)";
-    g.lineWidth = 1.8;
+  };
+  // just a tiny dot of a nose
+  const nose = () => {
+    g.fillStyle = "rgba(200,120,105,0.7)";
     g.beginPath();
-    g.moveTo(129, 89);
-    g.quadraticCurveTo(127, 93, 129, 94);
-    g.stroke();
+    g.ellipse(128, 101, 1.8, 1.3, 0, 0, TAU);
+    g.fill();
+  };
+  if (style === "open") {
+    openEyes();
+    nose();
+    // a small open smile with a tongue (no teeth, which read older)
     g.fillStyle = "#a8303f";
     g.beginPath();
-    g.moveTo(115, 103);
-    g.quadraticCurveTo(128, 107, 141, 103);
-    g.quadraticCurveTo(139, 120, 128, 121);
-    g.quadraticCurveTo(117, 120, 115, 103);
+    g.moveTo(120, 108);
+    g.quadraticCurveTo(128, 111, 136, 108);
+    g.quadraticCurveTo(134, 119, 128, 119.5);
+    g.quadraticCurveTo(122, 119, 120, 108);
     g.fill();
     g.fillStyle = "#ff8e9e";
     g.beginPath();
-    g.ellipse(128, 115, 7, 4, 0, 0, TAU);
+    g.ellipse(128, 115.5, 4.5, 2.6, 0, 0, TAU);
     g.fill();
-    g.fillStyle = "#ffffff";
+    return c;
+  }
+  if (style === "huh") {
+    openEyes();
+    nose();
+    // a small round "o?"
+    g.fillStyle = "#a8303f";
     g.beginPath();
-    g.moveTo(118, 104.5);
-    g.quadraticCurveTo(128, 108, 138, 104.5);
-    g.lineTo(137, 107);
-    g.quadraticCurveTo(128, 110, 119, 107);
+    g.ellipse(130, 113, 4, 5, 0, 0, TAU);
     g.fill();
+    return c;
+  }
+  if (style === "wince") {
+    // squeezed > < eyes and a wobbly little mouth
+    g.strokeStyle = "#1c0e0a";
+    g.lineWidth = 4.5;
+    for (const ex of EYES) {
+      const s = ex < 128 ? 1 : -1;
+      g.beginPath();
+      g.moveTo(ex - 13 * s, EY - 12);
+      g.lineTo(ex + 9 * s, EY);
+      g.lineTo(ex - 13 * s, EY + 12);
+      g.stroke();
+    }
+    g.lineWidth = 2.6;
+    g.beginPath();
+    g.moveTo(116, 113);
+    for (let i = 1; i <= 6; i++) g.lineTo(116 + i * 4, i % 2 ? 109 : 115);
+    g.stroke();
+    return c;
+  }
+  if (style === "daze") {
+    // blank round eyes with tiny pupils, a zigzag mouth
+    for (const ex of EYES) {
+      g.fillStyle = "#ffffff";
+      g.strokeStyle = "#1c0e0a";
+      g.lineWidth = 3;
+      g.beginPath();
+      g.arc(ex, EY + 2, 17, 0, TAU);
+      g.fill();
+      g.stroke();
+      g.fillStyle = "#1c0e0a";
+      g.beginPath();
+      g.arc(ex, EY + 2, 3, 0, TAU);
+      g.fill();
+    }
+    g.strokeStyle = "#1c0e0a";
+    g.lineWidth = 2.6;
+    g.beginPath();
+    g.moveTo(110, 114);
+    for (let i = 1; i <= 8; i++) g.lineTo(110 + i * 4.5, i % 2 ? 109 : 115);
+    g.stroke();
+    return c;
+  }
+  if (style === "cry" || style === "cry2") {
+    // eyes shut tight and sad, tears pouring down the cheeks
+    for (const ex of EYES) {
+      const grad = g.createLinearGradient(0, EY + 4, 0, 150);
+      grad.addColorStop(0, "rgba(150,220,255,0.95)");
+      grad.addColorStop(1, "rgba(150,220,255,0.55)");
+      g.fillStyle = grad;
+      g.beginPath();
+      g.moveTo(ex - 9, EY + 4);
+      g.bezierCurveTo(ex - 12, EY + 40, ex - 15, EY + 60, ex - 13, 150);
+      g.lineTo(ex + 11, 150);
+      g.bezierCurveTo(ex + 13, EY + 60, ex + 10, EY + 40, ex + 9, EY + 4);
+      g.fill();
+      g.strokeStyle = "rgba(255,255,255,0.8)";
+      g.lineWidth = 1.6;
+      g.beginPath();
+      g.moveTo(ex - 3, EY + 12);
+      g.lineTo(ex - 5, 140);
+      g.stroke();
+      g.strokeStyle = "rgba(255,255,255,0.9)";
+      g.lineWidth = 9;
+      g.beginPath();
+      g.arc(ex, EY - 6, 15, Math.PI * 0.15, Math.PI * 0.85);
+      g.stroke();
+      g.strokeStyle = "#1c0e0a";
+      g.lineWidth = 4.5;
+      g.stroke();
+    }
+    g.fillStyle = "#a8303f";
+    g.beginPath();
+    if (style === "cry") g.ellipse(128, 115, 13, 10, 0, 0, TAU);
+    else g.ellipse(128, 113, 8, 5, 0, 0, TAU);
+    g.fill();
+    if (style === "cry") {
+      g.fillStyle = "#ff8e9e";
+      g.beginPath();
+      g.ellipse(128, 120, 7, 4, 0, 0, TAU);
+      g.fill();
+    }
     return c;
   }
   // closed, happy eyes (blink frame and everyone else's default face)
@@ -665,6 +756,48 @@ function drawFace(style = "closed") {
   g.beginPath();
   g.arc(128, 100, 9, Math.PI * 0.15, Math.PI * 0.85);
   g.stroke();
+  return c;
+}
+
+// soot over the whole front of a head: an even sooty wash with darker
+// smudges, fading out softly toward the edges of the canvas
+function drawSoot() {
+  const c = makeCanvas(256, 192);
+  const g = c.getContext("2d");
+  const wash = g.createRadialGradient(128, 92, 20, 128, 92, 125);
+  wash.addColorStop(0, "rgba(46,38,42,0.85)");
+  wash.addColorStop(0.6, "rgba(46,38,42,0.75)");
+  wash.addColorStop(1, "rgba(46,38,42,0)");
+  g.fillStyle = wash;
+  g.fillRect(0, 0, 256, 192);
+  for (let i = 0; i < 40; i++) {
+    const x = rand(40, 216);
+    const y = rand(30, 160);
+    const rad = rand(10, 24);
+    const grad = g.createRadialGradient(x, y, 0, x, y, rad);
+    grad.addColorStop(0, `rgba(24,18,20,${rand(0.3, 0.55)})`);
+    grad.addColorStop(1, "rgba(24,18,20,0)");
+    g.fillStyle = grad;
+    g.beginPath();
+    g.arc(x, y, rad, 0, TAU);
+    g.fill();
+  }
+  return c;
+}
+
+// a cartoon "?" for a puzzled moment
+function drawQuestion() {
+  const c = makeCanvas(128, 160);
+  const g = c.getContext("2d");
+  g.font = `900 130px ${FONT}`;
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.lineWidth = 12;
+  g.strokeStyle = "#5a2a6a";
+  g.lineJoin = "round";
+  g.strokeText("?", 64, 84);
+  g.fillStyle = "#ffe27a";
+  g.fillText("?", 64, 84);
   return c;
 }
 
@@ -1069,6 +1202,102 @@ const sound = (() => {
       osc.connect(env(a, 0.25, t, 0.005, 0.22));
       osc.start(t);
       osc.stop(t + 0.3);
+    },
+    // a rising whistle as a firework climbs
+    whoosh() {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const osc = a.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(500, t);
+      osc.frequency.exponentialRampToValueAtTime(1900, t + 1.1);
+      osc.connect(env(a, 0.05, t, 0.05, 1.1));
+      osc.start(t);
+      osc.stop(t + 1.25);
+      const src = a.createBufferSource();
+      src.buffer = noiseBuf(a);
+      src.loop = true;
+      const hp = a.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 2500;
+      src.connect(hp).connect(env(a, 0.05, t, 0.1, 1.0));
+      src.start(t);
+      src.stop(t + 1.2);
+    },
+    // a deep thump with a noisy tail
+    boom(vol = 0.5) {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const osc = a.createOscillator();
+      osc.frequency.setValueAtTime(120, t);
+      osc.frequency.exponentialRampToValueAtTime(38, t + 0.5);
+      osc.connect(env(a, vol, t, 0.004, 0.6));
+      osc.start(t);
+      osc.stop(t + 0.7);
+      const src = a.createBufferSource();
+      src.buffer = noiseBuf(a);
+      src.loop = true;
+      const lp = a.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.setValueAtTime(2400, t);
+      lp.frequency.exponentialRampToValueAtTime(300, t + 0.8);
+      src.connect(lp).connect(env(a, vol * 0.7, t, 0.004, 0.9));
+      src.start(t);
+      src.stop(t + 1);
+    },
+    // glittery crackles after a burst
+    crackle(n = 14, vol = 0.12) {
+      const a = on && ac();
+      if (!a) return;
+      for (let i = 0; i < n; i++) {
+        const t = a.currentTime + 0.25 + Math.random() * 0.9;
+        const src = a.createBufferSource();
+        src.buffer = noiseBuf(a);
+        const bp = a.createBiquadFilter();
+        bp.type = "bandpass";
+        bp.frequency.value = rand(2500, 5000);
+        src.connect(bp).connect(env(a, vol * rand(0.4, 1), t, 0.001, 0.04));
+        src.start(t, rand(0, 0.3), 0.06);
+      }
+    },
+    // a fuse fizzing out: a short, falling hiss
+    fizzle() {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const src = a.createBufferSource();
+      src.buffer = noiseBuf(a);
+      src.loop = true;
+      const bp = a.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.Q.value = 2;
+      bp.frequency.setValueAtTime(4000, t);
+      bp.frequency.exponentialRampToValueAtTime(600, t + 0.6);
+      src.connect(bp).connect(env(a, 0.12, t, 0.02, 0.6));
+      src.start(t);
+      src.stop(t + 0.7);
+    },
+    // a cartoon "waaah": a wobbly falling wail
+    sob() {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const osc = a.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(820, t);
+      osc.frequency.exponentialRampToValueAtTime(520, t + 0.7);
+      const lfo = a.createOscillator();
+      lfo.frequency.value = 9;
+      const depth = a.createGain();
+      depth.gain.value = 40;
+      lfo.connect(depth).connect(osc.frequency);
+      osc.connect(env(a, 0.1, t, 0.04, 0.7));
+      osc.start(t);
+      lfo.start(t);
+      osc.stop(t + 0.8);
+      lfo.stop(t + 0.8);
     },
     chime() {
       const a = on && ac();
@@ -1794,6 +2023,228 @@ function mount() {
     sparkGeo.attributes.alpha.needsUpdate = true;
   }
 
+  // ----- fireworks: their own particle pool (bigger points, air drag,
+  // glitter) so big shells never eat the shared sparks, plus rockets,
+  // flashes and dark smoke puffs -----
+  const FW = 1800;
+  const fwPos = new Float32Array(FW * 3).fill(-999);
+  const fwCol = new Float32Array(FW * 3);
+  const fwA = new Float32Array(FW);
+  const fwSize = new Float32Array(FW);
+  const fwVel = new Float32Array(FW * 3);
+  const fwLife = new Float32Array(FW);
+  const fwMax = new Float32Array(FW);
+  const fwDrag = new Float32Array(FW);
+  const fwGrav = new Float32Array(FW);
+  const fwGlit = new Uint8Array(FW);
+  let fwHead = 0;
+  const fwGeo = new THREE.BufferGeometry();
+  fwGeo.setAttribute("position", new THREE.BufferAttribute(fwPos, 3));
+  fwGeo.setAttribute("color", new THREE.BufferAttribute(fwCol, 3));
+  fwGeo.setAttribute("alpha", new THREE.BufferAttribute(fwA, 1));
+  fwGeo.setAttribute("size", new THREE.BufferAttribute(fwSize, 1));
+  const fwPoints = new THREE.Points(
+    fwGeo,
+    new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      uniforms: { uScale: { value: 300 } },
+      vertexShader: `
+        attribute vec3 color; attribute float alpha; attribute float size; varying vec3 vC; varying float vA; uniform float uScale;
+        void main(){ vC = color; vA = alpha; vec4 mv = modelViewMatrix * vec4(position,1.0);
+          gl_PointSize = alpha > 0.0 ? size * uScale / -mv.z : 0.0; gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `
+        varying vec3 vC; varying float vA;
+        void main(){ float d = length(gl_PointCoord - 0.5); if (d > 0.5) discard;
+          float core = smoothstep(0.5, 0.0, d);
+          gl_FragColor = vec4(mix(vC, vec3(1.0), core * core * 0.6), vA * core); }`,
+    })
+  );
+  fwPoints.frustumCulled = false;
+  scene.add(fwPoints);
+  let fwIdle = 99; // seconds since the last firework particle was born
+  function fwSpark(x, y, z, vx, vy, vz, color, life, size = 0.16, drag = 1.6, grav = 1.4, glitter = 0) {
+    fwIdle = 0;
+    const i = fwHead;
+    fwHead = (fwHead + 1) % FW;
+    fwPos[i * 3] = x;
+    fwPos[i * 3 + 1] = y;
+    fwPos[i * 3 + 2] = z;
+    fwVel[i * 3] = vx;
+    fwVel[i * 3 + 1] = vy;
+    fwVel[i * 3 + 2] = vz;
+    tmpCol.set(color);
+    fwCol[i * 3] = tmpCol.r;
+    fwCol[i * 3 + 1] = tmpCol.g;
+    fwCol[i * 3 + 2] = tmpCol.b;
+    fwLife[i] = fwMax[i] = life;
+    fwSize[i] = size;
+    fwDrag[i] = drag;
+    fwGrav[i] = grav;
+    fwGlit[i] = glitter;
+    fwA[i] = 1;
+  }
+  const camRight = new THREE.Vector3();
+  const camUp = new THREE.Vector3();
+  const dir = new THREE.Vector3();
+  // one shell bursting at p. Styles: "peony" (a sphere), "ring" (a halo
+  // facing the viewer), "heart" (a heart facing the viewer), "willow"
+  // (slow gold trails that droop)
+  function fwShell(p, style, colors, speed = 3.6) {
+    camRight.setFromMatrixColumn(camera.matrixWorld, 0);
+    camUp.setFromMatrixColumn(camera.matrixWorld, 1);
+    const c2 = colors[1] ?? colors[0];
+    if (style === "heart") {
+      const n = 130;
+      for (let i = 0; i < n; i++) {
+        const t = (i / n) * TAU;
+        const hx = Math.pow(Math.sin(t), 3);
+        const hy = (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) / 16;
+        dir.copy(camRight).multiplyScalar(hx).addScaledVector(camUp, hy);
+        const sp = speed * 0.95;
+        fwSpark(p.x, p.y, p.z, dir.x * sp, dir.y * sp, dir.z * sp, colors[0], rand(1.5, 1.9), 0.19, 1.9, 0.5);
+      }
+      for (let i = 0; i < 40; i++) {
+        dir.randomDirection().multiplyScalar(rand(0.2, 0.6) * speed);
+        fwSpark(p.x, p.y, p.z, dir.x, dir.y, dir.z, c2, rand(0.8, 1.2), 0.13, 2, 1, 1);
+      }
+      return;
+    }
+    if (style === "ring") {
+      for (let i = 0; i < 90; i++) {
+        const a = (i / 90) * TAU;
+        dir.copy(camRight).multiplyScalar(Math.cos(a)).addScaledVector(camUp, Math.sin(a) * 0.85);
+        fwSpark(p.x, p.y, p.z, dir.x * speed, dir.y * speed, dir.z * speed, i % 2 ? colors[0] : c2, rand(1.3, 1.7), 0.18, 1.8, 1);
+      }
+      for (let i = 0; i < 70; i++) {
+        dir.randomDirection().multiplyScalar(speed * rand(0.35, 0.55));
+        fwSpark(p.x, p.y, p.z, dir.x, dir.y, dir.z, c2, rand(1, 1.4), 0.14, 1.8, 1.2, 1);
+      }
+      return;
+    }
+    if (style === "willow") {
+      for (let i = 0; i < 150; i++) {
+        dir.randomDirection().multiplyScalar(speed * rand(0.85, 1));
+        fwSpark(p.x, p.y, p.z, dir.x, dir.y + 0.4, dir.z, i % 3 ? 0xffd27a : 0xfff1c0, rand(2.2, 2.8), 0.15, 1.2, 1.9, 1);
+      }
+      return;
+    }
+    // peony: an outer sphere in one colour, an inner one in the other
+    for (let i = 0; i < 180; i++) {
+      dir.randomDirection().multiplyScalar(speed * rand(0.92, 1));
+      fwSpark(p.x, p.y, p.z, dir.x, dir.y, dir.z, colors[0], rand(1.4, 1.8), 0.18, 1.7, 1.3);
+    }
+    for (let i = 0; i < 80; i++) {
+      dir.randomDirection().multiplyScalar(speed * rand(0.4, 0.5));
+      fwSpark(p.x, p.y, p.z, dir.x, dir.y, dir.z, c2, rand(1.1, 1.5), 0.16, 1.7, 1.3, 1);
+    }
+  }
+  // flashes: a bright glow that blooms and fades where something bursts
+  const flashes = [];
+  function flash(p, size = 6, color = 0xfff0d0, life = 0.55) {
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex.glow, color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+    m.position.copy(p);
+    scene.add(m);
+    flashes.push({ m, t: 0, size, life });
+  }
+  // rockets climb from a launch point with a gold trail, then burst
+  const rockets = [];
+  function launchRocket(from, shell) {
+    rockets.push({ p: from.clone(), v: new THREE.Vector3(rand(0.1, 0.5), rand(6.2, 6.6), rand(-1.1, -0.7)), ...shell });
+    sound.whoosh();
+  }
+  // dark smoke puffs (normal blending, so they can be darker than the sky)
+  const SMOKE = 28;
+  const smoke = [];
+  for (let i = 0; i < SMOKE; i++) {
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex.dot, color: 0x4a4248, transparent: true, depthWrite: false, opacity: 0 }));
+    m.visible = false;
+    scene.add(m);
+    smoke.push({ m, t: 1, life: 1, v: new THREE.Vector3(), s0: 0.2, s1: 0.6, a: 0.8 });
+  }
+  let smokeHead = 0;
+  function puff(p, { size = 0.35, grow = 2.2, life = 1.4, rise = 0.35, spread = 0.3, a = 0.85, color = 0x4a4248 } = {}) {
+    const s = smoke[smokeHead];
+    smokeHead = (smokeHead + 1) % SMOKE;
+    s.m.position.copy(p);
+    s.m.material.color.set(color);
+    s.m.visible = true;
+    s.t = 0;
+    s.life = life * rand(0.8, 1.2);
+    s.v.set(rand(-spread, spread), rise * rand(0.7, 1.3), rand(-spread, spread));
+    s.s0 = size;
+    s.s1 = size * grow;
+    s.a = a;
+  }
+  const rocketTmp = new THREE.Vector3();
+  function updateFireworks(dt) {
+    for (let i = rockets.length - 1; i >= 0; i--) {
+      const r = rockets[i];
+      r.v.y -= 4 * dt;
+      r.p.addScaledVector(r.v, dt);
+      for (let k = 0; k < 3; k++) fwSpark(r.p.x, r.p.y, r.p.z, rand(-0.15, 0.15), rand(-0.6, -0.2), rand(-0.15, 0.15), k ? 0xffc46a : 0xfff3c8, rand(0.35, 0.55), 0.11, 2, 0.5, 1);
+      if (r.v.y < 0.9) {
+        rockets.splice(i, 1);
+        fwShell(r.p, r.style, r.colors, r.speed);
+        flash(r.p, 7, r.colors[0]);
+        rocketTmp.copy(r.p);
+        sound.boom(Math.min(0.55, 6 / camera.position.distanceTo(rocketTmp)));
+        if (r.style !== "heart") sound.crackle();
+      }
+    }
+    // nothing alive for longer than any particle lives: skip the pool
+    fwIdle += dt;
+    for (let i = 0; i < (fwIdle < 3.5 ? FW : 0); i++) {
+      if (fwA[i] <= 0) continue;
+      fwLife[i] -= dt;
+      if (fwLife[i] <= 0) {
+        fwA[i] = 0;
+        continue;
+      }
+      const k = Math.exp(-fwDrag[i] * dt);
+      fwVel[i * 3] *= k;
+      fwVel[i * 3 + 1] = fwVel[i * 3 + 1] * k - fwGrav[i] * dt;
+      fwVel[i * 3 + 2] *= k;
+      fwPos[i * 3] += fwVel[i * 3] * dt;
+      fwPos[i * 3 + 1] += fwVel[i * 3 + 1] * dt;
+      fwPos[i * 3 + 2] += fwVel[i * 3 + 2] * dt;
+      const u = fwLife[i] / fwMax[i];
+      fwA[i] = Math.min(1, u * 2.5) * (fwGlit[i] && u < 0.6 ? (Math.random() < 0.5 ? 1 : 0.15) : 1);
+    }
+    if (fwIdle < 3.5) {
+      fwGeo.attributes.position.needsUpdate = true;
+      fwGeo.attributes.color.needsUpdate = true;
+      fwGeo.attributes.alpha.needsUpdate = true;
+      fwGeo.attributes.size.needsUpdate = true;
+    }
+    for (let i = flashes.length - 1; i >= 0; i--) {
+      const f = flashes[i];
+      f.t += dt;
+      const u = f.t / f.life;
+      if (u >= 1) {
+        scene.remove(f.m);
+        f.m.material.dispose();
+        flashes.splice(i, 1);
+        continue;
+      }
+      f.m.scale.setScalar(f.size * (0.6 + 0.4 * Math.sqrt(u)));
+      f.m.material.opacity = 1 - u;
+    }
+    for (const s of smoke) {
+      if (!s.m.visible) continue;
+      s.t += dt;
+      const u = s.t / s.life;
+      if (u >= 1) {
+        s.m.visible = false;
+        continue;
+      }
+      s.m.position.addScaledVector(s.v, dt);
+      s.m.scale.setScalar(lerp(s.s0, s.s1, 1 - (1 - u) * (1 - u)));
+      s.m.material.opacity = s.a * Math.min(1, u * 6) * (1 - u);
+    }
+  }
+
   // sky lanterns (khom loi): paper lanterns lit from inside, all instanced,
   // with one glow dot each
   const MAX_LANTERNS = 64;
@@ -2359,9 +2810,9 @@ function mount() {
     for (let i = 0; i < p.count; i++) {
       const y = p.getY(i);
       if (y >= 0) continue;
-      const k = 1 - 0.16 * Math.pow(-y / r, 1.6);
+      const k = 1 - 0.07 * Math.pow(-y / r, 1.6);
       p.setX(i, p.getX(i) * k);
-      p.setZ(i, p.getZ(i) * (1 - 0.06 * Math.pow(-y / r, 1.6)));
+      p.setZ(i, p.getZ(i) * (1 - 0.03 * Math.pow(-y / r, 1.6)));
     }
     geo.computeVertexNormals();
     return geo;
@@ -2521,26 +2972,33 @@ function mount() {
       const R = HEAD_R;
       // 0 = dead straight, 1 = loose waves
       const W = look.hairWave ?? 1;
-      const rr = (r) => 0.17 + (r - 0.17) * (0.4 + 0.6 * W);
+      // < 1 shortens and narrows the hanging hair (for a bigger head scale,
+      // so it still ends at the same place on her body)
+      const K = look.hairFit ?? 1;
+      const rr = (r) => (0.17 + (r - 0.17) * (0.4 + 0.6 * W)) * K;
+      const below = (d) => C - 0.16 - (d - 0.16) * K;
+      const nFront = look.frontLocks ?? 4;
       const root = new THREE.Color(hair);
       const tipCol = new THREE.Color(look.hairTip || hair);
       const hairAt = (y) => root.clone().lerp(tipCol, clamp01((C - 0.1 - y) / 0.45));
       // front: from the parting, round the sides of the forehead, past the
       // cheeks, then down over the front of the shoulders
       for (const s of [-1, 1]) {
-        for (let j = 0; j < 4; j++) {
+        for (let j = 0; j < nFront; j++) {
           const ph = j * 1.9 + (s > 0 ? 0.8 : 0);
           const pts = [
             onHead(0.08, s * 0.3, R + 0.012, C),
             onHead(0.7, s * (0.3 + j * 0.17), R + 0.03, C),
             onHead(1.3, s * (0.86 + j * 0.17), R + 0.034, C),
             [s * (R * 0.9 + j * 0.01), C - 0.16, 0.075 - j * 0.028],
-            [s * (0.125 + j * 0.01) + Math.sin(ph) * 0.03 * W, C - 0.26, 0.08 - j * 0.024],
-            [s * (0.11 + j * 0.012) - Math.sin(ph) * 0.035 * W, C - 0.36, 0.09 - j * 0.024],
-            [s * (0.12 + j * 0.008) + s * 0.03, C - 0.43, 0.095 - j * 0.024],
+            [(s * (0.125 + j * 0.01) + Math.sin(ph) * 0.03 * W) * K, below(0.26), (0.08 - j * 0.024) * K],
+            [(s * (0.11 + j * 0.012) - Math.sin(ph) * 0.035 * W) * K, below(0.36), (0.09 - j * 0.024) * K],
+            // the tip curls in toward her
+            look.curlIn ? [s * (0.085 + j * 0.008) * K, below(0.41), (0.11 - j * 0.02) * K] : [(s * (0.12 + j * 0.008) + s * 0.03) * K, below(0.43), (0.095 - j * 0.024) * K],
           ];
-          h(lockGeometry(pts.slice(0, 5), 0.04, 0.03, 0.45), hair, null, false, false, hairAt);
-          low.add(lockGeometry(pts.slice(2), 0.032, 0.006, 0.5), hair, null, false, false, hairAt);
+          const fw = look.frontLockW ?? 0.04;
+          h(lockGeometry(pts.slice(0, 5), fw, fw * 0.75, 0.45), hair, null, false, false, hairAt);
+          low.add(lockGeometry(pts.slice(2), fw * 0.8, 0.006, 0.5), hair, null, false, false, hairAt);
         }
       }
       // back: a curtain of locks round the back half of the head that tucks
@@ -2553,16 +3011,16 @@ function mount() {
         const cz = Math.cos(az);
         const flare = 1 + 0.08 * W * Math.sin(i * 2.3);
         // a hanging point at height y, radius r, swayed sideways by a wave
-        const hang = (y, r, wave) => [sx * r * 0.92 + cz * wave, y, Math.min(cz * r, -0.07 - 0.04 * Math.abs(cz)) - sx * wave * 0.3];
+        const hang = (y, r, wave) => [sx * r * 0.92 + cz * wave, y, Math.min(cz * r, (-0.07 - 0.04 * Math.abs(cz)) * K) - sx * wave * 0.3];
         const pts = [
           onHead(0.3, az, R * 0.92, C),
           onHead(1.15, az, R + 0.022, C),
           onHead(1.75, az, R + 0.03, C),
-          hang(C - 0.22, 0.17 * flare, Math.sin(ph) * 0.03 * W),
-          hang(C - 0.31, rr(0.185) * flare, -Math.sin(ph) * 0.045 * W),
-          hang(C - 0.4, rr(0.195) * flare, Math.sin(ph) * 0.05 * W),
-          hang(C - 0.49, rr(0.2) * flare, -Math.sin(ph) * 0.045 * W),
-          hang(C - 0.57, rr(0.18) * flare, Math.sin(ph + 1) * 0.04 * W),
+          hang(below(0.22), 0.17 * flare, Math.sin(ph) * 0.03 * W),
+          hang(below(0.31), rr(0.185) * flare, -Math.sin(ph) * 0.045 * W),
+          hang(below(0.4), rr(0.195) * flare, Math.sin(ph) * 0.05 * W),
+          hang(below(0.49), rr(0.2) * flare, -Math.sin(ph) * 0.045 * W),
+          hang(below(0.57), rr(0.18) * flare, Math.sin(ph + 1) * 0.04 * W),
         ];
         h(lockGeometry(pts.slice(0, 4), 0.06, 0.06, 0.38), hair, null, false, false, hairAt);
         low.add(lockGeometry(pts.slice(1), 0.064, 0.016, 0.4), hair, null, false, false, hairAt);
@@ -2601,6 +3059,7 @@ function mount() {
     if (look.openEyes) {
       faces.blink = canvasTexture(drawFace("blink"));
       faces.closed = faces.blink; // happy closed eyes, held for a wish
+      for (const f of ["wince", "huh", "daze", "cry", "cry2"]) faces[f] = canvasTexture(drawFace(f));
     }
     const faceMat = new THREE.MeshToonMaterial({ map: faces.open, transparent: true, emissive: 0x24160c });
     const faceGeo = new THREE.SphereGeometry(HEAD_R + 0.004, 18, 12, Math.PI * 0.5 - 0.75, 1.5, Math.PI * 0.5 - 0.3, 0.84);
@@ -2611,20 +3070,21 @@ function mount() {
 
     // accessories without an outline: glasses, hair clip
     const acc = partList();
+    const specs = partList();
     if (look.glasses && look.partedHair) {
-      // big, thin, softly octagonal frames round her (larger) painted eyes
-      const ring = new THREE.TorusGeometry(0.046, 0.0032, 6, 12);
+      // big, thin, softly octagonal frames round her (larger) painted eyes,
+      // on their own mesh so they can be knocked askew
+      const ring = new THREE.TorusGeometry(0.047, 0.0032, 6, 24);
       for (const x of [-0.058, 0.058]) {
-        acc.add(ring, look.glasses, (d) => {
-          d.position.set(x, C - 0.022, 0.178);
-          d.rotation.z = Math.PI / 12;
-          d.scale.set(1.08, 1, 1);
+        specs.add(ring, look.glasses, (d) => {
+          d.position.set(x, C - 0.028, 0.178);
+          d.scale.set(1.04, 1, 1);
         });
       }
-      acc.add(new THREE.BoxGeometry(0.026, 0.004, 0.004), look.glasses, (d) => d.position.set(0, C - 0.006, 0.184));
+      specs.add(new THREE.BoxGeometry(0.026, 0.004, 0.004), look.glasses, (d) => d.position.set(0, C - 0.012, 0.184));
       for (const x of [-1, 1]) {
-        acc.add(new THREE.BoxGeometry(0.004, 0.004, 0.18), look.glasses, (d) => {
-          d.position.set(x * 0.135, C - 0.014, 0.09);
+        specs.add(new THREE.BoxGeometry(0.004, 0.004, 0.18), look.glasses, (d) => {
+          d.position.set(x * 0.135, C - 0.02, 0.09);
           d.rotation.y = -x * 0.36;
         });
       }
@@ -2662,6 +3122,11 @@ function mount() {
       }
     }
     if (acc.parts.length) head.add(new THREE.Mesh(mergeParts(acc.parts), mat));
+    let glassesMesh = null;
+    if (specs.parts.length) {
+      glassesMesh = new THREE.Mesh(mergeParts(specs.parts), mat);
+      head.add(glassesMesh);
+    }
 
     // arms hang from shoulder pivots; rotation.z swings them out to the
     // side, rotation.x reaches them forward
@@ -2706,7 +3171,7 @@ function mount() {
     scene.add(group);
     // top of the head (with a bun) in group space, for name tags
     const topY = (NECK_Y + 0.04 + (C + (look.bun ? 0.31 : HEAD_R + 0.03)) * hs) * (height / 1.8);
-    const p = { group, inner, head, lowHair, arms, elbows, hands, legs, stride: 0, walk: 0, height, yaw, topY, faces, faceMat, blinkAt: rand(1, 4), t: rand(0, 10), pose: { tilt: 0, squat: 0, armL: -0.12, armR: 0.12 } };
+    const p = { group, inner, head, lowHair, face, glassesMesh, faceC: C, arms, elbows, hands, legs, stride: 0, walk: 0, height, yaw, topY, faces, faceMat, blinkAt: rand(1, 4), t: rand(0, 10), pose: { tilt: 0, squat: 0, armL: -0.12, armR: 0.12 } };
     people.push(p);
     return p;
   }
@@ -2721,7 +3186,11 @@ function mount() {
       hair: "#18110f",
       hairTip: "#2c1f1a",
       hairWave: 0.15,
-      headScale: 1.6,
+      headScale: 1.9,
+      hairFit: 0.84,
+      frontLocks: 3,
+      frontLockW: 0.036,
+      curlIn: true,
       outline: true,
       softShade: true,
       rim: "#5a4a9a",
@@ -2740,7 +3209,7 @@ function mount() {
       skirtBand: "#ffd27a",
       shoes: "#b0605a",
     },
-    1.9,
+    1.6,
     TEACHER_YAW
   );
   teacher.group.position.copy(TEACHER_POS);
@@ -2928,6 +3397,9 @@ function mount() {
     camState.follow = k;
     camState.until = clock + seconds;
     orbit.lastInput = -1e9; // recentre on the krathong
+    // a zoom right in on Kru Song mustn't start the close-up inside it
+    orbit.zoom = Math.max(orbit.zoom, 0.4);
+    orbit.sZoom = Math.max(orbit.sZoom, 0.4);
   }
 
   // ----- the teacher's floating sequence -----
@@ -2945,7 +3417,9 @@ function mount() {
   function updateFloatBtn() {
     const waiting = [...queue, ...(performing ? [performing.k] : [])];
     const sky = waiting.filter((k) => k.sky).length;
-    const water = waiting.length - sky;
+    const fire = waiting.filter((k) => k.fire).length;
+    const water = waiting.length - sky - fire;
+    els.fireBtn.textContent = fire ? `🎆 กำลังจุด… (${fire})` : "🎆 จุดพลุ";
     els.floatBtn.textContent = water ? `🌸 กำลังลอย… (${water})` : "🌸 ลอยกระทง";
     els.lanternBtn.textContent = sky ? `🏮 กำลังปล่อย… (${sky})` : "🏮 ปล่อยโคมลอย";
   }
@@ -3013,7 +3487,7 @@ function mount() {
   let idleWaveAt = 6;
   function teacherTarget() {
     if (performing) {
-      const keys = performing.k.sky ? SKY_KEYS : FLOAT_KEYS;
+      const keys = keysFor(performing.k);
       let want = IDLE;
       for (const [at, p] of keys) if (performing.t >= at && p) want = p;
       return want;
@@ -3044,7 +3518,7 @@ function mount() {
     // weight shifts gently from foot to foot; the back stays straight
     const sway = Math.sin(t * 0.9);
     p.inner.rotation.set(c.lean, 0, sway * 0.025 * (1 - c.dip * 2));
-    p.inner.position.set(sway * 0.012, (-c.dip * 0.95 + c.rise) * s, 0);
+    p.inner.position.set(sway * 0.012 + (p.shake || 0) * s, (-c.dip * 0.95 + c.rise + (p.bob || 0)) * s, 0);
     p.inner.scale.setScalar(s);
     p.inner.scale.y = s * (1 + Math.sin(t * 1.6) * 0.006);
     // kneeling folds the legs back under the skirt
@@ -3075,8 +3549,11 @@ function mount() {
   function runPerformance(dt) {
     if (!performing && queue.length) {
       performing = { k: queue.shift(), t: 0 };
-      performing.k.root.visible = true;
-      performing.k.root.scale.setScalar(0.001);
+      resetGag();
+      if (!performing.k.fire) {
+        performing.k.root.visible = true;
+        performing.k.root.scale.setScalar(0.001);
+      }
       camState.mode = "teacher";
       orbit.lastInput = -1e9;
       sound.chime();
@@ -3087,11 +3564,13 @@ function mount() {
     const k = P.k;
     P.t += dt;
     const t = P.t;
-    if (k.sky) skyPerformance(P, k, t, dt);
+    if (k.fire) firePerformance(P, k, t, dt);
+    else if (k.sky) skyPerformance(P, k, t, dt);
     else floatPerformance(P, k, t);
-    const keys = k.sky ? SKY_KEYS : FLOAT_KEYS;
+    const keys = keysFor(k);
     if (t > keys[keys.length - 1][0]) {
       performing = null;
+      resetGag();
       updateFloatBtn();
     }
   }
@@ -3180,6 +3659,367 @@ function mount() {
     if (t > SKY_CAMERA && !P.followed) {
       P.followed = true;
       focusOn(k, 9);
+    }
+  }
+
+  // ----- fireworks: Kru Song lights a cake of fireworks on the pier.
+  // One time in three it goes wrong, cartoon style: the fuse fizzles, she
+  // peeks in, it blows up in her face (soot, frizzy hair, crooked glasses),
+  // she wails, then wipes her face with a hankie, combs her hair and is
+  // back to her pretty self. Every gag state is a pure function of the
+  // performance time, so resetGag() is trivial. -----
+  const FIRE_YAW = 1.0;
+  const FIRE_POS = new THREE.Vector3(TEACHER_POS.x + Math.sin(FIRE_YAW) * 0.62, PIER.top, TEACHER_POS.z + Math.cos(FIRE_YAW) * 0.62);
+  const FIRE_TOP = FIRE_POS.clone().add(new THREE.Vector3(0, 0.2, 0));
+  const FUSE_TIP = FIRE_POS.clone().add(new THREE.Vector3(-0.05, 0.22, 0.07));
+  const MAX_FIRE = 2; // waiting or in progress
+  Object.assign(ARM, {
+    show: { x: -1.25, o: 0.2, e: -1.1 }, // incense held up to show
+    brace: { x: -1.45, o: -0.35, e: -1.6 }, // hands up to her mouth, bracing for the bang
+    knees: { x: -0.6, o: -0.05, e: -0.15 }, // hands on knees, peeking
+    shock: { x: -0.25, o: 0.8, e: -0.3 }, // arms flung out stiff
+    cry: { x: -1.75, o: -0.28, e: -1.55 }, // fists up to her eyes
+    pocket: { x: 0.2, o: 0.22, e: -0.6 }, // hand to her hip pocket
+    wipe: { x: -1.8, o: -0.35, e: -1.45, w: 1 }, // hankie rubbing her face
+    comb: { x: -2.4, o: 0.5, e: -1.4, w: 1 }, // combing the top of her hair
+    clap: { x: -0.65, o: -0.42, e: -1.5, w: 1 }, // clapping
+  });
+  // light it: show the incense, crouch to the fuse, then hands up to her
+  // mouth, eyes squeezed shut, bracing for the bang
+  const FIRE_START = [
+    [0, pose("show", "clasp", { hx: 0.05, hz: 0.1, yaw: FACE_CAM })],
+    [1.0, pose("reach", "rest", { dip: 0.2, lean: 0.18, hx: 0.4, yaw: FIRE_YAW })],
+    [2.1, pose("brace", "brace", { dip: 0.04, hx: 0.12, hz: 0.1, yaw: FACE_CAM })],
+  ];
+  const FIRE_OK_KEYS = [
+    ...FIRE_START,
+    [4.0, pose("heart", "heart", { hx: -0.45, hz: 0.1, yaw: 0.7 })],
+    [6.4, pose("clap", "clap", { hx: -0.3, yaw: FACE_CAM })],
+    [8.0, pose("clasp", "wave", { hz: -0.12, yaw: FACE_CAM })],
+    [9.6, null],
+  ];
+  const FIRE_FAIL_KEYS = [
+    ...FIRE_START,
+    [3.5, pose("rest", "rest", { hz: 0.28, hx: 0.1, yaw: 0.75 })], // huh?
+    [4.6, pose("knees", "knees", { dip: 0.06, lean: 0.3, hx: 0.45, yaw: FIRE_YAW })], // peeks in
+    [5.8, pose("shock", "shock", { rise: 0.05, hx: -0.08, yaw: FACE_CAM })], // BOOM
+    [7.6, pose("cry", "cry", { hx: -0.15, yaw: FACE_CAM })], // waaah
+    [10.4, pose("pocket", "rest", { hx: 0.05, yaw: FACE_CAM })],
+    [11.0, pose("wipe", "clasp", { hz: 0.12, yaw: FACE_CAM })],
+    [13.4, pose("rest", "rest", { yaw: FACE_CAM })],
+    [13.8, pose("comb", "rest", { hz: -0.15, yaw: FACE_CAM })],
+    [16.2, pose("heart", "heart", { hz: 0.14, yaw: FACE_CAM })],
+    [17.4, pose("clasp", "wave", { hz: -0.12, yaw: FACE_CAM })],
+    [19.0, null],
+  ];
+  const keysFor = (k) => (k.fire ? (k.fail ? FIRE_FAIL_KEYS : FIRE_OK_KEYS) : k.sky ? SKY_KEYS : FLOAT_KEYS);
+
+  // props
+  const propMat = new THREE.MeshToonMaterial({ vertexColors: true, emissive: 0x24160c, gradientMap: softToonRamp() });
+  const mortar = (() => {
+    const { parts, add } = partList();
+    add(new THREE.CylinderGeometry(0.085, 0.09, 0.17, 16), "#d8323c", (d) => (d.position.y = 0.085));
+    for (const y of [0.03, 0.14]) add(new THREE.TorusGeometry(0.088, 0.008, 6, 20), "#ffd27a", (d) => { d.position.y = y; d.rotation.x = Math.PI / 2; });
+    add(new THREE.CylinderGeometry(0.075, 0.075, 0.01, 16), "#3a2a2a", (d) => (d.position.y = 0.172));
+    // a few tubes poking out of the top
+    for (const [x, z] of [[0, 0], [0.035, 0.02], [-0.03, 0.03], [0.01, -0.035]]) add(new THREE.CylinderGeometry(0.014, 0.014, 0.03, 8), "#f6e7c8", (d) => d.position.set(x, 0.185, z));
+    // the fuse
+    add(new THREE.CylinderGeometry(0.004, 0.004, 0.08, 5), "#6b4a2a", (d) => { d.position.set(-0.04, 0.2, 0.05); d.rotation.set(0.6, 0, 0.5); });
+    const m = withOutline(new THREE.Mesh(mergeParts(parts), propMat), 0.004, true);
+    m.position.copy(FIRE_POS);
+    m.visible = false;
+    scene.add(m);
+    return m;
+  })();
+  // props held in her right hand (the hand pivot hangs at the end of the
+  // forearm; the forearm runs along its -y)
+  const handProp = (build) => {
+    const { parts, add } = partList();
+    build(add);
+    const m = new THREE.Mesh(mergeParts(parts), propMat);
+    m.visible = false;
+    teacher.hands[0].add(m);
+    return m;
+  };
+  const incense = handProp((add) => {
+    add(new THREE.CylinderGeometry(0.005, 0.005, 0.34, 5), "#9a5a32", (d) => { d.position.set(0, -0.02, 0.12); d.rotation.x = Math.PI / 2; });
+    add(new THREE.SphereGeometry(0.012, 8, 6), "#ff5a2a", (d) => d.position.set(0, -0.02, 0.29));
+  });
+  const ember = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex.glow, color: 0xff7a3a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  ember.scale.setScalar(0.12);
+  ember.position.set(0, -0.02, 0.29);
+  incense.add(ember);
+  const hankie = (() => {
+    const c = makeCanvas(128, 128);
+    const g = c.getContext("2d");
+    g.fillStyle = "#ff9cc8";
+    g.fillRect(0, 0, 128, 128);
+    g.fillStyle = "#ffffff";
+    for (let y = 16; y < 128; y += 24) for (let x = (y / 24) % 2 ? 16 : 28; x < 128; x += 24) {
+      g.beginPath();
+      g.arc(x, y, 4, 0, TAU);
+      g.fill();
+    }
+    g.strokeStyle = "#ffffff";
+    g.lineWidth = 8;
+    g.setLineDash([6, 5]);
+    g.strokeRect(6, 6, 116, 116);
+    const geo = new THREE.PlaneGeometry(0.17, 0.17, 6, 6);
+    // a soft droop, like cloth
+    const pp = geo.attributes.position;
+    for (let i = 0; i < pp.count; i++) pp.setZ(i, 0.03 * Math.sin(pp.getX(i) * 18) - 0.05 * (pp.getY(i) + 0.085) ** 2 * 8);
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, new THREE.MeshToonMaterial({ map: canvasTexture(c), side: THREE.DoubleSide, emissive: 0x24160c, gradientMap: softToonRamp() }));
+    // in the palm; with her forearm folded up to her face the hand's -z
+    // faces the viewer
+    m.position.set(0, -0.01, -0.06);
+    m.visible = false;
+    teacher.hands[0].add(m);
+    return m;
+  })();
+  const comb = handProp((add) => {
+    add(new THREE.BoxGeometry(0.17, 0.034, 0.014), "#ff86b8", (d) => d.position.set(0, -0.02, -0.05));
+    for (let i = 0; i < 12; i++) add(new THREE.BoxGeometry(0.007, 0.05, 0.009), "#ff86b8", (d) => d.position.set(-0.077 + i * 0.014, -0.06, -0.05));
+  });
+  // the gag's look: frizzy afro over her hair, soot on her face, a "?"
+  const C0 = teacher.faceC;
+  const frizz = (() => {
+    const { parts, add } = partList();
+    for (let i = 0; i < 46; i++) {
+      // puffs all over the top and sides of the head, sooty grey here and there
+      const pol = Math.acos(rand(-0.25, 1));
+      const az = rand(0, TAU);
+      if (pol > 1.2 && Math.cos(az) > 0.45) continue; // keep her face clear
+      const r = HEAD_R + rand(0.05, 0.09);
+      const [x, y, z] = onHead(pol, az, r, C0);
+      add(new THREE.SphereGeometry(rand(0.045, 0.07), 10, 8), Math.random() < 0.25 ? "#4a4440" : "#1d1513", (d) => d.position.set(x, y, z));
+    }
+    // a few singed spikes
+    for (let i = 0; i < 9; i++) {
+      const pol = rand(0.2, 1.3);
+      const az = rand(0, TAU);
+      if (Math.cos(az) > 0.6 && pol > 0.9) continue;
+      const [x, y, z] = onHead(pol, az, HEAD_R + 0.13, C0);
+      add(new THREE.ConeGeometry(0.025, 0.11, 6), "#1d1513", (d) => {
+        d.position.set(x, y, z);
+        d.lookAt(x * 2, (y - C0) * 2 + C0, z * 2);
+        d.rotateX(Math.PI / 2);
+      });
+    }
+    const m = withOutline(new THREE.Mesh(mergeParts(parts), new THREE.MeshToonMaterial({ vertexColors: true, emissive: 0x24160c, gradientMap: softToonRamp() })), 0.005, true);
+    m.visible = false;
+    teacher.head.add(m);
+    return m;
+  })();
+  const soot = (() => {
+    const geo = chibiHead(new THREE.SphereGeometry(HEAD_R + 0.002, 24, 14, Math.PI * 0.5 - 1.1, 2.2, Math.PI * 0.5 - 0.55, 1.25), HEAD_R + 0.002);
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: canvasTexture(drawSoot()), transparent: true, depthWrite: false, opacity: 0 }));
+    m.position.copy(teacher.face.position);
+    m.scale.copy(teacher.face.scale);
+    m.renderOrder = 1;
+    m.userData.ownFade = true;
+    m.visible = false;
+    teacher.face.renderOrder = 2;
+    teacher.head.add(m);
+    return m;
+  })();
+  const question = (() => {
+    const c = drawQuestion();
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: canvasTexture(c), transparent: true, depthWrite: false }));
+    m.scale.set(0.36, 0.45, 1);
+    m.visible = false;
+    teacher.group.add(m);
+    return m;
+  })();
+
+  // every gag state at time t of a performance (fail = the mishap)
+  function gagState(fail, t) {
+    const g = { soot: 0, frizz: 0, askew: 0, face: null, hankie: false, comb: false, bob: 0, shake: 0, question: 0 };
+    if (t < 0) return g;
+    if (t > 2.1 && t < (fail ? 3.3 : 3.9)) g.face = "wince";
+    if (!fail) {
+      // a happy little hop at each burst
+      if (t > 4.6 && t < 7.4) g.bob = Math.abs(Math.sin((t - 4.6) * 4.5)) * 0.02;
+      return g;
+    }
+    if (t >= 3.5 && t < 4.7) {
+      g.face = "huh";
+      g.question = Math.sin(clamp01((t - 3.5) / 1.2) * Math.PI);
+    }
+    if (t >= 5.8) {
+      const u = t - 5.8;
+      g.soot = t < 11.3 ? 1 : 1 - smooth(clamp01((t - 11.3) / 2));
+      // four comb strokes, each tames a quarter of the frizz
+      const strokes = clamp01((t - 14) / 2) * 4;
+      g.frizz = t < 14 ? 1 + 0.3 * Math.exp(-u * 4) * Math.sin(u * 28) : 1 - (Math.floor(strokes) + smooth(strokes % 1)) / 4;
+      g.askew = t < 13.4 ? 1 : 1 - smooth(clamp01((t - 13.4) / 0.4));
+      g.shake = t < 6.4 ? Math.exp(-u * 7) * Math.sin(u * 60) * 0.03 : 0;
+      if (t < 7.6) g.face = "daze";
+      else if (t < 10.4) {
+        g.face = Math.floor(t * 4) % 2 ? "cry" : "cry2";
+        // little sobbing bounces
+        g.bob = Math.abs(Math.sin((t - 7.6) * 7)) * 0.025;
+      } else if (t < 11.0) g.face = "cry2";
+      else if (t < 13.4) g.face = "blink"; // eyes shut while she wipes
+      g.hankie = t > 10.9 && t < 13.5;
+      g.comb = t > 13.7 && t < 16.2;
+    }
+    return g;
+  }
+  function applyGag(g) {
+    soot.visible = g.soot > 0.001;
+    soot.material.opacity = g.soot;
+    // the puffs sink into her hair as the frizz goes (below ~0.78 they're
+    // hidden), so each comb stroke visibly tames a quarter of it
+    frizz.visible = g.frizz > 0.02;
+    frizz.scale.setScalar(0.78 + 0.22 * g.frizz);
+    if (teacher.glassesMesh) {
+      teacher.glassesMesh.rotation.z = -0.3 * g.askew;
+      teacher.glassesMesh.position.set(0.012 * g.askew, -0.03 * g.askew, 0);
+    }
+    teacher.faceOverride = g.face;
+    teacher.bob = g.bob;
+    teacher.shake = g.shake;
+    hankie.visible = g.hankie;
+    comb.visible = g.comb;
+    question.visible = g.question > 0.01;
+    // beside her head, clear of the name tag
+    question.position.set(0.4, teacher.topY - 0.12 + Math.sin(teacher.t * 6) * 0.03, 0);
+    question.material.opacity = g.question;
+  }
+  function resetGag() {
+    applyGag(gagState(false, -1));
+    mortar.visible = false;
+    incense.visible = false;
+  }
+  resetGag();
+
+  function enqueueFire() {
+    const waiting = queue.filter((k) => k.fire).length + (performing?.k.fire ? 1 : 0);
+    if (waiting >= MAX_FIRE) return false;
+    queue.push({ fire: true, fail: Math.random() < 1 / 3 });
+    updateFloatBtn();
+    return true;
+  }
+
+  // the success show: four shells, the last a drooping gold willow
+  const SHELLS = [
+    { at: 3.6, style: "peony", colors: [0xff5fa8, 0xffe27a], speed: 4.6 },
+    { at: 4.3, style: "ring", colors: [0x7fd4ff, 0xffffff], speed: 4.4 },
+    { at: 5.0, style: "heart", colors: [0xff6fae, 0xffd0e6], speed: 3.8 },
+    { at: 5.9, style: "willow", colors: [0xffd27a], speed: 4.0 },
+  ];
+  const eyeTmp = new THREE.Vector3();
+  const eyeTmp2 = new THREE.Vector3();
+  const headQ = new THREE.Quaternion();
+  const headSide = new THREE.Vector3();
+  function firePerformance(P, k, t, dt) {
+    applyGag(gagState(k.fail, t));
+    // the cake pops onto the pier, and goes once it's spent
+    const gone = k.fail ? 5.85 : 8.6;
+    mortar.visible = t > 0.2 && t < gone;
+    mortar.scale.setScalar(Math.max(0.001, smooth(clamp01((t - 0.2) / 0.35))));
+    if (t > 0.2 && !P.placed) {
+      P.placed = true;
+      burst(FIRE_TOP, 24, { speed: 1.1, colors: [0xfff3b0, 0xffb3e6, 0xffffff], life: 0.7 });
+      sound.plop();
+    }
+    if (!k.fail && t > gone - 0.4 && !P.cleared) {
+      P.cleared = true;
+      burst(FIRE_TOP, 18, { speed: 0.9, colors: [0xfff3b0, 0xffffff], life: 0.6 });
+    }
+    incense.visible = t < 2.3;
+    // the lit fuse spits sparks
+    const fuseEnd = k.fail ? 3.1 : 3.6;
+    if (t > 1.85 && t < fuseEnd) {
+      P.fuseT = (P.fuseT ?? 0) - dt;
+      if (P.fuseT <= 0) {
+        P.fuseT = 0.05;
+        burst(FUSE_TIP, 4, { speed: 0.9, colors: [0xfff1a8, 0xffb347, 0xffffff], life: 0.35 });
+        if (Math.random() < 0.3) sound.pop(0.05);
+      }
+    }
+    if (!k.fail) {
+      SHELLS.forEach((sh, i) => {
+        if (t > sh.at && !(P.shot & (1 << i))) {
+          P.shot = (P.shot ?? 0) | (1 << i);
+          launchRocket(FIRE_TOP, sh);
+          burst(FIRE_TOP, 14, { speed: 1.4, colors: [0xfff1a8, 0xffffff], life: 0.4 });
+        }
+      });
+      return;
+    }
+    // ----- the mishap -----
+    if (t > 3.1 && !P.fizzled) {
+      P.fizzled = true;
+      sound.fizzle();
+      puff(FUSE_TIP, { size: 0.12, grow: 2.5, life: 1.1, rise: 0.3, spread: 0.05, a: 0.6, color: 0x8a8088 });
+    }
+    teacher.head.getWorldPosition(eyeTmp);
+    eyeTmp.y += 0.22;
+    if (t > 5.8 && !P.boom) {
+      P.boom = true;
+      eyeTmp2.lerpVectors(FIRE_TOP, eyeTmp, 0.6);
+      flash(eyeTmp2, 3.2, 0xffd890, 0.45);
+      fwShell(eyeTmp2, "peony", [0xffe27a, 0xff7a3a], 2.2);
+      burst(eyeTmp2, 60, { speed: 2.6, colors: [0xfff1a8, 0xffb347, 0xff5a3a, 0xffffff], life: 0.6 });
+      for (let i = 0; i < 12; i++) puff(eyeTmp, { size: 0.3, grow: 2.4, life: 1.6, rise: 0.4, spread: 0.6, a: 0.9 });
+      sound.boom(0.6);
+      sound.crackle(10, 0.1);
+    }
+    // smoke still curling off her singed hair
+    if (t > 6 && t < 11) {
+      P.wisp = (P.wisp ?? 0) - dt;
+      if (P.wisp <= 0) {
+        P.wisp = 0.28;
+        puff(eyeTmp.clone().add(new THREE.Vector3(rand(-0.15, 0.15), 0.3, rand(-0.1, 0.1))), { size: 0.08, grow: 3, life: 1.6, rise: 0.45, spread: 0.06, a: 0.55, color: 0x6a6268 });
+      }
+    }
+    // a little cough of smoke
+    if (t > 6.9 && !P.cough) {
+      P.cough = true;
+      puff(eyeTmp.clone().add(new THREE.Vector3(0.05, -0.12, 0.15)), { size: 0.1, grow: 2.5, life: 0.9, rise: 0.2, spread: 0.1, a: 0.7 });
+    }
+    // fountains of tears from both eyes, flying sideways
+    if (t > 7.7 && t < 10.4) {
+      teacher.head.getWorldQuaternion(headQ);
+      for (const side of [-1, 1]) {
+        eyeTmp2.set(side * 0.06, C0 - 0.02, 0.16);
+        teacher.head.localToWorld(eyeTmp2);
+        headSide.set(side, 0, 0).applyQuaternion(headQ);
+        for (let i = 0; i < 2; i++) {
+          const p0 = eyeTmp2;
+          const sp = rand(0.9, 1.4);
+          const i0 = sparkHead;
+          burst(p0, 1, { speed: 0.01, colors: [0x9fe0ff, 0xd8f4ff], life: 0.7 });
+          sparkVel.set([headSide.x * sp + rand(-0.1, 0.1), 0.9 + rand(0, 0.4), headSide.z * sp + rand(-0.1, 0.1)], i0 * 3);
+        }
+      }
+    }
+    for (const [at, flag] of [[7.8, 1], [8.7, 2], [9.6, 4]]) {
+      if (t > at && !((P.sobs ?? 0) & flag)) {
+        P.sobs = (P.sobs ?? 0) | flag;
+        sound.sob();
+      }
+    }
+    // tidied up: a sparkle over her hair and she's pretty again
+    if (t > 16.2 && !P.sparkled) {
+      P.sparkled = true;
+      burst(eyeTmp, 50, { speed: 1.5, colors: [0xfff3b0, 0xffb3e6, 0xffffff], life: 0.9 });
+      sound.chime();
+    }
+  }
+  function fireShot(pos, look, P) {
+    // the mishap gets a close shot on her; otherwise a wide one with sky
+    const close = P.k.fail && P.t > 3.4 && P.t < 17.8;
+    if (close) {
+      look.set(TEACHER_POS.x, 1.6, TEACHER_POS.z);
+      pos.set(TEACHER_POS.x + Math.sin(0.6) * 3.7, 1.85, TEACHER_POS.z + Math.cos(0.6) * 3.7 + (camera.aspect < 1 ? 1.6 : 0));
+    } else {
+      // low and to the side: her whole figure in the lower third, the
+      // bursts in the sky above
+      look.set(-2.2, 2.9, 0.5);
+      pos.set(0.5, 1.4, camera.aspect < 1 ? 14 : 11);
     }
   }
 
@@ -3293,17 +4133,20 @@ function mount() {
       if (p.faces.blink) {
         p.blinkAt -= dt;
         const shut = p === teacher && teacher.cur.eyes > 0.5;
-        p.faceMat.map = shut || p.blinkAt < 0 ? p.faces.blink : p.faces.open;
+        if (p === teacher && teacher.faceOverride) p.faceMat.map = p.faces[teacher.faceOverride];
+        else p.faceMat.map = shut || p.blinkAt < 0 ? p.faces.blink : p.faces.open;
         if (p.blinkAt < -0.13) p.blinkAt = rand(2, 5);
       }
       // fade anyone the camera gets right up against during a close-up
       camYaw.subVectors(camera.position, p.group.position);
-      const fade = clamp01((camYaw.length() - 2.4) / 2.2);
+      // Kru Song is the centre of the orbit, so she only steps aside for a
+      // krathong close-up
+      const fade = p === teacher && camState.mode !== "follow" ? 1 : clamp01((camYaw.length() - 2.4) / 2.2);
       if (fade !== p.fade) {
         p.fade = fade;
         p.group.visible = fade > 0.02;
         p.group.traverse((o) => {
-          if (o.material) {
+          if (o.material && !o.userData.ownFade) {
             const transparent = fade < 1 || o.material.map != null;
             // switching opaque <-> transparent needs a shader rebuild
             if (o.material.transparent !== transparent) o.material.needsUpdate = true;
@@ -3320,11 +4163,14 @@ function mount() {
   const ORBIT_IDLE = 15; // seconds without input before the shot recentres
   const orbit = { yaw: 0, pitch: 0, zoom: 1, sYaw: 0, sPitch: 0, sZoom: 1, lastInput: -1e9 };
   const orbitOffset = new THREE.Vector3();
+  const orbitPivot = new THREE.Vector3();
+  let herW = 1; // 1 = orbiting round Kru Song, 0 = round a close-up
   const orbitSph = new THREE.Spherical();
   const touches = new Map();
   let pinchDist = 0;
   const zoomBy = (f) => {
-    orbit.zoom = Math.min(1.45, Math.max(0.4, orbit.zoom * f));
+    // round Kru Song the camera may come in close (the orbit radius stops it short of her)
+    orbit.zoom = Math.min(1.45, Math.max(camState.mode === "follow" ? 0.4 : 0.15, orbit.zoom * f));
     orbit.lastInput = clock;
   };
   const pinchSpan = () => {
@@ -3397,6 +4243,7 @@ function mount() {
     syncWideCam();
     for (const k of krathongs) randomSpot(k.target, k.simple);
     sparks.material.uniforms.uScale.value = h * renderer.getPixelRatio() * 0.5;
+    fwPoints.material.uniforms.uScale.value = h * renderer.getPixelRatio() * 0.5;
     glowScale.value = (h * renderer.getPixelRatio()) / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
   }
   addEventListener("resize", resize);
@@ -3408,6 +4255,7 @@ function mount() {
   const api = {
     studentKrathong,
     enqueueFloat,
+    enqueueFire,
     focusOn,
     updateCount,
     krathongs,
@@ -3619,6 +4467,7 @@ function mount() {
     for (const n of npcs) npcAct(n, dt);
     walkAbout(dt);
     updateSparks(dt);
+    updateFireworks(dt);
     poseAll(dt);
     drawLanterns();
 
@@ -3643,7 +4492,9 @@ function mount() {
         goalPos.set(p.x + 0.25, 1.7, p.z + (camera.aspect < 1 ? 5.4 : 4.1));
       }
     } else if (camState.mode === "teacher") {
-      if (performing?.k.sky) {
+      if (performing?.k.fire) {
+        fireShot(goalPos, goalLook, performing);
+      } else if (performing?.k.sky) {
         // a lantern release: a lower, wider shot with room above her
         goalLook.set(-2.7, 1.7, 1.4);
         goalPos.set(-1.0, 1.7, camera.aspect < 1 ? 9.6 : 7.8);
@@ -3671,17 +4522,38 @@ function mount() {
     orbit.sYaw += (orbit.yaw - orbit.sYaw) * ko;
     orbit.sPitch += (orbit.pitch - orbit.sPitch) * ko;
     orbit.sZoom += (orbit.zoom - orbit.sZoom) * ko;
-    orbitOffset.subVectors(camState.pos, camState.look);
+    // Outside a close-up the camera turns round Kru Song: untouched, the
+    // composed shot is unchanged; the more the viewer turns or zooms, the
+    // more the pivot (and the point looked at) slides onto her
+    // eased, so leaving a close-up with the orbit turned doesn't snap the
+    // pivot from the krathong to her
+    herW += ((camState.mode !== "follow" ? 1 : 0) - herW) * (1 - Math.exp(-dt * 3));
+    const onHer = herW > 0.001;
+    let herAmt = 0;
+    if (onHer) {
+      teacher.group.getWorldPosition(orbitPivot);
+      orbitPivot.y += 1.05;
+      const amt = herW * smooth(clamp01((Math.abs(wrapAngle(orbit.sYaw)) + Math.abs(orbit.sPitch)) * 2.5 + Math.abs(orbit.sZoom - 1) * 3));
+      orbitPivot.lerpVectors(camState.look, orbitPivot, amt);
+      herAmt = amt;
+    } else {
+      orbitPivot.copy(camState.look);
+    }
+    orbitOffset.subVectors(camState.pos, orbitPivot);
     orbitSph.setFromVector3(orbitOffset);
     orbitSph.theta += orbit.sYaw;
     orbitSph.phi = Math.min(1.5, Math.max(0.12, orbitSph.phi - orbit.sPitch));
+    // turning round her also comes in closer, so she fills the shot
+    orbitSph.radius = lerp(orbitSph.radius, Math.min(orbitSph.radius, 7), herAmt);
     orbitSph.radius *= orbit.sZoom;
+    // never inside her
+    if (herW > 0.5) orbitSph.radius = Math.max(orbitSph.radius, 2.6);
     orbitOffset.setFromSpherical(orbitSph);
-    camera.position.copy(camState.look).add(orbitOffset);
+    camera.position.copy(orbitPivot).add(orbitOffset);
     camera.position.y = Math.max(0.45, camera.position.y);
     // never inside the far shore's temple and trees
     camera.position.z = Math.max(FAR_EDGE + 1.5, camera.position.z);
-    camera.lookAt(tmp.copy(camState.look));
+    camera.lookAt(tmp.copy(orbitPivot));
     updateStreaks();
 
     renderer.render(scene, camera);
@@ -3806,6 +4678,16 @@ function setupForm(river) {
   };
   els.floatBtn.addEventListener("click", () => openNew("krathong"));
   els.lanternBtn.addEventListener("click", () => openNew("lantern"));
+  // the action buttons wrap to two rows on narrow screens; the hint and the
+  // edit bar sit above however tall they are
+  const actions = document.getElementById("actions");
+  const syncActionsH = () => document.documentElement.style.setProperty("--actions-h", `${actions.offsetHeight}px`);
+  if (window.ResizeObserver) new ResizeObserver(syncActionsH).observe(actions);
+  syncActionsH();
+  els.fireBtn.addEventListener("click", () => {
+    sound.unlock();
+    if (!river.enqueueFire()) toast("รอพลุชุดนี้จุดเสร็จก่อนนะ");
+  });
   els.cancel.addEventListener("click", close);
   els.backdrop.addEventListener("click", close);
 
