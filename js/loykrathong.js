@@ -516,117 +516,154 @@ function shade(hex, amt) {
 // Paper-puppet person. Body (head, hair, outfit) and each arm are separate
 // canvases so the arms can swing on shoulder pivots. Canvas: 256 x 512,
 // feet at the bottom edge.
-// The face painted onto the front of a 3D head, on a transparent canvas.
-// Eyes sit at u = 0.5 +/- 0.17 so they line up with the glasses rings.
-// style "open": big anime eyes and a small open smile; "blink" / default:
-// happy closed eyes.
+// The face painted onto the front of a 3D head, on a transparent canvas
+// (drawn at 2x for crisp lines). Layout units are 256 x 144.
+// style "open": big warm anime eyes and an open smile (Song Song);
+// "blink" / default: happy closed eyes.
 function drawFace(style = "closed") {
-  const c = makeCanvas(256, 144);
+  const c = makeCanvas(512, 288);
   const g = c.getContext("2d");
+  g.scale(2, 2);
+  // features a little larger than the layout, round the face's centre
+  g.translate(128, 84);
+  g.scale(1.22, 1.22);
+  g.translate(-128, -84);
   const EYES = [84, 172];
-  const EY = 68;
-  // blush with a few soft hatch strokes
-  for (const bx of [52, 204]) {
-    const grad = g.createRadialGradient(bx, 96, 2, bx, 96, 20);
-    grad.addColorStop(0, "rgba(255,110,140,0.55)");
-    grad.addColorStop(1, "rgba(255,110,140,0)");
+  const EY = 73;
+  g.lineCap = "round";
+  g.lineJoin = "round";
+  // soft blush with a few tiny hatch strokes
+  for (const bx of [50, 206]) {
+    const grad = g.createRadialGradient(bx, 98, 2, bx, 98, 22);
+    grad.addColorStop(0, "rgba(255,120,150,0.6)");
+    grad.addColorStop(1, "rgba(255,120,150,0)");
     g.fillStyle = grad;
     g.beginPath();
-    g.ellipse(bx, 96, 22, 13, 0, 0, TAU);
+    g.ellipse(bx, 98, 24, 13, 0, 0, TAU);
     g.fill();
-    g.strokeStyle = "rgba(230,80,110,0.55)";
-    g.lineWidth = 2;
+    g.strokeStyle = "rgba(235,90,120,0.45)";
+    g.lineWidth = 1.6;
     for (let i = -1; i <= 1; i++) {
       g.beginPath();
-      g.moveTo(bx + i * 7 - 3, 101);
-      g.lineTo(bx + i * 7 + 3, 92);
+      g.moveTo(bx + i * 6 - 2, 102);
+      g.lineTo(bx + i * 6 + 2, 95);
       g.stroke();
     }
   }
-  g.lineCap = "round";
-  g.lineJoin = "round";
-  // brows
-  g.strokeStyle = "#3a2420";
-  g.lineWidth = 3;
+  // thin, soft brows, high and gently arched
+  g.strokeStyle = "#5a3424";
+  g.lineWidth = 2.4;
   for (const ex of EYES) {
     const s = ex < 128 ? -1 : 1;
     g.beginPath();
-    g.moveTo(ex - 13 * s, 38);
-    g.quadraticCurveTo(ex, 31, ex + 14 * s, 37);
+    g.moveTo(ex - 12 * s, 37);
+    g.quadraticCurveTo(ex + 1 * s, 30, ex + 15 * s, 35);
     g.stroke();
   }
   if (style === "open") {
     for (const ex of EYES) {
       const s = ex < 128 ? -1 : 1;
-      // white of the eye, then a tall iris with a dark-to-warm gradient
+      // white of the eye
       g.fillStyle = "#ffffff";
       g.beginPath();
-      g.ellipse(ex, EY + 2, 15, 17, 0, 0, TAU);
+      g.ellipse(ex, EY + 2, 19, 23, 0, 0, TAU);
       g.fill();
-      const iris = g.createLinearGradient(0, EY - 16, 0, EY + 18);
-      iris.addColorStop(0, "#1e1210");
-      iris.addColorStop(0.55, "#4a2c22");
-      iris.addColorStop(1, "#a0684a");
+      // big iris: dark at the top, warm amber at the bottom
+      const iris = g.createLinearGradient(0, EY - 20, 0, EY + 25);
+      iris.addColorStop(0, "#24120c");
+      iris.addColorStop(0.45, "#5c3020");
+      iris.addColorStop(1, "#d39255");
       g.fillStyle = iris;
       g.beginPath();
-      g.ellipse(ex, EY + 3, 12, 16, 0, 0, TAU);
+      g.ellipse(ex, EY + 4, 16, 21, 0, 0, TAU);
       g.fill();
-      g.fillStyle = "#120a08";
+      // a lighter ring low in the iris
+      g.strokeStyle = "rgba(255,200,140,0.55)";
+      g.lineWidth = 2;
       g.beginPath();
-      g.ellipse(ex, EY + 2, 5.5, 7.5, 0, 0, TAU);
+      g.arc(ex, EY + 7, 11, Math.PI * 0.2, Math.PI * 0.8);
+      g.stroke();
+      g.fillStyle = "#170a06";
+      g.beginPath();
+      g.ellipse(ex, EY + 3, 6.5, 9, 0, 0, TAU);
       g.fill();
-      // two highlights
+      // highlights: a big one, a small one, a glint
       g.fillStyle = "#ffffff";
       g.beginPath();
-      g.ellipse(ex + 4, EY - 5, 4.5, 5.5, 0, 0, TAU);
+      g.ellipse(ex + 6 * s, EY - 6, 6.5, 7.5, 0.3 * s, 0, TAU);
       g.fill();
       g.beginPath();
-      g.arc(ex - 5, EY + 10, 2.2, 0, TAU);
+      g.arc(ex - 6 * s, EY + 14, 3, 0, TAU);
       g.fill();
-      // thick upper lash line with a flick at the outer corner
-      g.strokeStyle = "#1a0f0c";
-      g.lineWidth = 5;
       g.beginPath();
-      g.moveTo(ex - 17 * s, EY - 6);
-      g.quadraticCurveTo(ex, EY - 21, ex + 16 * s, EY - 10);
-      g.lineTo(ex + 22 * s, EY - 15);
+      g.arc(ex - 7 * s, EY - 6, 1.4, 0, TAU);
+      g.fill();
+      // thick upper lash line, two flicks at the outer corner
+      g.strokeStyle = "#1c0e0a";
+      g.lineWidth = 4.5;
+      g.beginPath();
+      g.moveTo(ex - 20 * s, EY - 5);
+      g.quadraticCurveTo(ex - 2 * s, EY - 27, ex + 20 * s, EY - 11);
       g.stroke();
-      g.lineWidth = 1.6;
+      g.lineWidth = 2.6;
       g.beginPath();
-      g.moveTo(ex - 9, EY + 20);
-      g.quadraticCurveTo(ex, EY + 22, ex + 9, EY + 20);
+      g.moveTo(ex + 18 * s, EY - 12);
+      g.quadraticCurveTo(ex + 24 * s, EY - 15, ex + 27 * s, EY - 21);
+      g.moveTo(ex + 19 * s, EY - 7);
+      g.quadraticCurveTo(ex + 24 * s, EY - 7, ex + 28 * s, EY - 11);
+      g.stroke();
+      // a hint of lower lashes at the outer corner
+      g.lineWidth = 1.4;
+      g.beginPath();
+      g.moveTo(ex + 3 * s, EY + 25);
+      g.quadraticCurveTo(ex + 13 * s, EY + 23, ex + 18 * s, EY + 15);
       g.stroke();
     }
-    // small nose and an open, happy mouth
-    g.strokeStyle = "rgba(160,90,80,0.7)";
-    g.lineWidth = 2;
+    // tiny nose, open happy smile with a tongue
+    g.strokeStyle = "rgba(190,110,95,0.75)";
+    g.lineWidth = 1.8;
     g.beginPath();
-    g.moveTo(128, 90);
-    g.lineTo(126, 94);
+    g.moveTo(129, 89);
+    g.quadraticCurveTo(127, 93, 129, 94);
     g.stroke();
-    g.fillStyle = "#b8384f";
+    g.fillStyle = "#a8303f";
     g.beginPath();
-    g.moveTo(116, 104);
-    g.quadraticCurveTo(128, 107, 140, 104);
-    g.quadraticCurveTo(128, 124, 116, 104);
+    g.moveTo(115, 103);
+    g.quadraticCurveTo(128, 107, 141, 103);
+    g.quadraticCurveTo(139, 120, 128, 121);
+    g.quadraticCurveTo(117, 120, 115, 103);
     g.fill();
-    g.fillStyle = "#ff8fa3";
+    g.fillStyle = "#ff8e9e";
     g.beginPath();
-    g.ellipse(128, 113, 6, 3.5, 0, 0, TAU);
+    g.ellipse(128, 115, 7, 4, 0, 0, TAU);
+    g.fill();
+    g.fillStyle = "#ffffff";
+    g.beginPath();
+    g.moveTo(118, 104.5);
+    g.quadraticCurveTo(128, 108, 138, 104.5);
+    g.lineTo(137, 107);
+    g.quadraticCurveTo(128, 110, 119, 107);
     g.fill();
     return c;
   }
   // closed, happy eyes (blink frame and everyone else's default face)
   g.strokeStyle = "#2a1a16";
-  g.lineWidth = 5;
+  g.lineWidth = 4.5;
   for (const ex of EYES) {
+    const s = ex < 128 ? -1 : 1;
     g.beginPath();
     g.arc(ex, EY + 8, 13, Math.PI * 1.12, Math.PI * 1.88);
     g.stroke();
+    g.lineWidth = 2.4;
+    g.beginPath();
+    g.moveTo(ex + 12 * s, EY + 2);
+    g.lineTo(ex + 18 * s, EY - 2);
+    g.stroke();
+    g.lineWidth = 4.5;
   }
-  g.lineWidth = 4;
+  g.lineWidth = 3.5;
   g.beginPath();
-  g.arc(128, 100, 10, Math.PI * 0.15, Math.PI * 0.85);
+  g.arc(128, 100, 9, Math.PI * 0.15, Math.PI * 0.85);
   g.stroke();
   return c;
 }
@@ -2263,6 +2300,82 @@ function mount() {
   }
   // lathe from (radius, y) pairs
   const lathe = (pts, seg = 20) => new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), seg);
+  // a hair lock: a tapered, flattened tube swept along a curve through
+  // `pts` ([x, y, z] in head space). The flat side faces away from the
+  // head's vertical axis so locks lie on the head and drape like ribbons.
+  function lockGeometry(pts, w0, w1, flat = 0.5, seg = 22, radial = 8) {
+    const curve = new THREE.CatmullRomCurve3(pts.map(([x, y, z]) => new THREE.Vector3(x, y, z)));
+    const pos = [];
+    const idx = [];
+    const P = new THREE.Vector3();
+    const T = new THREE.Vector3();
+    const out = new THREE.Vector3();
+    const side = new THREE.Vector3();
+    const nrm = new THREE.Vector3();
+    for (let i = 0; i <= seg; i++) {
+      const u = i / seg;
+      curve.getPointAt(u, P);
+      curve.getTangentAt(u, T);
+      out.set(P.x, 0, P.z);
+      if (out.lengthSq() < 1e-6) out.set(0, 0, -1);
+      out.normalize();
+      side.crossVectors(T, out).normalize();
+      nrm.crossVectors(side, T).normalize();
+      // full width most of the way, then a soft point at the tip
+      const w = lerp(w0, w1, Math.pow(u, 1.6));
+      for (let j = 0; j < radial; j++) {
+        const a = (j / radial) * TAU;
+        pos.push(
+          P.x + side.x * Math.cos(a) * w + nrm.x * Math.sin(a) * w * flat,
+          P.y + side.y * Math.cos(a) * w + nrm.y * Math.sin(a) * w * flat,
+          P.z + side.z * Math.cos(a) * w + nrm.z * Math.sin(a) * w * flat
+        );
+      }
+    }
+    for (let i = 0; i < seg; i++) {
+      for (let j = 0; j < radial; j++) {
+        const a = i * radial + j;
+        const b = i * radial + ((j + 1) % radial);
+        idx.push(a, a + radial, b, b, a + radial, b + radial);
+      }
+    }
+    // close the tip
+    const tip = pos.length / 3;
+    curve.getPointAt(1, P);
+    pos.push(P.x, P.y, P.z);
+    for (let j = 0; j < radial; j++) idx.push(seg * radial + j, tip, seg * radial + ((j + 1) % radial));
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    return g;
+  }
+  // a point on a sphere round the head centre: polar angle from the crown,
+  // azimuth from the front (+z) toward +x
+  const onHead = (polar, az, r, cy) => [r * Math.sin(polar) * Math.sin(az), cy + r * Math.cos(polar), r * Math.sin(polar) * Math.cos(az)];
+  // narrows the lower half of a head sphere toward a soft, small chin
+  function chibiHead(geo, r) {
+    const p = geo.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const y = p.getY(i);
+      if (y >= 0) continue;
+      const k = 1 - 0.16 * Math.pow(-y / r, 1.6);
+      p.setX(i, p.getX(i) * k);
+      p.setZ(i, p.getZ(i) * (1 - 0.06 * Math.pow(-y / r, 1.6)));
+    }
+    geo.computeVertexNormals();
+    return geo;
+  }
+  // three-step toon ramp: softer shading than the default two tones
+  let softRamp = null;
+  function softToonRamp() {
+    if (!softRamp) {
+      softRamp = new THREE.DataTexture(new Uint8Array([165, 165, 165, 255, 215, 215, 215, 255, 255, 255, 255, 255]), 3, 1, THREE.RGBAFormat);
+      softRamp.minFilter = softRamp.magFilter = THREE.NearestFilter;
+      softRamp.needsUpdate = true;
+    }
+    return softRamp;
+  }
 
   function buildPerson(look, height, yaw = 0) {
     const skin = look.skin || "#f6d2b8";
@@ -2276,6 +2389,21 @@ function mount() {
     inner.scale.setScalar(height / 1.8);
     group.add(inner);
     const mat = new THREE.MeshToonMaterial({ vertexColors: true, emissive: 0x24160c });
+    if (look.softShade) mat.gradientMap = softToonRamp();
+    if (look.rim) {
+      // a soft lilac rim light round her silhouette, so she stands out
+      // from the night river without adding a scene light
+      const rim = new THREE.Color(look.rim);
+      mat.onBeforeCompile = (sh) => {
+        sh.fragmentShader = sh.fragmentShader.replace(
+          "#include <opaque_fragment>",
+          `float rimF = pow(1.0 - clamp(dot(normalize(normal), normalize(vViewPosition)), 0.0, 1.0), 3.4);
+          outgoingLight += vec3(${rim.r.toFixed(3)}, ${rim.g.toFixed(3)}, ${rim.b.toFixed(3)}) * rimF;
+          #include <opaque_fragment>`
+        );
+      };
+      mat.customProgramCacheKey = () => "toonRim" + look.rim;
+    }
 
     // body: shoes, legs or skirt, a waisted torso, collar, neck
     const body = partList();
@@ -2353,14 +2481,14 @@ function mount() {
     const C = HEAD_R * 0.95; // head centre above the pivot
     const hp = partList();
     const h = hp.add;
-    h(new THREE.SphereGeometry(HEAD_R, 24, 18), skin, (d) => { d.position.y = C; d.scale.set(1.03, 1, 0.95); });
+    h(look.partedHair ? chibiHead(new THREE.SphereGeometry(HEAD_R, 24, 18), HEAD_R) : new THREE.SphereGeometry(HEAD_R, 24, 18), skin, (d) => { d.position.y = C; d.scale.set(1.03, 1, 0.95); });
     // ears
     for (const x of [-1, 1]) h(new THREE.SphereGeometry(0.03, 8, 6), skin, (d) => { d.position.set(x * HEAD_R * 1.0, C - 0.01, -0.01); d.scale.set(0.6, 1, 0.8); });
     // hair: a puffy cap tilted back off the forehead, a fuller back, side-swept bangs
-    h(new THREE.SphereGeometry(HEAD_R + 0.02, 24, 12, 0, TAU, 0, Math.PI * 0.56), hair, (d) => { d.position.y = C + 0.012; d.rotation.x = -0.38; d.scale.set(1.07, 1.08, 1.05); });
+    h(new THREE.SphereGeometry(HEAD_R + 0.02, 24, 12, 0, TAU, 0, Math.PI * 0.56), hair, (d) => { d.position.y = C + 0.012; d.rotation.x = look.partedHair ? -0.58 : -0.38; d.scale.set(1.07, 1.08, 1.05); });
     h(new THREE.SphereGeometry(HEAD_R + 0.018, 18, 10, Math.PI, Math.PI, Math.PI * 0.25, Math.PI * 0.55), hair, (d) => { d.position.y = C; d.scale.set(1.06, 1.04, 1.06); });
     const bang = new THREE.ConeGeometry(0.05, 0.13, 6);
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < (look.partedHair ? 0 : 7); i++) {
       const a = -0.95 + (i / 6) * 1.9;
       const len = 1 - Math.abs(a) * 0.25;
       h(bang, hair, (d) => {
@@ -2370,11 +2498,11 @@ function mount() {
       });
     }
     // glossy "angel ring" highlight across the crown
-    h(new THREE.TorusGeometry(HEAD_R * 1.06 + 0.012, 0.006, 4, 32, Math.PI * 1.1), look.hairShine || "#6a4c44", (d) => {
+    if (!look.partedHair) h(new THREE.TorusGeometry(HEAD_R * 1.06 + 0.012, 0.006, 4, 32, Math.PI * 1.1), look.hairShine || "#6a4c44", (d) => {
       d.position.set(0, C + 0.075, -0.027);
       d.rotation.set(Math.PI / 2 - 0.38, 0, Math.PI * -0.05);
     });
-    if (look.sidelocks || look.openEyes) {
+    if (look.sidelocks) {
       for (const x of [-1, 1]) {
         h(new THREE.CylinderGeometry(0.024, 0.01, 0.2, 6), hair, (d) => {
           d.position.set(x * HEAD_R * 0.93, C - 0.07, 0.07);
@@ -2384,12 +2512,68 @@ function mount() {
       }
     }
     if (look.longHair) h(new THREE.CylinderGeometry(0.17, 0.2, 0.36, 16, 1, false, Math.PI * 0.5, Math.PI), hair, (d) => d.position.set(0, C - 0.17, -0.02));
+    // long hair with a centre parting and no fringe (Song Song). Every
+    // lock starts on the scalp; below the jaw it continues on its own pivot
+    // (`low`) that follows the head only partly, so a nod doesn't swing the
+    // long hair through her body
+    const low = partList();
+    if (look.partedHair) {
+      const R = HEAD_R;
+      // 0 = dead straight, 1 = loose waves
+      const W = look.hairWave ?? 1;
+      const rr = (r) => 0.17 + (r - 0.17) * (0.4 + 0.6 * W);
+      const root = new THREE.Color(hair);
+      const tipCol = new THREE.Color(look.hairTip || hair);
+      const hairAt = (y) => root.clone().lerp(tipCol, clamp01((C - 0.1 - y) / 0.45));
+      // front: from the parting, round the sides of the forehead, past the
+      // cheeks, then down over the front of the shoulders
+      for (const s of [-1, 1]) {
+        for (let j = 0; j < 4; j++) {
+          const ph = j * 1.9 + (s > 0 ? 0.8 : 0);
+          const pts = [
+            onHead(0.08, s * 0.3, R + 0.012, C),
+            onHead(0.7, s * (0.3 + j * 0.17), R + 0.03, C),
+            onHead(1.3, s * (0.86 + j * 0.17), R + 0.034, C),
+            [s * (R * 0.9 + j * 0.01), C - 0.16, 0.075 - j * 0.028],
+            [s * (0.125 + j * 0.01) + Math.sin(ph) * 0.03 * W, C - 0.26, 0.08 - j * 0.024],
+            [s * (0.11 + j * 0.012) - Math.sin(ph) * 0.035 * W, C - 0.36, 0.09 - j * 0.024],
+            [s * (0.12 + j * 0.008) + s * 0.03, C - 0.43, 0.095 - j * 0.024],
+          ];
+          h(lockGeometry(pts.slice(0, 5), 0.04, 0.03, 0.45), hair, null, false, false, hairAt);
+          low.add(lockGeometry(pts.slice(2), 0.032, 0.006, 0.5), hair, null, false, false, hairAt);
+        }
+      }
+      // back: a curtain of locks round the back half of the head that tucks
+      // behind the shoulders and falls in waves to the middle of her back
+      const N = 16;
+      for (let i = 0; i < N; i++) {
+        const az = lerp(1.0, TAU - 1.0, i / (N - 1));
+        const ph = i * 1.7;
+        const sx = Math.sin(az);
+        const cz = Math.cos(az);
+        const flare = 1 + 0.08 * W * Math.sin(i * 2.3);
+        // a hanging point at height y, radius r, swayed sideways by a wave
+        const hang = (y, r, wave) => [sx * r * 0.92 + cz * wave, y, Math.min(cz * r, -0.07 - 0.04 * Math.abs(cz)) - sx * wave * 0.3];
+        const pts = [
+          onHead(0.3, az, R * 0.92, C),
+          onHead(1.15, az, R + 0.022, C),
+          onHead(1.75, az, R + 0.03, C),
+          hang(C - 0.22, 0.17 * flare, Math.sin(ph) * 0.03 * W),
+          hang(C - 0.31, rr(0.185) * flare, -Math.sin(ph) * 0.045 * W),
+          hang(C - 0.4, rr(0.195) * flare, Math.sin(ph) * 0.05 * W),
+          hang(C - 0.49, rr(0.2) * flare, -Math.sin(ph) * 0.045 * W),
+          hang(C - 0.57, rr(0.18) * flare, Math.sin(ph + 1) * 0.04 * W),
+        ];
+        h(lockGeometry(pts.slice(0, 4), 0.06, 0.06, 0.38), hair, null, false, false, hairAt);
+        low.add(lockGeometry(pts.slice(1), 0.064, 0.016, 0.4), hair, null, false, false, hairAt);
+      }
+    }
     if (look.bun) h(new THREE.SphereGeometry(0.1, 14, 10), hair, (d) => d.position.set(0, C + 0.21, -0.07));
     if (look.scrunchie) {
       // fluffy scrunchie round the bun, in puffs
       for (let i = 0; i < 9; i++) {
         const a = (i / 9) * TAU;
-        h(new THREE.SphereGeometry(0.03, 8, 6), look.scrunchie, (d) => d.position.set(Math.cos(a) * 0.082, C + 0.155 + Math.sin(a) * 0.082 * 0.35, -0.07 + Math.sin(a) * 0.082 * 0.9));
+        h(new THREE.SphereGeometry(look.partedHair ? 0.038 : 0.03, 8, 6), look.scrunchie, (d) => d.position.set(Math.cos(a) * 0.082, C + 0.155 + Math.sin(a) * 0.082 * 0.35, -0.07 + Math.sin(a) * 0.082 * 0.9));
       }
     }
     if (look.flower) {
@@ -2403,6 +2587,14 @@ function mount() {
       h(new THREE.SphereGeometry(0.02, 6, 5), "#ffd84a", (d) => d.position.set(fx, fy, fz + 0.016));
     }
     head.add(withOutline(new THREE.Mesh(mergeParts(hp.parts), mat), 0.005, outline));
+    let lowHair = null;
+    if (low.parts.length) {
+      lowHair = new THREE.Group();
+      lowHair.position.copy(head.position);
+      lowHair.scale.setScalar(hs);
+      lowHair.add(withOutline(new THREE.Mesh(mergeParts(low.parts), mat), 0.005, outline));
+      inner.add(lowHair);
+    }
 
     // face painted on a patch of sphere just in front of the head
     const faces = { open: canvasTexture(drawFace(look.openEyes ? "open" : "closed")) };
@@ -2411,14 +2603,32 @@ function mount() {
       faces.closed = faces.blink; // happy closed eyes, held for a wish
     }
     const faceMat = new THREE.MeshToonMaterial({ map: faces.open, transparent: true, emissive: 0x24160c });
-    const face = new THREE.Mesh(new THREE.SphereGeometry(HEAD_R + 0.004, 18, 12, Math.PI * 0.5 - 0.75, 1.5, Math.PI * 0.5 - 0.3, 0.84), faceMat);
+    const faceGeo = new THREE.SphereGeometry(HEAD_R + 0.004, 18, 12, Math.PI * 0.5 - 0.75, 1.5, Math.PI * 0.5 - 0.3, 0.84);
+    const face = new THREE.Mesh(look.partedHair ? chibiHead(faceGeo, HEAD_R + 0.004) : faceGeo, faceMat);
     face.position.y = C;
     face.scale.set(1.03, 1, 0.95);
     head.add(face);
 
     // accessories without an outline: glasses, hair clip
     const acc = partList();
-    if (look.glasses) {
+    if (look.glasses && look.partedHair) {
+      // big, thin, softly octagonal frames round her (larger) painted eyes
+      const ring = new THREE.TorusGeometry(0.046, 0.0032, 6, 12);
+      for (const x of [-0.058, 0.058]) {
+        acc.add(ring, look.glasses, (d) => {
+          d.position.set(x, C - 0.022, 0.178);
+          d.rotation.z = Math.PI / 12;
+          d.scale.set(1.08, 1, 1);
+        });
+      }
+      acc.add(new THREE.BoxGeometry(0.026, 0.004, 0.004), look.glasses, (d) => d.position.set(0, C - 0.006, 0.184));
+      for (const x of [-1, 1]) {
+        acc.add(new THREE.BoxGeometry(0.004, 0.004, 0.18), look.glasses, (d) => {
+          d.position.set(x * 0.135, C - 0.014, 0.09);
+          d.rotation.y = -x * 0.36;
+        });
+      }
+    } else if (look.glasses) {
       const ring = new THREE.TorusGeometry(0.043, 0.005, 6, 24);
       for (const x of [-0.045, 0.045]) acc.add(ring, look.glasses, (d) => d.position.set(x, C - 0.016, 0.172));
       acc.add(new THREE.BoxGeometry(0.012, 0.005, 0.005), look.glasses, (d) => d.position.set(0, C - 0.008, 0.174));
@@ -2429,7 +2639,21 @@ function mount() {
         });
       }
     }
-    if (look.hairClip) {
+    if (look.hairClip && look.partedHair) {
+      // two open rectangular bars above her right temple
+      const clipBar = new THREE.TorusGeometry(0.028, 0.0055, 4, 4).rotateZ(Math.PI / 4);
+      for (const [az, pol] of [[-0.86, 1.0], [-0.66, 0.96]]) {
+        const [x, y, z] = onHead(pol, az, HEAD_R + 0.078, C);
+        acc.add(clipBar, look.hairClip, (d) => {
+          // stands upright (faces out level, not along the curve of the
+          // crown) so it reads as a clip from the front
+          d.position.set(x, y, z);
+          d.lookAt(0, y, 0);
+          d.rotateZ(0.45);
+          d.scale.set(0.62, 1.45, 1);
+        });
+      }
+    } else if (look.hairClip) {
       for (const dx of [0, 0.03]) {
         acc.add(new THREE.BoxGeometry(0.022, 0.066, 0.014), look.hairClip, (d) => {
           d.position.set(0.09 + dx, C + 0.105, 0.135);
@@ -2482,26 +2706,31 @@ function mount() {
     scene.add(group);
     // top of the head (with a bun) in group space, for name tags
     const topY = (NECK_Y + 0.04 + (C + (look.bun ? 0.31 : HEAD_R + 0.03)) * hs) * (height / 1.8);
-    const p = { group, inner, head, arms, elbows, hands, legs, stride: 0, walk: 0, height, yaw, topY, faces, faceMat, blinkAt: rand(1, 4), t: rand(0, 10), pose: { tilt: 0, squat: 0, armL: -0.12, armR: 0.12 } };
+    const p = { group, inner, head, lowHair, arms, elbows, hands, legs, stride: 0, walk: 0, height, yaw, topY, faces, faceMat, blinkAt: rand(1, 4), t: rand(0, 10), pose: { tilt: 0, squat: 0, armL: -0.12, armR: 0.12 } };
     people.push(p);
     return p;
   }
   const teacher = buildPerson(
-    // Kru Song as a cartoon: top bun with a white scrunchie, face-framing
-    // strands, a white two-bar hair clip, thin round gold glasses, a white
-    // lace puff-sleeve blouse with a pink pendant, and a festival pha sin
+    // Kru Song as a cartoon: long straight black hair parted in the middle
+    // (no fringe), half up in a top bun with a white scrunchie, a white
+    // two-bar clip, big thin rose-gold glasses, big warm anime eyes; dressed
+    // for the festival in a white lace puff-sleeve blouse, pink pendant and
+    // pha sin
     {
-      skin: "#fbe0cf",
-      hair: "#1c1310",
-      hairShine: "#5e443c",
-      headScale: 1.42,
+      skin: "#fde3d2",
+      hair: "#18110f",
+      hairTip: "#2c1f1a",
+      hairWave: 0.15,
+      headScale: 1.6,
       outline: true,
+      softShade: true,
+      rim: "#5a4a9a",
       lace: "#ffffff",
+      partedHair: true,
       bun: true,
       scrunchie: "#fbf7ef",
-      sidelocks: true,
-      hairClip: "#f1efdd",
-      glasses: "#d6b48c",
+      hairClip: "#f3efd8",
+      glasses: "#d9a991",
       openEyes: true,
       top: "#fdf8f2",
       sleeve: "#fdf8f2",
@@ -2829,6 +3058,7 @@ function mount() {
     p.head.rotation.x = c.hx + Math.sin(t * 0.53) * 0.03;
     p.head.rotation.z = c.hz + Math.sin(t * 0.8) * 0.05;
     p.head.rotation.y = Math.sin(t * 0.31) * 0.08;
+    p.lowHair?.rotation.set(p.head.rotation.x * 0.45, p.head.rotation.y * 0.6, p.head.rotation.z * 0.5);
   }
 
   const handWorld = new THREE.Vector3();
