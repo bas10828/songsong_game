@@ -786,7 +786,7 @@ function drawSoot() {
 }
 
 // a cartoon "?" for a puzzled moment
-function drawQuestion() {
+function drawQuestion(ch = "?") {
   const c = makeCanvas(128, 160);
   const g = c.getContext("2d");
   g.font = `900 130px ${FONT}`;
@@ -795,9 +795,32 @@ function drawQuestion() {
   g.lineWidth = 12;
   g.strokeStyle = "#5a2a6a";
   g.lineJoin = "round";
-  g.strokeText("?", 64, 84);
+  g.strokeText(ch, 64, 84);
   g.fillStyle = "#ffe27a";
-  g.fillText("?", 64, 84);
+  g.fillText(ch, 64, 84);
+  return c;
+}
+
+// a cartoon water drop, for the wet gag
+function drawDrop() {
+  const c = makeCanvas(96, 128);
+  const g = c.getContext("2d");
+  g.beginPath();
+  g.moveTo(48, 8);
+  g.bezierCurveTo(62, 40, 84, 60, 84, 84);
+  g.arc(48, 84, 36, 0, Math.PI);
+  g.bezierCurveTo(12, 60, 34, 40, 48, 8);
+  g.closePath();
+  g.lineWidth = 8;
+  g.strokeStyle = "#2a5a9a";
+  g.lineJoin = "round";
+  g.stroke();
+  g.fillStyle = "#8fd4ff";
+  g.fill();
+  g.fillStyle = "rgba(255,255,255,0.9)";
+  g.beginPath();
+  g.ellipse(36, 82, 7, 13, -0.3, 0, TAU);
+  g.fill();
   return c;
 }
 
@@ -1298,6 +1321,102 @@ const sound = (() => {
       lfo.start(t);
       osc.stop(t + 0.8);
       lfo.stop(t + 0.8);
+    },
+    // a cartoon "whoa!": a quick rise and a long slide down
+    slip() {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const osc = a.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(420, t);
+      osc.frequency.exponentialRampToValueAtTime(980, t + 0.18);
+      osc.frequency.exponentialRampToValueAtTime(260, t + 0.75);
+      osc.connect(env(a, 0.09, t, 0.02, 0.75));
+      osc.start(t);
+      osc.stop(t + 0.85);
+    },
+    // a big SPLASH: a deep plunge and a long hiss of spray
+    splash() {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const osc = a.createOscillator();
+      osc.frequency.setValueAtTime(260, t);
+      osc.frequency.exponentialRampToValueAtTime(60, t + 0.35);
+      osc.connect(env(a, 0.35, t, 0.005, 0.4));
+      osc.start(t);
+      osc.stop(t + 0.5);
+      const src = a.createBufferSource();
+      src.buffer = noiseBuf(a);
+      src.loop = true;
+      const lp = a.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.setValueAtTime(5000, t);
+      lp.frequency.exponentialRampToValueAtTime(500, t + 1.1);
+      src.connect(lp).connect(env(a, 0.3, t, 0.01, 1.1));
+      src.start(t);
+      src.stop(t + 1.2);
+    },
+    // one bubble rising: a tiny upward "blub"
+    blub() {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const osc = a.createOscillator();
+      const f = rand(240, 420);
+      osc.frequency.setValueAtTime(f, t);
+      osc.frequency.exponentialRampToValueAtTime(f * 2.4, t + 0.07);
+      osc.connect(env(a, 0.12, t, 0.005, 0.08));
+      osc.start(t);
+      osc.stop(t + 0.12);
+    },
+    // "pffft": spitting out a mouthful of river
+    spit() {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const src = a.createBufferSource();
+      src.buffer = noiseBuf(a);
+      src.loop = true;
+      const bp = a.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.Q.value = 1.2;
+      bp.frequency.setValueAtTime(1800, t);
+      bp.frequency.exponentialRampToValueAtTime(900, t + 0.45);
+      src.connect(bp).connect(env(a, 0.16, t, 0.01, 0.45));
+      src.start(t);
+      src.stop(t + 0.5);
+    },
+    // a hair dryer: an airy whirr with a soft motor hum
+    dryer(len = 1.7) {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const src = a.createBufferSource();
+      src.buffer = noiseBuf(a);
+      src.loop = true;
+      const bp = a.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = 1400;
+      bp.Q.value = 0.6;
+      const g = a.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.07, t + 0.15);
+      g.gain.setValueAtTime(0.07, t + len - 0.25);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      g.connect(a.destination);
+      src.connect(bp).connect(g);
+      const hum = a.createOscillator();
+      hum.type = "sawtooth";
+      hum.frequency.value = 180;
+      const hg = a.createGain();
+      hg.gain.value = 0.12;
+      hum.connect(hg).connect(g);
+      src.start(t);
+      hum.start(t);
+      src.stop(t + len);
+      hum.stop(t + len);
     },
     chime() {
       const a = on && ac();
@@ -3171,7 +3290,7 @@ function mount() {
     scene.add(group);
     // top of the head (with a bun) in group space, for name tags
     const topY = (NECK_Y + 0.04 + (C + (look.bun ? 0.31 : HEAD_R + 0.03)) * hs) * (height / 1.8);
-    const p = { group, inner, head, lowHair, face, glassesMesh, faceC: C, arms, elbows, hands, legs, stride: 0, walk: 0, height, yaw, topY, faces, faceMat, blinkAt: rand(1, 4), t: rand(0, 10), pose: { tilt: 0, squat: 0, armL: -0.12, armR: 0.12 } };
+    const p = { group, inner, mat, head, lowHair, face, glassesMesh, faceC: C, arms, elbows, hands, legs, stride: 0, walk: 0, height, yaw, topY, faces, faceMat, blinkAt: rand(1, 4), t: rand(0, 10), pose: { tilt: 0, squat: 0, armL: -0.12, armR: 0.12 } };
     people.push(p);
     return p;
   }
@@ -3517,7 +3636,7 @@ function mount() {
     const s = p.height / 1.8;
     // weight shifts gently from foot to foot; the back stays straight
     const sway = Math.sin(t * 0.9);
-    p.inner.rotation.set(c.lean, 0, sway * 0.025 * (1 - c.dip * 2));
+    p.inner.rotation.set(c.lean + (p.tilt || 0), 0, sway * 0.025 * (1 - c.dip * 2));
     p.inner.position.set(sway * 0.012 + (p.shake || 0) * s, (-c.dip * 0.95 + c.rise + (p.bob || 0)) * s, 0);
     p.inner.scale.setScalar(s);
     p.inner.scale.y = s * (1 + Math.sin(t * 1.6) * 0.006);
@@ -3528,11 +3647,17 @@ function mount() {
       const drift = Math.sin(t * 1.3 + i) * 0.03;
       p.arms[i].rotation.set(a.x + drift, 0, side * a.o);
       p.elbows[i].rotation.set(a.e, 0, side * a.w * Math.sin(t * 5.2) * 0.38);
+      // flailing (the wet gag): fast, out-of-step windmilling
+      if (p.flail) {
+        p.arms[i].rotation.x += Math.sin(t * 13 + i * Math.PI) * 0.55 * p.flail;
+        p.arms[i].rotation.z += side * Math.sin(t * 9 + i * 2) * 0.25 * p.flail;
+        p.elbows[i].rotation.x += Math.sin(t * 15 + i) * 0.35 * p.flail;
+      }
     });
     p.head.rotation.x = c.hx + Math.sin(t * 0.53) * 0.03;
     p.head.rotation.z = c.hz + Math.sin(t * 0.8) * 0.05;
     p.head.rotation.y = Math.sin(t * 0.31) * 0.08;
-    p.lowHair?.rotation.set(p.head.rotation.x * 0.45, p.head.rotation.y * 0.6, p.head.rotation.z * 0.5);
+    p.lowHair?.rotation.set(p.head.rotation.x * 0.45, p.head.rotation.y * 0.6 + Math.sin(t * 23) * 0.07 * (p.hairBlow || 0), p.head.rotation.z * 0.5 + Math.sin(t * 17) * 0.08 * (p.hairBlow || 0));
   }
 
   const handWorld = new THREE.Vector3();
@@ -3549,6 +3674,14 @@ function mount() {
   function runPerformance(dt) {
     if (!performing && queue.length) {
       performing = { k: queue.shift(), t: 0 };
+      // now and then she falls in: never twice running, and never three
+      // dry floats in a row (any three floats in a row have a splash)
+      const pk = performing.k;
+      if (!pk.fire && !pk.sky) {
+        pk.wet = !lastWet && (dryRun >= 2 || Math.random() < WET_CHANCE);
+        dryRun = pk.wet ? 0 : dryRun + 1;
+        lastWet = pk.wet;
+      }
       resetGag();
       if (!performing.k.fire) {
         performing.k.root.visible = true;
@@ -3566,9 +3699,11 @@ function mount() {
     const t = P.t;
     if (k.fire) firePerformance(P, k, t, dt);
     else if (k.sky) skyPerformance(P, k, t, dt);
+    else if (k.wet) wetPerformance(P, k, t, dt);
     else floatPerformance(P, k, t);
     const keys = keysFor(k);
     if (t > keys[keys.length - 1][0]) {
+      k.wet = false;
       performing = null;
       resetGag();
       updateFloatBtn();
@@ -3579,7 +3714,8 @@ function mount() {
       palms(handWorld, 0.1);
       handWorld.y -= 0.06;
       k.root.position.copy(handWorld);
-      k.root.scale.setScalar(Math.max(0.001, smooth(clamp01(t / 0.5)) * 0.6));
+      // (picked back up after the wet gag, it's already full size)
+      k.root.scale.setScalar(Math.max(0.001, (P.picked ? 1 : smooth(clamp01(t / 0.5))) * 0.6));
       // the photo would hide her face; it pops up once it's on the water
       if (k.standee) k.standee.visible = false;
       if (!P.sparkled) {
@@ -3712,7 +3848,7 @@ function mount() {
     [17.4, pose("clasp", "wave", { hz: -0.12, yaw: FACE_CAM })],
     [19.0, null],
   ];
-  const keysFor = (k) => (k.fire ? (k.fail ? FIRE_FAIL_KEYS : FIRE_OK_KEYS) : k.sky ? SKY_KEYS : FLOAT_KEYS);
+  const keysFor = (k) => (k.fire ? (k.fail ? FIRE_FAIL_KEYS : FIRE_OK_KEYS) : k.sky ? SKY_KEYS : k.wet ? WET_KEYS : FLOAT_KEYS);
 
   // props
   const propMat = new THREE.MeshToonMaterial({ vertexColors: true, emissive: 0x24160c, gradientMap: softToonRamp() });
@@ -3834,7 +3970,7 @@ function mount() {
 
   // every gag state at time t of a performance (fail = the mishap)
   function gagState(fail, t) {
-    const g = { soot: 0, frizz: 0, askew: 0, face: null, hankie: false, comb: false, bob: 0, shake: 0, question: 0 };
+    const g = gagBase();
     if (t < 0) return g;
     if (t > 2.1 && t < (fail ? 3.3 : 3.9)) g.face = "wince";
     if (!fail) {
@@ -3886,13 +4022,13 @@ function mount() {
     // beside her head, clear of the name tag
     question.position.set(0.4, teacher.topY - 0.12 + Math.sin(teacher.t * 6) * 0.03, 0);
     question.material.opacity = g.question;
+    applyWet(g);
   }
   function resetGag() {
     applyGag(gagState(false, -1));
     mortar.visible = false;
     incense.visible = false;
   }
-  resetGag();
 
   function enqueueFire() {
     const waiting = queue.filter((k) => k.fire).length + (performing?.k.fire ? 1 : 0);
@@ -3981,21 +4117,7 @@ function mount() {
       puff(eyeTmp.clone().add(new THREE.Vector3(0.05, -0.12, 0.15)), { size: 0.1, grow: 2.5, life: 0.9, rise: 0.2, spread: 0.1, a: 0.7 });
     }
     // fountains of tears from both eyes, flying sideways
-    if (t > 7.7 && t < 10.4) {
-      teacher.head.getWorldQuaternion(headQ);
-      for (const side of [-1, 1]) {
-        eyeTmp2.set(side * 0.06, C0 - 0.02, 0.16);
-        teacher.head.localToWorld(eyeTmp2);
-        headSide.set(side, 0, 0).applyQuaternion(headQ);
-        for (let i = 0; i < 2; i++) {
-          const p0 = eyeTmp2;
-          const sp = rand(0.9, 1.4);
-          const i0 = sparkHead;
-          burst(p0, 1, { speed: 0.01, colors: [0x9fe0ff, 0xd8f4ff], life: 0.7 });
-          sparkVel.set([headSide.x * sp + rand(-0.1, 0.1), 0.9 + rand(0, 0.4), headSide.z * sp + rand(-0.1, 0.1)], i0 * 3);
-        }
-      }
-    }
+    if (t > 7.7 && t < 10.4) tearFountain();
     for (const [at, flag] of [[7.8, 1], [8.7, 2], [9.6, 4]]) {
       if (t > at && !((P.sobs ?? 0) & flag)) {
         P.sobs = (P.sobs ?? 0) | flag;
@@ -4020,6 +4142,454 @@ function mount() {
       // bursts in the sky above
       look.set(-2.2, 2.9, 0.5);
       pos.set(0.5, 1.4, camera.aspect < 1 ? 14 : 11);
+    }
+  }
+
+  // ----- the wet gag: now and then, kneeling to set her krathong on the
+  // water, Kru Song wobbles and falls in, splash! The krathong flips out of
+  // her hands onto the pier. She surfaces bawling, scrambles back up and
+  // stands there dripping with a lily pad on her head, spits out the river
+  // and cries; then towels off, dries and combs her hair, powders her nose,
+  // is her pretty self again, picks the krathong up and floats it after
+  // all. Like the fire gag, every state is a pure function of time. -----
+  const WET_CHANCE = 1 / 3;
+  let lastWet = false;
+  let dryRun = 0; // water floats since she last fell in
+  const WET_IN = new THREE.Vector3(-2.05, 0, 1.95); // where her feet go in
+  const WET_UP = new THREE.Vector3(-1.6, 0, 1.95); // where she bobs up
+  const WET_EDGE_X = -2.12; // treading water at the pier's edge
+  const WET_FLOAT_Y = -0.85; // feet, treading water (shoulders just out)
+  const WET_SPLASH = new THREE.Vector3(-1.45, 0.05, 1.95);
+  // the krathong lands beside her on the deck (beside, as the close shot
+  // sees her, so it never hides her)
+  const WET_DECK = new THREE.Vector3(TEACHER_POS.x - 0.46, PIER.top, TEACHER_POS.z + 0.31);
+  const WET_PICK_YAW = Math.atan2(WET_DECK.x - TEACHER_POS.x, WET_DECK.z - TEACHER_POS.z);
+  const FACE_PIER = FACE_WATER - Math.PI;
+  const WET_OFFSET = 23.2; // the ordinary float starts here
+  const WET_SPLASH_T = 5.3; // she hits the water
+  Object.assign(ARM, {
+    flail: { x: -0.2, o: 1.6, e: -0.3 }, // arms straight out, windmilling for balance
+    paddle: { x: -0.25, o: 2.3, e: -0.5, w: 1 }, // both arms up in a V, waving for help
+    climb: { x: -2.5, o: 0.15, e: -0.3 }, // hauling herself up onto the deck
+    rub: { x: -0.85, o: -0.5, e: -1.3, w: 1 }, // towelling her front
+    towel: { x: -2.6, o: 0.35, e: -1.7, w: 1 }, // both hands rubbing the towel on her head
+    dryer: { x: -2.2, o: 0.75, e: -1.0 }, // hair dryer held up to her hair
+    powder: { x: -1.6, o: -0.2, e: -1.9, w: 1 }, // dabbing her cheek with a powder puff
+  });
+  const WET_GAG_KEYS = [
+    [0, pose("hold", "hold", { hx: 0.22, yaw: FACE_CAM })],
+    [0.9, pose("wish", "wish", { hx: 0.2, eyes: 1, hz: 0.1, yaw: FACE_CAM })],
+    [2.3, pose("hold", "hold", { dip: 0.08, lean: 0.06, hx: 0.3, yaw: FACE_WATER })],
+    [3.0, pose("reach", "reach", { dip: 0.14, lean: 0.16, hx: 0.42, yaw: FACE_WATER })],
+    [3.6, pose("flail", "flail", { dip: 0.04, hx: -0.1, yaw: FACE_WATER })], // whoa, whoa!
+    [4.4, pose("shock", "shock", { hx: -0.2, yaw: FACE_WATER })], // over she goes
+    [6.0, pose("paddle", "paddle", { hx: -0.15, yaw: FACE_CAM })], // bobs up, bawling
+    [7.6, pose("paddle", "paddle", { hx: 0, yaw: FACE_PIER })], // splashes to the pier
+    [8.3, pose("climb", "climb", { hx: -0.2, yaw: FACE_PIER })],
+    [9.5, pose("rest", "rest", { yaw: FACE_CAM })], // standing there dripping
+    [10.1, pose("rest", "rest", { hx: -0.25, yaw: FACE_CAM })], // pffft
+    [10.8, pose("cry", "cry", { hx: -0.15, yaw: FACE_CAM })], // waaah
+    [13.4, pose("pocket", "rest", { yaw: FACE_CAM })],
+    [13.8, pose("rub", "rub", { hz: 0.1, yaw: FACE_CAM })],
+    [15.4, pose("towel", "towel", { hx: 0.15, yaw: FACE_CAM })],
+    [17.2, pose("dryer", "rest", { hz: -0.12, yaw: FACE_CAM })],
+    [19.0, pose("comb", "rest", { hz: -0.15, yaw: FACE_CAM })],
+    [20.6, pose("powder", "rest", { hz: 0.1, yaw: FACE_CAM })],
+    [21.6, pose("heart", "heart", { hz: 0.14, yaw: FACE_CAM })], // pretty again
+    [22.4, pose("reach", "reach", { dip: 0.16, lean: 0.2, hx: 0.4, yaw: WET_PICK_YAW })], // picks the krathong up
+  ];
+  const WET_KEYS = [...WET_GAG_KEYS, ...FLOAT_KEYS.map(([at, p]) => [at + WET_OFFSET, p])];
+
+  // props: a towel, the same towel over her head, a hair dryer, a powder
+  // puff, a lily pad hat and a "!"
+  const towelTex = (() => {
+    const c = makeCanvas(128, 128);
+    const g = c.getContext("2d");
+    g.fillStyle = "#9fd8ff";
+    g.fillRect(0, 0, 128, 128);
+    for (const [y, col] of [[18, "#ffffff"], [30, "#ffe27a"], [98, "#ffe27a"], [110, "#ffffff"]]) {
+      g.fillStyle = col;
+      g.fillRect(0, y - 4, 128, 8);
+    }
+    // a little duck in the middle
+    g.fillStyle = "#ffd84a";
+    g.beginPath();
+    g.ellipse(60, 70, 16, 11, 0, 0, TAU);
+    g.ellipse(74, 58, 9, 9, 0, 0, TAU);
+    g.fill();
+    g.fillStyle = "#ff9a3a";
+    g.beginPath();
+    g.moveTo(82, 57);
+    g.lineTo(90, 60);
+    g.lineTo(82, 62);
+    g.fill();
+    return canvasTexture(c);
+  })();
+  const towelMat = new THREE.MeshToonMaterial({ map: towelTex, side: THREE.DoubleSide, emissive: 0x24160c, gradientMap: softToonRamp() });
+  const towel = (() => {
+    const geo = new THREE.PlaneGeometry(0.3, 0.22, 8, 6);
+    const pp = geo.attributes.position;
+    for (let i = 0; i < pp.count; i++) pp.setZ(i, 0.025 * Math.sin(pp.getX(i) * 22) - 0.05 * (pp.getY(i) + 0.11) ** 2 * 6);
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, towelMat);
+    m.position.set(0, -0.02, -0.07);
+    m.visible = false;
+    teacher.hands[0].add(m);
+    return m;
+  })();
+  // over her head like a hood, hanging down at the back
+  const headTowel = (() => {
+    // a soft cap over the crown, tipped back off her forehead
+    const geo = new THREE.SphereGeometry(HEAD_R + 0.05, 18, 8, 0, TAU, 0, Math.PI * 0.42);
+    const m = new THREE.Mesh(geo, towelMat);
+    m.position.set(0, C0 + 0.05, -0.03);
+    m.rotation.x = -0.35;
+    m.scale.set(1.12, 1.25, 1.12);
+    m.visible = false;
+    teacher.head.add(m);
+    return m;
+  })();
+  const dryer = handProp((add) => {
+    add(new THREE.CylinderGeometry(0.022, 0.026, 0.12, 10), "#ff9cc8", (d) => d.position.set(0, -0.03, 0)); // handle
+    add(new THREE.CylinderGeometry(0.042, 0.042, 0.16, 14), "#ff86b8", (d) => { d.position.set(0, 0.04, -0.06); d.rotation.x = Math.PI / 2; }); // barrel
+    add(new THREE.CylinderGeometry(0.03, 0.036, 0.03, 14), "#f6e7f0", (d) => { d.position.set(0, 0.04, -0.15); d.rotation.x = Math.PI / 2; }); // nozzle
+    add(new THREE.SphereGeometry(0.044, 12, 8), "#ff86b8", (d) => d.position.set(0, 0.04, 0.02));
+  });
+  const powderPuff = handProp((add) => {
+    add(new THREE.SphereGeometry(0.045, 12, 8), "#ffd6e6", (d) => { d.position.set(0, -0.02, -0.05); d.scale.set(1, 1, 0.45); });
+    add(new THREE.TorusGeometry(0.022, 0.006, 6, 12), "#ff86b8", (d) => d.position.set(0, -0.02, -0.03));
+  });
+  const lilyPad = (() => {
+    const { parts, add } = partList();
+    add(new THREE.CylinderGeometry(0.12, 0.12, 0.012, 20, 1, false, 0.35, TAU - 0.7), "#4fae5a");
+    // a little pink lotus bud on top
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * TAU;
+      add(new THREE.SphereGeometry(0.026, 8, 6), "#ff9cc8", (d) => { d.position.set(Math.cos(a) * 0.018, 0.03, Math.sin(a) * 0.018); d.scale.set(0.7, 1.4, 0.7); });
+    }
+    add(new THREE.SphereGeometry(0.014, 8, 6), "#ffd84a", (d) => d.position.y = 0.045);
+    const m = withOutline(new THREE.Mesh(mergeParts(parts), propMat), 0.004, true);
+    m.position.set(0.02, C0 + 0.33, -0.05);
+    m.rotation.set(-0.25, 0.4, 0.18);
+    m.visible = false;
+    teacher.head.add(m);
+    return m;
+  })();
+  const exclaim = (() => {
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: canvasTexture(drawQuestion("!")), transparent: true, depthWrite: false }));
+    m.scale.set(0.36, 0.45, 1);
+    m.visible = false;
+    teacher.group.add(m);
+    return m;
+  })();
+  const puddle = (() => {
+    const m = new THREE.Mesh(new THREE.CircleGeometry(0.42, 28), new THREE.MeshBasicMaterial({ color: 0x6fb0e8, map: tex.dot, transparent: true, opacity: 0, depthWrite: false }));
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(TEACHER_POS.x, PIER.top + 0.004, TEACHER_POS.z);
+    m.visible = false;
+    scene.add(m);
+    return m;
+  })();
+  // cartoon drops bobbing round her while she's soaked
+  const dropTex = canvasTexture(drawDrop());
+  const DROP_AT = [[-0.42, -0.1], [0.44, -0.3], [-0.36, -0.55]];
+  const drops = DROP_AT.map(() => {
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: dropTex, transparent: true, depthWrite: false }));
+    m.scale.set(0.15, 0.2, 1);
+    m.visible = false;
+    teacher.group.add(m);
+    return m;
+  });
+  const DRY = new THREE.Color(1, 1, 1);
+  const WET_TINT = new THREE.Color(0.76, 0.83, 0.98);
+
+  // every field either gag can set, at rest
+  function gagBase() {
+    return {
+      soot: 0, frizz: 0, askew: 0, face: null, hankie: false, comb: false, bob: 0, shake: 0, question: 0,
+      exclaim: 0, tilt: 0, flail: 0, hairBlow: 0, wet: 0, puddle: 0, drops: 0, lily: false, towel: false, headTowel: false, dryer: false, powder: false, pos: null,
+    };
+  }
+  // where her feet are at time t of the wet gag (null = on the pier)
+  const wetPos = new THREE.Vector3();
+  function wetState(t) {
+    const g = gagBase();
+    if (t < 3.6 || t >= WET_OFFSET) return g;
+    const p = wetPos.copy(TEACHER_POS);
+    g.pos = p;
+    if (t < 4.4) {
+      // whoa... whoa... wobbling on the edge, arms going round
+      const u = (t - 3.6) / 0.8;
+      g.tilt = Math.sin(u * 14) * (0.08 + 0.22 * u);
+      g.flail = 1;
+      g.face = "huh";
+      g.exclaim = Math.sin(clamp01(u * 1.3) * Math.PI);
+    } else if (t < WET_SPLASH_T) {
+      // ... and a belly flop into the river
+      const u = (t - 4.4) / (WET_SPLASH_T - 4.4);
+      p.lerpVectors(TEACHER_POS, WET_IN, smooth(u));
+      p.y = lerp(PIER.top, -2.4, u * u * u) + Math.sin(u * Math.PI) * 0.6;
+      g.tilt = 1.25 * smooth(u);
+      g.face = "wince";
+    } else if (t < 6.0) {
+      // under (the water hides her)
+      p.copy(WET_UP);
+      p.y = -2.4;
+    } else if (t < 9.5) {
+      // bobs up bawling, splashes over to the pier and climbs out
+      const pop = smooth(clamp01((t - 6.0) / 0.3));
+      p.copy(WET_UP);
+      p.y = lerp(-2.4, WET_FLOAT_Y, pop) + Math.sin(t * 5) * 0.04 * pop;
+      if (t >= 7.6) p.x = lerp(WET_UP.x, WET_EDGE_X, smooth(clamp01((t - 7.6) / 0.7)));
+      if (t >= 8.3) {
+        // two heaves up onto the deck, then a roll onto it
+        const h1 = smooth(clamp01((t - 8.3) / 0.6));
+        const h2 = smooth(clamp01((t - 8.9) / 0.6));
+        p.y = lerp(lerp(WET_FLOAT_Y, -0.35, h1), PIER.top, h2);
+        p.x = lerp(WET_EDGE_X, -2.6, smooth(clamp01((t - 9.1) / 0.4)));
+        g.tilt = 0.3 * Math.sin(clamp01((t - 8.3) / 1.2) * Math.PI);
+      }
+      g.flail = t < 8.3 ? 0.6 : 0;
+      if (t < 7.6) g.face = Math.floor(t * 4) % 2 ? "cry" : "cry2";
+      else g.face = "wince";
+      g.lily = true;
+      g.wet = 1;
+    } else {
+      // back on the pier: a little hop over to her spot
+      const u = clamp01((t - 9.5) / 0.5);
+      p.set(lerp(-2.6, TEACHER_POS.x, smooth(u)), PIER.top + Math.sin(u * Math.PI) * 0.06, TEACHER_POS.z);
+      g.wet = t < 13.8 ? 1 : 1 - smooth(clamp01((t - 13.8) / 4.6));
+      g.lily = t < 15.5;
+      // a puddle spreads under her, and dries up after she does
+      g.puddle = smooth(clamp01((t - 9.6) / 2.5)) * (1 - smooth(clamp01((t - 18.5) / 2.5)));
+      // soaked and shivering until the towel comes out
+      g.drops = t < 13.8 ? smooth(clamp01((t - 9.6) / 0.4)) : 1 - smooth(clamp01((t - 13.8) / 0.6));
+      if (t < 10.8 || (t >= 13.4 && t < 13.8)) g.shake = Math.sin(t * 75) * 0.006;
+      if (t < 10.1) g.face = "daze";
+      else if (t < 10.8) g.face = "wince"; // cheeks full of river
+      else if (t < 13.4) {
+        g.face = Math.floor(t * 4) % 2 ? "cry" : "cry2";
+        g.bob = Math.abs(Math.sin((t - 10.8) * 7)) * 0.025;
+      } else if (t < 13.8) g.face = "cry2";
+      else if (t < 17.2) g.face = "blink"; // eyes shut while she towels off
+      else if (t >= 20.6 && t < 21.6) g.face = "blink";
+      g.towel = t > 13.5 && t < 15.4;
+      g.headTowel = t >= 15.4 && t < 17.2;
+      g.dryer = t > 17.1 && t < 19.0;
+      g.hairBlow = t > 17.3 && t < 19.0 ? 1 : 0;
+      g.comb = t > 18.95 && t < 20.6;
+      g.powder = t > 20.5 && t < 21.6;
+    }
+    return g;
+  }
+  function applyWet(g) {
+    teacher.tilt = g.tilt;
+    teacher.flail = g.flail;
+    teacher.hairBlow = g.hairBlow;
+    teacher.group.position.copy(g.pos ?? TEACHER_POS);
+    teacher.mat.color.lerpColors(DRY, WET_TINT, g.wet);
+    lilyPad.visible = g.lily;
+    drops.forEach((m, i) => {
+      m.visible = g.drops > 0.01;
+      m.material.opacity = g.drops;
+      const [x, dy] = DROP_AT[i];
+      m.position.set(x, teacher.topY + dy + Math.sin(teacher.t * 3 + i * 2) * 0.04, 0.05);
+    });
+    puddle.visible = g.puddle > 0.01;
+    puddle.material.opacity = 0.55 * g.puddle;
+    puddle.scale.setScalar(0.4 + 0.6 * g.puddle);
+    towel.visible = g.towel;
+    headTowel.visible = g.headTowel;
+    dryer.visible = g.dryer;
+    powderPuff.visible = g.powder;
+    exclaim.visible = g.exclaim > 0.01;
+    exclaim.position.set(0.4, teacher.topY - 0.12 + Math.sin(teacher.t * 9) * 0.03, 0);
+    exclaim.material.opacity = g.exclaim;
+  }
+  resetGag();
+
+  // fountains of tears from both eyes, flying sideways (both gags)
+  function tearFountain() {
+    teacher.head.getWorldQuaternion(headQ);
+    for (const side of [-1, 1]) {
+      eyeTmp2.set(side * 0.06, C0 - 0.02, 0.16);
+      teacher.head.localToWorld(eyeTmp2);
+      headSide.set(side, 0, 0).applyQuaternion(headQ);
+      for (let i = 0; i < 2; i++) {
+        const sp = rand(0.9, 1.4);
+        const i0 = sparkHead;
+        burst(eyeTmp2, 1, { speed: 0.01, colors: [0x9fe0ff, 0xd8f4ff], life: 0.7 });
+        sparkVel.set([headSide.x * sp + rand(-0.1, 0.1), 0.9 + rand(0, 0.4), headSide.z * sp + rand(-0.1, 0.1)], i0 * 3);
+      }
+    }
+  }
+  // a drop that just falls (burst() always throws upward)
+  function drip(at, vx = 0, vy = -0.2, vz = 0, life = 0.6) {
+    const i0 = sparkHead;
+    burst(at, 1, { speed: 0.01, colors: [0x9fe0ff, 0xd8f4ff, 0xffffff], life });
+    sparkVel.set([vx, vy, vz], i0 * 3);
+  }
+  // fire each [time, ...] event once
+  function once(P, key, t, at) {
+    P.once ??= new Set();
+    if (t < at || P.once.has(key)) return false;
+    P.once.add(key);
+    return true;
+  }
+  const wetTmp = new THREE.Vector3();
+  function wetPerformance(P, k, t, dt) {
+    applyGag(wetState(t));
+    const water = (x, z) => wetTmp.set(x, 0.05, z);
+    teacher.head.getWorldPosition(eyeTmp);
+
+    // the krathong: in her hands, flipped out onto the pier as she wobbles,
+    // waiting there, then back in her hands for the real float
+    if (t < 3.65) floatPerformance(P, k, Math.min(t, 3.4));
+    else if (t < 4.45) {
+      if (!P.kFrom) P.kFrom = k.root.position.clone();
+      const u = (t - 3.65) / 0.8;
+      // a high arc on the far side of her head from the camera
+      k.root.position.lerpVectors(P.kFrom, WET_DECK, u);
+      k.root.position.y += Math.sin(u * Math.PI) * 1.3;
+      k.root.position.z -= Math.sin(u * Math.PI) * 0.6;
+      k.root.rotation.x = smooth(u) * TAU;
+    } else if (t < 23.0) {
+      k.root.position.copy(WET_DECK);
+      k.root.rotation.x = 0;
+      k.root.scale.setScalar(0.6);
+    } else if (t < WET_OFFSET) {
+      palms(handWorld, 0.1);
+      handWorld.y -= 0.06;
+      k.root.position.lerpVectors(WET_DECK, handWorld, smooth((t - 23.0) / (WET_OFFSET - 23.0)));
+    } else {
+      if (!P.picked) {
+        // floatPerformance starts afresh: its sparkle, its glide
+        P.picked = true;
+        P.sparkled = false;
+      }
+      floatPerformance(P, k, t - WET_OFFSET);
+    }
+    if (once(P, "kland", t, 4.45)) {
+      burst(WET_DECK, 24, { speed: 1.1, colors: [0xfff3b0, 0xffb3e6, 0xffffff], life: 0.7 });
+      sound.plop();
+    }
+
+    if (once(P, "slip", t, 3.6)) sound.slip();
+    // SPLASH
+    if (once(P, "splash", t, WET_SPLASH_T)) {
+      burst(WET_SPLASH, 220, { speed: 3.6, colors: [0xbfe6ff, 0xffffff, 0x8fd0ff], life: 1.1, up: 1.8 });
+      burst(WET_SPLASH, 80, { speed: 1.6, colors: [0xffffff], life: 0.8, up: 2.8 });
+      flash(WET_SPLASH, 2.4, 0xbfe6ff, 0.35);
+      for (const s of [1.6, 2.8, 4.2]) ripple(WET_SPLASH.x, WET_SPLASH.z, s, 0xcfe8ff);
+      sound.splash();
+    }
+    // bubbles while she's under
+    if (t > WET_SPLASH_T + 0.15 && t < 6.0) {
+      P.bub = (P.bub ?? 0) - dt;
+      if (P.bub <= 0) {
+        P.bub = rand(0.12, 0.25);
+        const at = water(WET_UP.x + rand(-0.25, 0.25), WET_UP.z + rand(-0.25, 0.25));
+        burst(at, 4, { speed: 0.35, colors: [0xcfeeff, 0xffffff], life: 0.4, up: 0.4 });
+        ripple(at.x, at.z, 0.5, 0xcfe8ff);
+        sound.blub();
+      }
+    }
+    // up she pops
+    if (once(P, "surface", t, 6.0)) {
+      const at = water(WET_UP.x, WET_UP.z);
+      burst(at, 60, { speed: 2.2, colors: [0xbfe6ff, 0xffffff], life: 0.8, up: 1.4 });
+      ripple(at.x, at.z, 2.0, 0xcfe8ff);
+      sound.splash();
+    }
+    // splashing about while she's in the water
+    if (t > 6.2 && t < 9.0) {
+      P.slosh = (P.slosh ?? 0) - dt;
+      if (P.slosh <= 0) {
+        P.slosh = rand(0.15, 0.28);
+        const g = teacher.group.position;
+        const at = water(g.x + rand(-0.35, 0.35), g.z + rand(-0.3, 0.3));
+        burst(at, 10, { speed: 1.3, colors: [0xbfe6ff, 0xffffff], life: 0.55 });
+        if (Math.random() < 0.5) ripple(at.x, at.z, 0.9, 0xcfe8ff);
+        if (Math.random() < 0.4) sound.pop(0.06);
+      }
+    }
+    for (const at of [6.4, 7.2]) if (once(P, "sobw" + at, t, at)) sound.sob();
+    // dripping on the pier: from her hair and hem, less as she dries
+    const g = wetState(t);
+    if (t > 9.4 && g.wet > 0.15) {
+      P.drip = (P.drip ?? 0) - dt;
+      if (P.drip <= 0) {
+        P.drip = 0.04 / g.wet;
+        const base = teacher.group.position;
+        const hair = Math.random() < 0.5;
+        wetTmp.set(base.x + rand(-0.17, 0.17), base.y + (hair ? rand(0.9, 1.3) : rand(0.25, 0.55)), base.z + rand(-0.15, 0.15));
+        drip(wetTmp, 0, -0.3, 0, 0.5);
+      }
+    }
+    // a little puddle splash as she lands back on the deck
+    if (once(P, "deck", t, 9.6)) burst(teacher.group.position, 24, { speed: 1.2, colors: [0xbfe6ff, 0xffffff], life: 0.5 });
+    // pffft: a fountain of river from her mouth
+    if (t > 10.3 && t < 10.75) {
+      if (once(P, "spit", t, 10.3)) sound.spit();
+      teacher.head.getWorldQuaternion(headQ);
+      fwd.set(0, 0.45, 1).applyQuaternion(headQ);
+      eyeTmp2.set(0, C0 - 0.09, 0.17);
+      teacher.head.localToWorld(eyeTmp2);
+      for (let i = 0; i < 3; i++) {
+        const sp = rand(1.4, 2.0);
+        drip(eyeTmp2, fwd.x * sp + rand(-0.1, 0.1), fwd.y * sp + 0.8, fwd.z * sp + rand(-0.1, 0.1), 0.8);
+      }
+    }
+    if (t > 10.9 && t < 13.4) tearFountain();
+    for (const at of [11.0, 11.9, 12.8]) if (once(P, "sob" + at, t, at)) sound.sob();
+    // the lily pad pops off under the towel
+    if (once(P, "lily", t, 15.5)) {
+      lilyPad.getWorldPosition(wetTmp);
+      burst(wetTmp, 16, { speed: 1, colors: [0x7fd48a, 0xffb3e6, 0xffffff], life: 0.6 });
+    }
+    // warm air from the dryer
+    if (once(P, "dryer", t, 17.3)) sound.dryer(1.6);
+    if (t > 17.3 && t < 18.9) {
+      P.air = (P.air ?? 0) - dt;
+      if (P.air <= 0) {
+        P.air = 0.1;
+        dryer.getWorldPosition(wetTmp);
+        wetTmp.lerp(eyeTmp, 0.55);
+        puff(wetTmp, { size: 0.06, grow: 2.5, life: 0.6, rise: 0.25, spread: 0.08, a: 0.35, color: 0xfff0e0 });
+      }
+    }
+    // pat, pat, pat: little pink clouds of powder
+    for (const at of [20.8, 21.1, 21.4]) {
+      if (once(P, "powder" + at, t, at)) {
+        powderPuff.getWorldPosition(wetTmp);
+        puff(wetTmp, { size: 0.08, grow: 2.2, life: 0.8, rise: 0.15, spread: 0.06, a: 0.6, color: 0xffd6e6 });
+      }
+    }
+    // pretty again
+    if (once(P, "pretty", t, 21.6)) {
+      eyeTmp2.copy(eyeTmp);
+      eyeTmp2.y += 0.15;
+      burst(eyeTmp2, 60, { speed: 1.6, colors: [0xfff3b0, 0xffb3e6, 0xffffff], life: 1.0 });
+      sound.chime();
+    }
+  }
+  function wetShot(pos, look, P) {
+    const portrait = camera.aspect < 1 ? 1.6 : 0;
+    if (P.t > 2.3 && P.t < 6.0) {
+      // set and still before she wobbles: side on from the front, the pier
+      // on the left and the splash on the right, so the whole fall reads
+      look.set(-2.4, 1.2, 1.95);
+      pos.set(-2.4 + Math.sin(0.15) * 5.4, 1.7, 1.95 + Math.cos(0.15) * 5.4 + portrait);
+    } else if (P.t >= 6.0 && P.t < WET_OFFSET + 0.4) {
+      // the fire gag's close shot, kept on her wherever she goes (a little
+      // higher while she's in the water, to see over the floating lamps)
+      const g = teacher.group.position;
+      const y = Math.min(PIER.top, Math.max(WET_FLOAT_Y, g.y)) - PIER.top;
+      look.set(g.x, 1.6 + y, g.z);
+      pos.set(g.x + Math.sin(0.6) * 3.7, Math.max(1.85 + y, 1.25), g.z + Math.cos(0.6) * 3.7 + portrait);
+    } else {
+      look.set(-2.6, 1.0, 1.6);
+      pos.set(-1.3, 2.0, camera.aspect < 1 ? 8.8 : 7.2);
     }
   }
 
@@ -4170,7 +4740,7 @@ function mount() {
   let pinchDist = 0;
   const zoomBy = (f) => {
     // round Kru Song the camera may come in close (the orbit radius stops it short of her)
-    orbit.zoom = Math.min(1.45, Math.max(camState.mode === "follow" ? 0.4 : 0.15, orbit.zoom * f));
+    orbit.zoom = Math.min(2.4, Math.max(camState.mode === "follow" ? 0.4 : 0.15, orbit.zoom * f));
     orbit.lastInput = clock;
   };
   const pinchSpan = () => {
@@ -4198,7 +4768,7 @@ function mount() {
     if (touches.size === 1) {
       if (downAt && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) < 6) return;
       orbit.yaw -= dx * 0.006;
-      orbit.pitch = Math.min(0.9, Math.max(-0.6, orbit.pitch + dy * 0.004));
+      orbit.pitch = Math.min(0.9, Math.max(-1.1, orbit.pitch + dy * 0.004));
       orbit.lastInput = clock;
     } else if (touches.size === 2) {
       const d = pinchSpan();
@@ -4222,7 +4792,8 @@ function mount() {
     downAt = null;
     ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
     raycaster.setFromCamera(ndc, camera);
-    const hit = raycaster.intersectObjects(pickables, false)[0];
+    // (not one still with Kru Song, e.g. waiting on the pier in the wet gag)
+    const hit = raycaster.intersectObjects(pickables, false).find((h) => h.object.userData.krathong.placed);
     if (hit) {
       focusOn(hit.object.userData.krathong, 25);
       els.hint.style.opacity = "0";
@@ -4494,6 +5065,8 @@ function mount() {
     } else if (camState.mode === "teacher") {
       if (performing?.k.fire) {
         fireShot(goalPos, goalLook, performing);
+      } else if (performing?.k.wet) {
+        wetShot(goalPos, goalLook, performing);
       } else if (performing?.k.sky) {
         // a lantern release: a lower, wider shot with room above her
         goalLook.set(-2.7, 1.7, 1.4);
@@ -4533,7 +5106,8 @@ function mount() {
     if (onHer) {
       teacher.group.getWorldPosition(orbitPivot);
       orbitPivot.y += 1.05;
-      const amt = herW * smooth(clamp01((Math.abs(wrapAngle(orbit.sYaw)) + Math.abs(orbit.sPitch)) * 2.5 + Math.abs(orbit.sZoom - 1) * 3));
+      // (zooming out doesn't pull the shot onto her: that's for the sky)
+      const amt = herW * smooth(clamp01((Math.abs(wrapAngle(orbit.sYaw)) + Math.abs(orbit.sPitch)) * 2.5 + Math.max(0, 1 - orbit.sZoom) * 3));
       orbitPivot.lerpVectors(camState.look, orbitPivot, amt);
       herAmt = amt;
     } else {
@@ -4553,7 +5127,12 @@ function mount() {
     camera.position.y = Math.max(0.45, camera.position.y);
     // never inside the far shore's temple and trees
     camera.position.z = Math.max(FAR_EDGE + 1.5, camera.position.z);
-    camera.lookAt(tmp.copy(orbitPivot));
+    // looking up: dragging up past level (the camera can't go below the
+    // ground) raises the point looked at, so the sky and the lanterns high
+    // up come into frame. Zooming out only pulls straight back, so Kru Song
+    // stays in the shot.
+    const tiltUp = Math.max(0, -orbit.sPitch) * orbitSph.radius * 0.38;
+    camera.lookAt(tmp.copy(orbitPivot).setY(orbitPivot.y + tiltUp));
     updateStreaks();
 
     renderer.render(scene, camera);
