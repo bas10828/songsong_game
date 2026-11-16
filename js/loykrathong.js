@@ -3340,6 +3340,7 @@ function mount() {
     s.center.set(0.5, 0);
     s.position.y = teacher.topY + 0.06;
     teacher.group.add(s);
+    teacher.nameTag = s;
   }
 
   const looks = [
@@ -3642,6 +3643,12 @@ function mount() {
     p.inner.scale.y = s * (1 + Math.sin(t * 1.6) * 0.006);
     // kneeling folds the legs back under the skirt
     p.legs[0].rotation.x = p.legs[1].rotation.x = c.dip * 3.2;
+    // dangling (the fly gag): legs pedalling the air
+    if (p.kick) {
+      const sw = Math.sin(t * 12) * 0.55 * p.kick;
+      p.legs[0].rotation.x += sw;
+      p.legs[1].rotation.x -= sw;
+    }
     [c.l, c.r].forEach((a, i) => {
       const side = i ? 1 : -1;
       const drift = Math.sin(t * 1.3 + i) * 0.03;
@@ -3681,6 +3688,11 @@ function mount() {
         pk.wet = !lastWet && (dryRun >= 2 || Math.random() < WET_CHANCE);
         dryRun = pk.wet ? 0 : dryRun + 1;
         lastWet = pk.wet;
+      } else if (pk.sky) {
+        // ... and now and then a lantern carries her off, by the same rule
+        pk.fly = !lastFly && (flyDry >= 2 || Math.random() < FLY_CHANCE);
+        flyDry = pk.fly ? 0 : flyDry + 1;
+        lastFly = pk.fly;
       }
       resetGag();
       if (!performing.k.fire) {
@@ -3698,12 +3710,14 @@ function mount() {
     P.t += dt;
     const t = P.t;
     if (k.fire) firePerformance(P, k, t, dt);
+    else if (k.fly) flyPerformance(P, k, t, dt);
     else if (k.sky) skyPerformance(P, k, t, dt);
     else if (k.wet) wetPerformance(P, k, t, dt);
     else floatPerformance(P, k, t);
     const keys = keysFor(k);
     if (t > keys[keys.length - 1][0]) {
       k.wet = false;
+      k.fly = false;
       performing = null;
       resetGag();
       updateFloatBtn();
@@ -3754,8 +3768,9 @@ function mount() {
       focusOn(k, 8);
     }
   }
-  function skyPerformance(P, k, t, dt) {
-    if (t < SKY_LET_GO) {
+  // (letGo / camAt: the fly gag lets go late, and looks for the lantern later)
+  function skyPerformance(P, k, t, dt, letGo = SKY_LET_GO, camAt = SKY_CAMERA) {
+    if (t < letGo) {
       // held by its rim, the photo tucked away until it flies; it lights
       // up as it fills with hot air
       palms(handWorld, 0.22);
@@ -3782,7 +3797,7 @@ function mount() {
       k.vel.set(0, 0.35, 0);
       sound.chime();
     }
-    if (P.released && !P.shown && t > SKY_LET_GO + 1.1) {
+    if (P.released && !P.shown && t > letGo + 1.1) {
       // the photo appears with a sparkle once the lantern is above her head
       P.shown = true;
       if (k.standee) k.standee.visible = true;
@@ -3792,7 +3807,7 @@ function mount() {
       P.grow = Math.min(1, P.grow + dt * 0.7);
       k.root.scale.setScalar(lerp(0.55, 1, smooth(P.grow)));
     }
-    if (t > SKY_CAMERA && !P.followed) {
+    if (t > camAt && !P.followed) {
       P.followed = true;
       focusOn(k, 9);
     }
@@ -3848,7 +3863,7 @@ function mount() {
     [17.4, pose("clasp", "wave", { hz: -0.12, yaw: FACE_CAM })],
     [19.0, null],
   ];
-  const keysFor = (k) => (k.fire ? (k.fail ? FIRE_FAIL_KEYS : FIRE_OK_KEYS) : k.sky ? SKY_KEYS : k.wet ? WET_KEYS : FLOAT_KEYS);
+  const keysFor = (k) => (k.fire ? (k.fail ? FIRE_FAIL_KEYS : FIRE_OK_KEYS) : k.sky ? (k.fly ? FLY_KEYS : SKY_KEYS) : k.wet ? WET_KEYS : FLOAT_KEYS);
 
   // props
   const propMat = new THREE.MeshToonMaterial({ vertexColors: true, emissive: 0x24160c, gradientMap: softToonRamp() });
@@ -4307,7 +4322,7 @@ function mount() {
   function gagBase() {
     return {
       soot: 0, frizz: 0, askew: 0, face: null, hankie: false, comb: false, bob: 0, shake: 0, question: 0,
-      exclaim: 0, tilt: 0, flail: 0, hairBlow: 0, wet: 0, puddle: 0, drops: 0, lily: false, towel: false, headTowel: false, dryer: false, powder: false, pos: null,
+      exclaim: 0, tilt: 0, flail: 0, kick: 0, hairBlow: 0, wet: 0, puddle: 0, drops: 0, lily: false, towel: false, headTowel: false, dryer: false, powder: false, pos: null,
     };
   }
   // where her feet are at time t of the wet gag (null = on the pier)
@@ -4385,6 +4400,7 @@ function mount() {
   function applyWet(g) {
     teacher.tilt = g.tilt;
     teacher.flail = g.flail;
+    teacher.kick = g.kick;
     teacher.hairBlow = g.hairBlow;
     teacher.group.position.copy(g.pos ?? TEACHER_POS);
     teacher.mat.color.lerpColors(DRY, WET_TINT, g.wet);
@@ -4439,8 +4455,6 @@ function mount() {
   const wetTmp = new THREE.Vector3();
   function wetPerformance(P, k, t, dt) {
     applyGag(wetState(t));
-    const water = (x, z) => wetTmp.set(x, 0.05, z);
-    teacher.head.getWorldPosition(eyeTmp);
 
     // the krathong: in her hands, flipped out onto the pier as she wobbles,
     // waiting there, then back in her hands for the real float
@@ -4475,6 +4489,13 @@ function mount() {
     }
 
     if (once(P, "slip", t, 3.6)) sound.slip();
+    wetEffects(P, t, dt);
+  }
+  // everything from the splash on: bubbles, tears, drips, the dryer's warm
+  // air, powder (t = the wet gag's time; the fly gag ends the same way)
+  function wetEffects(P, t, dt) {
+    const water = (x, z) => wetTmp.set(x, 0.05, z);
+    teacher.head.getWorldPosition(eyeTmp);
     // SPLASH
     if (once(P, "splash", t, WET_SPLASH_T)) {
       burst(WET_SPLASH, 220, { speed: 3.6, colors: [0xbfe6ff, 0xffffff, 0x8fd0ff], life: 1.1, up: 1.8 });
@@ -4573,6 +4594,14 @@ function mount() {
       sound.chime();
     }
   }
+  // the fire gag's close shot, kept on her wherever she goes (a little
+  // higher while she's in the water, to see over the floating lamps)
+  function closeOnHer(pos, look) {
+    const g = teacher.group.position;
+    const y = Math.min(PIER.top, Math.max(WET_FLOAT_Y, g.y)) - PIER.top;
+    look.set(g.x, 1.6 + y, g.z);
+    pos.set(g.x + Math.sin(0.6) * 3.7, Math.max(1.85 + y, 1.25), g.z + Math.cos(0.6) * 3.7 + (camera.aspect < 1 ? 1.6 : 0));
+  }
   function wetShot(pos, look, P) {
     const portrait = camera.aspect < 1 ? 1.6 : 0;
     if (P.t > 2.3 && P.t < 6.0) {
@@ -4581,15 +4610,141 @@ function mount() {
       look.set(-2.4, 1.2, 1.95);
       pos.set(-2.4 + Math.sin(0.15) * 5.4, 1.7, 1.95 + Math.cos(0.15) * 5.4 + portrait);
     } else if (P.t >= 6.0 && P.t < WET_OFFSET + 0.4) {
-      // the fire gag's close shot, kept on her wherever she goes (a little
-      // higher while she's in the water, to see over the floating lamps)
-      const g = teacher.group.position;
-      const y = Math.min(PIER.top, Math.max(WET_FLOAT_Y, g.y)) - PIER.top;
-      look.set(g.x, 1.6 + y, g.z);
-      pos.set(g.x + Math.sin(0.6) * 3.7, Math.max(1.85 + y, 1.25), g.z + Math.cos(0.6) * 3.7 + portrait);
+      closeOnHer(pos, look);
     } else {
       look.set(-2.6, 1.0, 1.6);
       pos.set(-1.3, 2.0, camera.aspect < 1 ? 8.8 : 7.2);
+    }
+  }
+
+  // ----- the fly gag: now and then Kru Song doesn't let go of her lantern
+  // in time and it carries her off the pier, legs pedalling, bawling. Out
+  // over the river her grip goes: the lantern sails on up on its own (it
+  // counts, nothing to redo) and she drops in with a splash. From there it
+  // is the wet gag's ending: she scrambles out soaked, cries, towels off,
+  // dries and combs her hair and is her pretty self again. -----
+  const FLY_CHANCE = 1 / 3;
+  let lastFly = false;
+  let flyDry = 0; // lanterns since one last carried her off
+  const FLY_UP_T = 3.9; // her feet leave the pier
+  const FLY_PEAK_T = 6.3; // as high as she goes; her fingers start to slip
+  const FLY_DROP_T = 6.9; // she lets go
+  const FLY_SPLASH_T = 7.6;
+  const FLY_SHIFT = FLY_SPLASH_T - WET_SPLASH_T; // wet gag time = t - FLY_SHIFT
+  const FLY_PEAK = new THREE.Vector3(WET_UP.x, PIER.top + 1.5, WET_UP.z);
+  const FLY_END = 24.0 + FLY_SHIFT;
+  Object.assign(ARM, {
+    hang: { x: -2.9, o: 0.5, e: -0.1 }, // up in a V, a string round each hand
+  });
+  // the two strings she dangles from (her arms are too short to reach the
+  // rim over her big head, and this way the lantern never hides her face)
+  const FLY_SCALE = 0.55; // the lantern's size in her hands
+  const FLY_RIM_R = 0.3 * FLY_SCALE;
+  const flyStrings = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([0, 1, 2, 3].map(() => new THREE.Vector3())), stringMat);
+  flyStrings.frustumCulled = false;
+  flyStrings.visible = false;
+  scene.add(flyStrings);
+  const flyRim = new THREE.Vector3();
+  const flySide = new THREE.Vector3();
+  const FLY_KEYS = [
+    ...SKY_KEYS.filter(([at]) => at < SKY_LET_GO),
+    [SKY_LET_GO, pose("hang", "hang", { hx: -0.4, rise: 0.07, yaw: SKY_SIDE })], // up on tiptoe... it won't let go
+    [FLY_UP_T, pose("hang", "hang", { hx: 0.05, yaw: FACE_CAM })], // off she goes
+    [FLY_DROP_T, pose("shock", "shock", { hx: -0.2, yaw: FACE_CAM })], // aaah
+    // bobs up, climbs out, cries, dries off: the wet gag from its splash
+    ...WET_GAG_KEYS.filter(([at]) => at >= 6.0 && at < 22.4).map(([at, p]) => [at + FLY_SHIFT, p]),
+    [22.4 + FLY_SHIFT, pose("clasp", "wave", { hz: -0.12, yaw: FACE_CAM })],
+    [FLY_END, null],
+  ];
+  function flyState(t) {
+    if (t >= FLY_SPLASH_T) return wetState(t - FLY_SHIFT);
+    const g = gagBase();
+    if (t < SKY_LET_GO) return g;
+    const p = wetPos.copy(TEACHER_POS);
+    g.pos = p;
+    if (t < FLY_UP_T) {
+      // the lantern tugs; she's on tiptoe, still holding on
+      const u = (t - SKY_LET_GO) / (FLY_UP_T - SKY_LET_GO);
+      g.face = "huh";
+      g.exclaim = Math.sin(clamp01(u * 1.3) * Math.PI);
+    } else if (t < FLY_DROP_T) {
+      // carried up and out over the river, swinging under the lantern
+      const u = clamp01((t - FLY_UP_T) / (FLY_PEAK_T - FLY_UP_T));
+      p.lerpVectors(TEACHER_POS, FLY_PEAK, smooth(u));
+      p.y = lerp(TEACHER_POS.y, FLY_PEAK.y, 1 - (1 - u) ** 2) + Math.sin(t * 4) * 0.04;
+      g.tilt = Math.sin(t * 3.3) * 0.09;
+      g.kick = 1;
+      if (t < FLY_PEAK_T) g.face = Math.floor(t * 4) % 2 ? "cry" : "cry2";
+      else {
+        // her fingers are slipping
+        g.face = "huh";
+        g.exclaim = Math.sin(clamp01((t - FLY_PEAK_T) / (FLY_DROP_T - FLY_PEAK_T)) * Math.PI);
+        g.shake = Math.sin(t * 70) * 0.012;
+      }
+    } else {
+      // ... and down she comes, feet first
+      const u = (t - FLY_DROP_T) / (FLY_SPLASH_T - FLY_DROP_T);
+      p.copy(FLY_PEAK);
+      p.y = lerp(FLY_PEAK.y, -2.4, u * u);
+      g.tilt = -0.2 * u;
+      g.flail = 1;
+      g.kick = 1;
+      g.face = "wince";
+    }
+    return g;
+  }
+  function flyPerformance(P, k, t, dt) {
+    applyGag(flyState(t));
+    // the lantern stays in her hands until her grip goes, then it's away
+    skyPerformance(P, k, t, dt, FLY_DROP_T, FLY_END - 0.6);
+    const caught = t >= SKY_LET_GO && t < FLY_DROP_T;
+    flyStrings.visible = caught;
+    teacher.nameTag.visible = !caught; // the lantern sits where her name tag is
+    if (caught) {
+      // it floats up out of her hands to just over her head and stops
+      // there, tugging: its strings are round her hands
+      const g = teacher.group.position;
+      flyRim.set(g.x, g.y + teacher.topY + 0.16 + Math.sin(t * 4) * 0.02, g.z);
+      flyRim.lerpVectors(palms(handWorld, 0.22), flyRim, smooth(clamp01((t - SKY_LET_GO) / 0.4)));
+      k.root.position.set(flyRim.x, flyRim.y - k.rimY * FLY_SCALE, flyRim.z);
+      flySide.set(1, 0, 0).applyQuaternion(teacher.group.quaternion);
+      const pos = flyStrings.geometry.attributes.position;
+      teacher.hands.forEach((h, i) => {
+        h.getWorldPosition(handB);
+        pos.setXYZ(i * 2, handB.x, handB.y, handB.z);
+        handB.copy(flyRim).addScaledVector(flySide, (i ? 1 : -1) * FLY_RIM_R);
+        pos.setXYZ(i * 2 + 1, handB.x, handB.y, handB.z);
+      });
+      pos.needsUpdate = true;
+    }
+    if (once(P, "tug", t, SKY_LET_GO)) sound.pop(0.2);
+    if (once(P, "liftoff", t, FLY_UP_T)) {
+      sound.slip();
+      burst(TEACHER_POS, 20, { speed: 1.1, colors: [0xfff3b0, 0xffd27a, 0xffffff], life: 0.6 });
+    }
+    if (t > FLY_UP_T + 0.4 && t < FLY_PEAK_T) tearFountain();
+    for (const at of [4.4, 5.3]) if (once(P, "sobf" + at, t, at)) sound.sob();
+    if (once(P, "free", t, FLY_DROP_T)) {
+      // rid of her weight, the lantern jumps
+      k.vel.y = 1.3;
+      sound.slip();
+      for (const h of teacher.hands) burst(h.getWorldPosition(handB), 10, { speed: 0.9, colors: [0xfff3b0, 0xffffff], life: 0.5 });
+    }
+    if (t >= FLY_SPLASH_T) wetEffects(P, t - FLY_SHIFT, dt);
+  }
+  function flyShot(pos, look, P) {
+    const tw = P.t - FLY_SHIFT;
+    if (P.t > 2.6 && tw < 6.0) {
+      // set and still before the lantern takes her: side on, tall enough
+      // for the pier, the top of her ride and the splash under it
+      const d = camera.aspect < 1 ? 8.6 : 7.4;
+      look.set(-2.35, 2.05, 1.95);
+      pos.set(-2.35 + Math.sin(0.15) * d, 2.0, 1.95 + Math.cos(0.15) * d);
+    } else if (tw >= 6.0) {
+      closeOnHer(pos, look);
+    } else {
+      look.set(-2.7, 1.7, 1.4);
+      pos.set(-1.0, 1.7, camera.aspect < 1 ? 9.6 : 7.8);
     }
   }
 
@@ -5067,6 +5222,8 @@ function mount() {
         fireShot(goalPos, goalLook, performing);
       } else if (performing?.k.wet) {
         wetShot(goalPos, goalLook, performing);
+      } else if (performing?.k.fly) {
+        flyShot(goalPos, goalLook, performing);
       } else if (performing?.k.sky) {
         // a lantern release: a lower, wider shot with room above her
         goalLook.set(-2.7, 1.7, 1.4);
