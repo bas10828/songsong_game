@@ -567,6 +567,10 @@ function drawFace(style = "closed") {
     } else if (style === "huh" && s > 0) {
       g.moveTo(ex - 9, 40);
       g.quadraticCurveTo(ex + 1, 33, ex + 12, 38);
+    } else if (style === "pout") {
+      // cross: inner ends pulled down (still short and soft)
+      g.moveTo(ex - 9 * s, 50);
+      g.quadraticCurveTo(ex + 1 * s, 43, ex + 11 * s, 40);
     } else {
       g.moveTo(ex - 9 * s, 47);
       g.quadraticCurveTo(ex + 1 * s, 42, ex + 11 * s, 46);
@@ -642,6 +646,62 @@ function drawFace(style = "closed") {
     g.beginPath();
     g.ellipse(128, 115.5, 4.5, 2.6, 0, 0, TAU);
     g.fill();
+    return c;
+  }
+  // fresh red lips, pursed into a little kiss
+  const redLips = () => {
+    g.fillStyle = "#d8203c";
+    g.beginPath();
+    g.ellipse(128, 110, 9, 6, 0, 0, TAU);
+    g.ellipse(128, 118, 8, 5.6, 0, 0, TAU);
+    g.fill();
+    g.strokeStyle = "#8a1024";
+    g.lineWidth = 1.8;
+    g.beginPath();
+    g.moveTo(121, 114);
+    g.quadraticCurveTo(128, 116, 135, 114);
+    g.stroke();
+    g.fillStyle = "rgba(255,255,255,0.75)";
+    g.beginPath();
+    g.ellipse(124.5, 108, 2.4, 1.4, -0.3, 0, TAU);
+    g.fill();
+  };
+  if (style === "pucker") {
+    openEyes();
+    nose();
+    redLips();
+    return c;
+  }
+  if (style === "kiss") {
+    // happy shut eyes (as in the default face) over the red kiss
+    g.strokeStyle = "#2a1a16";
+    g.lineWidth = 4.5;
+    for (const ex of EYES) {
+      g.beginPath();
+      g.arc(ex, EY + 8, 13, Math.PI * 1.12, Math.PI * 1.88);
+      g.stroke();
+    }
+    nose();
+    redLips();
+    return c;
+  }
+  if (style === "pout") {
+    // cross, but cute: big eyes under cross brows, puffed-up cheeks and a
+    // tiny pouty frown
+    openEyes();
+    nose();
+    g.fillStyle = "rgba(255,120,150,0.35)";
+    for (const bx of [50, 206]) {
+      g.beginPath();
+      g.ellipse(bx, 112, 17, 12, 0, 0, TAU);
+      g.fill();
+    }
+    g.strokeStyle = "#a8303f";
+    g.lineWidth = 3.2;
+    g.beginPath();
+    g.moveTo(121, 116);
+    g.quadraticCurveTo(128, 109, 135, 116);
+    g.stroke();
     return c;
   }
   if (style === "huh") {
@@ -798,6 +858,45 @@ function drawQuestion(ch = "?") {
   g.strokeText(ch, 64, 84);
   g.fillStyle = "#ffe27a";
   g.fillText(ch, 64, 84);
+  return c;
+}
+
+// a cartoon "cross" mark (four little red curves), for when she's cross
+function drawAnger() {
+  const c = makeCanvas(128, 128);
+  const g = c.getContext("2d");
+  g.lineCap = "round";
+  // four corner brackets, each bowed in toward the middle
+  for (const [w, col] of [[20, "#ffffff"], [11, "#ff3b5c"]]) {
+    g.lineWidth = w;
+    g.strokeStyle = col;
+    for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+      g.beginPath();
+      g.moveTo(64 + sx * 12, 64 + sy * 48);
+      g.quadraticCurveTo(64 + sx * 14, 64 + sy * 14, 64 + sx * 48, 64 + sy * 12);
+      g.stroke();
+    }
+  }
+  return c;
+}
+
+// a little yellow star, for the stars round a bonked head
+function drawStar() {
+  const c = makeCanvas(64, 64);
+  const g = c.getContext("2d");
+  g.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 ? 12 : 28;
+    const a = (i / 10) * TAU - Math.PI / 2;
+    g.lineTo(32 + Math.cos(a) * r, 34 + Math.sin(a) * r);
+  }
+  g.closePath();
+  g.lineJoin = "round";
+  g.lineWidth = 5;
+  g.strokeStyle = "#a8641a";
+  g.stroke();
+  g.fillStyle = "#ffe27a";
+  g.fill();
   return c;
 }
 
@@ -1417,6 +1516,72 @@ const sound = (() => {
       hum.start(t);
       src.stop(t + len);
       hum.stop(t + len);
+    },
+    // a coin glinting: two bright little pings
+    ting(vol = 0.08) {
+      const a = on && ac();
+      if (!a || vol < 0.005) return;
+      [2093, 3136].forEach((f, i) => {
+        const t = a.currentTime + i * 0.07;
+        const osc = a.createOscillator();
+        osc.frequency.value = f;
+        osc.connect(env(a, vol, t, 0.003, 0.35));
+        osc.start(t);
+        osc.stop(t + 0.4);
+      });
+    },
+    // a comb bouncing off a head: a hollow knock
+    bonk() {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const osc = a.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(950, t);
+      osc.frequency.exponentialRampToValueAtTime(220, t + 0.16);
+      osc.connect(env(a, 0.22, t, 0.002, 0.18));
+      osc.start(t);
+      osc.stop(t + 0.25);
+    },
+    // "mwah!": a little smack and a rising chirp
+    kiss() {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const src = a.createBufferSource();
+      src.buffer = noiseBuf(a);
+      const hp = a.createBiquadFilter();
+      hp.type = "highpass";
+      hp.frequency.value = 1800;
+      src.connect(hp).connect(env(a, 0.12, t, 0.002, 0.05));
+      src.start(t, rand(0, 0.2), 0.07);
+      const osc = a.createOscillator();
+      osc.frequency.setValueAtTime(700, t + 0.04);
+      osc.frequency.exponentialRampToValueAtTime(1500, t + 0.22);
+      osc.connect(env(a, 0.07, t + 0.04, 0.01, 0.2));
+      osc.start(t + 0.04);
+      osc.stop(t + 0.3);
+    },
+    // "hmph!": a short huff through the nose
+    hmph() {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const src = a.createBufferSource();
+      src.buffer = noiseBuf(a);
+      const bp = a.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = 700;
+      bp.Q.value = 1.2;
+      src.connect(bp).connect(env(a, 0.14, t, 0.01, 0.22));
+      src.start(t, rand(0, 0.15), 0.26);
+      const osc = a.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(420, t);
+      osc.frequency.exponentialRampToValueAtTime(300, t + 0.2);
+      osc.connect(env(a, 0.05, t, 0.01, 0.2));
+      osc.start(t);
+      osc.stop(t + 0.25);
     },
     chime() {
       const a = on && ac();
@@ -2774,7 +2939,7 @@ function mount() {
   // Switching krathong <-> lantern starts it at a fresh spot instead.
   async function rebuildKrathong(old, rec) {
     const same = !!old.sky === isSky(rec);
-    const k = await studentKrathong(rec, same ? { at: old.root.position, replacing: true } : { replacing: true });
+    const k = await studentKrathong(rec, same ? { at: old.stolen ? old.target : old.root.position, replacing: true } : { replacing: true });
     if (same) {
       k.target.copy(old.target);
       k.vel.copy(old.vel);
@@ -3178,7 +3343,7 @@ function mount() {
     if (look.openEyes) {
       faces.blink = canvasTexture(drawFace("blink"));
       faces.closed = faces.blink; // happy closed eyes, held for a wish
-      for (const f of ["wince", "huh", "daze", "cry", "cry2"]) faces[f] = canvasTexture(drawFace(f));
+      for (const f of ["wince", "huh", "daze", "cry", "cry2", "pout", "pucker", "kiss"]) faces[f] = canvasTexture(drawFace(f));
     }
     const faceMat = new THREE.MeshToonMaterial({ map: faces.open, transparent: true, emissive: 0x24160c });
     const faceGeo = new THREE.SphereGeometry(HEAD_R + 0.004, 18, 12, Math.PI * 0.5 - 0.75, 1.5, Math.PI * 0.5 - 0.3, 0.84);
@@ -3535,7 +3700,7 @@ function mount() {
 
   // each button shows how many of its kind are still waiting for Kru Song
   function updateFloatBtn() {
-    const waiting = [...queue, ...(performing ? [performing.k] : [])];
+    const waiting = [...queue, ...(performing ? [performing.k] : [])].filter((k) => !k.coin);
     const sky = waiting.filter((k) => k.sky).length;
     const fire = waiting.filter((k) => k.fire).length;
     const water = waiting.length - sky - fire;
@@ -3612,6 +3777,12 @@ function mount() {
       for (const [at, p] of keys) if (performing.t >= at && p) want = p;
       return want;
     }
+    // nothing to do for a while: she combs her hair
+    if (idleComb != null) {
+      let want = IDLE;
+      for (const [at, p] of idleKind === "lip" ? IDLE_LIP_KEYS : IDLE_COMB_KEYS) if (idleComb >= at && p) want = p;
+      return want;
+    }
     // idle: hands clasped, swaying a little; now and then a small wave
     if (teacher.t > idleWaveAt + 2.6) idleWaveAt = teacher.t + rand(9, 16);
     return teacher.t > idleWaveAt && camState.mode === "wide" ? IDLE_WAVE : IDLE;
@@ -3680,11 +3851,15 @@ function mount() {
   }
   function runPerformance(dt) {
     if (!performing && queue.length) {
-      performing = { k: queue.shift(), t: 0 };
+      const next = queue.shift();
+      if (next.coin && !startCoin(next)) return; // no krathong of hers left: still due
+      performing = { k: next, t: 0 };
       // now and then she falls in: never twice running, and never three
       // dry floats in a row (any three floats in a row have a splash)
       const pk = performing.k;
-      if (!pk.fire && !pk.sky) {
+      if (pk.coin) {
+        // (the coin gag: none of the krathong set-up below)
+      } else if (!pk.fire && !pk.sky) {
         pk.wet = !lastWet && (dryRun >= 2 || Math.random() < WET_CHANCE);
         dryRun = pk.wet ? 0 : dryRun + 1;
         lastWet = pk.wet;
@@ -3695,13 +3870,13 @@ function mount() {
         lastFly = pk.fly;
       }
       resetGag();
-      if (!performing.k.fire) {
-        performing.k.root.visible = true;
-        performing.k.root.scale.setScalar(0.001);
+      if (!pk.fire && !pk.coin) {
+        pk.root.visible = true;
+        pk.root.scale.setScalar(0.001);
       }
       camState.mode = "teacher";
       orbit.lastInput = -1e9;
-      sound.chime();
+      if (!pk.coin) sound.chime();
       updateFloatBtn();
     }
     if (!performing) return;
@@ -3709,13 +3884,15 @@ function mount() {
     const k = P.k;
     P.t += dt;
     const t = P.t;
-    if (k.fire) firePerformance(P, k, t, dt);
+    if (k.coin) coinPerformance(P, k, t, dt);
+    else if (k.fire) firePerformance(P, k, t, dt);
     else if (k.fly) flyPerformance(P, k, t, dt);
     else if (k.sky) skyPerformance(P, k, t, dt);
     else if (k.wet) wetPerformance(P, k, t, dt);
     else floatPerformance(P, k, t);
     const keys = keysFor(k);
     if (t > keys[keys.length - 1][0]) {
+      if (k.coin) endCoin(k);
       k.wet = false;
       k.fly = false;
       performing = null;
@@ -3863,7 +4040,7 @@ function mount() {
     [17.4, pose("clasp", "wave", { hz: -0.12, yaw: FACE_CAM })],
     [19.0, null],
   ];
-  const keysFor = (k) => (k.fire ? (k.fail ? FIRE_FAIL_KEYS : FIRE_OK_KEYS) : k.sky ? (k.fly ? FLY_KEYS : SKY_KEYS) : k.wet ? WET_KEYS : FLOAT_KEYS);
+  const keysFor = (k) => k.coin ? k.plan.keys : (k.fire ? (k.fail ? FIRE_FAIL_KEYS : FIRE_OK_KEYS) : k.sky ? (k.fly ? FLY_KEYS : SKY_KEYS) : k.wet ? WET_KEYS : FLOAT_KEYS);
 
   // props
   const propMat = new THREE.MeshToonMaterial({ vertexColors: true, emissive: 0x24160c, gradientMap: softToonRamp() });
@@ -3982,6 +4159,14 @@ function mount() {
     teacher.group.add(m);
     return m;
   })();
+  // a little red "cross" mark by her head when she's cross (the coin gag)
+  const angerMark = (() => {
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: canvasTexture(drawAnger()), transparent: true, depthWrite: false }));
+    m.visible = false;
+    m.userData.ownFade = true;
+    teacher.group.add(m);
+    return m;
+  })();
 
   // every gag state at time t of a performance (fail = the mishap)
   function gagState(fail, t) {
@@ -4037,6 +4222,11 @@ function mount() {
     // beside her head, clear of the name tag
     question.position.set(0.4, teacher.topY - 0.12 + Math.sin(teacher.t * 6) * 0.03, 0);
     question.material.opacity = g.question;
+    angerMark.visible = g.anger > 0.01;
+    angerMark.material.opacity = g.anger;
+    // throbbing beside her head, on the other side from the "!" and "?"
+    angerMark.scale.setScalar(0.26 * (1 + 0.12 * Math.abs(Math.sin(teacher.t * 7))) * (0.5 + 0.5 * g.anger));
+    angerMark.position.set(-0.36, teacher.topY - 0.18, 0.05);
     applyWet(g);
   }
   function resetGag() {
@@ -4322,7 +4512,7 @@ function mount() {
   function gagBase() {
     return {
       soot: 0, frizz: 0, askew: 0, face: null, hankie: false, comb: false, bob: 0, shake: 0, question: 0,
-      exclaim: 0, tilt: 0, flail: 0, kick: 0, hairBlow: 0, wet: 0, puddle: 0, drops: 0, lily: false, towel: false, headTowel: false, dryer: false, powder: false, pos: null,
+      anger: 0, exclaim: 0, tilt: 0, flail: 0, kick: 0, hairBlow: 0, wet: 0, puddle: 0, drops: 0, lily: false, towel: false, headTowel: false, dryer: false, powder: false, pos: null,
     };
   }
   // where her feet are at time t of the wet gag (null = on the pier)
@@ -4748,6 +4938,800 @@ function mount() {
     }
   }
 
+  // ----- idle: when Kru Song has had nothing to do for a while she combs
+  // her hair, tilting her head from side to side, then a happy little
+  // pose. Not a performance: the camera and the viewer's orbit are left
+  // alone, and anything she's asked to do cuts it short. -----
+  const IDLE_COMB_EVERY = 22; // seconds
+  const IDLE_COMB_KEYS = [
+    [0, pose("pocket", "clasp", { hz: 0.06, yaw: FACE_CAM })],
+    [0.6, pose("comb", "rest", { hz: -0.18, hx: -0.05, yaw: FACE_CAM })],
+    [1.4, pose("comb", "rest", { hz: 0.12, hx: -0.05, yaw: FACE_CAM })],
+    [2.2, pose("comb", "rest", { hz: -0.18, hx: -0.05, yaw: FACE_CAM })],
+    [3.0, pose("heart", "heart", { hz: 0.16, hx: -0.12, yaw: FACE_CAM })],
+    [4.0, pose("clasp", "wave", { hz: -0.12, yaw: FACE_CAM })],
+  ];
+  const IDLE_COMB_END = 5.2;
+  // ... and every other time, red lipstick with a little compact mirror,
+  // then she blows the viewer a kiss
+  Object.assign(ARM, {
+    lip: { x: -1.7, o: -0.4, e: -1.5, w: 0.6 }, // lipstick to her lips
+    mirror: { x: -1.15, o: -0.25, e: -1.35 }, // compact held up in front
+    kissHand: { x: -1.8, o: -0.32, e: -1.75 }, // fingertips to her lips
+    blow: { x: -1.45, o: 0.3, e: -0.35 }, // ... and away it goes
+  });
+  const IDLE_LIP_KEYS = [
+    [0, pose("pocket", "pocket", { hz: 0.06, yaw: FACE_CAM })],
+    [0.6, pose("lip", "mirror", { hx: -0.05, hz: 0.06, yaw: FACE_CAM })],
+    [1.5, pose("lip", "mirror", { hx: -0.05, hz: -0.08, yaw: FACE_CAM })],
+    [2.4, pose("rest", "mirror", { hx: 0.02, hz: 0.12, yaw: FACE_CAM })], // a look in the mirror
+    [3.0, pose("kissHand", "rest", { hz: 0.08, yaw: FACE_CAM })],
+    [3.5, pose("blow", "rest", { hx: -0.1, hz: -0.1, lean: -0.04, yaw: FACE_CAM })], // mwah!
+    [4.6, pose("heart", "heart", { hz: 0.14, yaw: FACE_CAM })],
+    [5.4, pose("clasp", "clasp", { hz: 0.08, yaw: FACE_CAM })],
+  ];
+  const IDLE_LIP_END = 5.9;
+  const lipstick = handProp((add) => {
+    add(new THREE.CylinderGeometry(0.016, 0.016, 0.07, 10), "#e8c46a", (d) => { d.position.set(0, -0.02, -0.04); d.rotation.x = Math.PI / 2; }); // gold case
+    add(new THREE.CylinderGeometry(0.012, 0.013, 0.04, 10), "#d8203c", (d) => { d.position.set(0, -0.02, -0.095); d.rotation.x = Math.PI / 2; }); // red bullet
+    add(new THREE.SphereGeometry(0.012, 8, 6), "#d8203c", (d) => d.position.set(0, -0.02, -0.115));
+  });
+  const compact = (() => {
+    const { parts, add } = partList();
+    add(new THREE.CylinderGeometry(0.045, 0.045, 0.014, 18), "#ff86b8", (d) => { d.rotation.x = Math.PI / 2; });
+    add(new THREE.CylinderGeometry(0.038, 0.038, 0.004, 18), "#e8f4ff", (d) => { d.position.z = 0.009; d.rotation.x = Math.PI / 2; }); // the mirror
+    add(new THREE.CylinderGeometry(0.045, 0.045, 0.01, 18), "#ff9cc8", (d) => { d.position.set(0, 0.045, -0.02); d.rotation.x = Math.PI / 2 - 0.5; }); // open lid
+    const m = new THREE.Mesh(mergeParts(parts), propMat);
+    m.position.set(0, -0.03, -0.04);
+    m.visible = false;
+    teacher.hands[1].add(m);
+    return m;
+  })();
+  // the kiss: a pink heart floating out toward the viewer
+  const kissHeart = (() => {
+    const c = makeCanvas(128, 128);
+    drawHeart(c.getContext("2d"), 64, 76, 80, "#ff4f8b");
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: canvasTexture(c), transparent: true, depthWrite: false }));
+    m.visible = false;
+    scene.add(m);
+    return m;
+  })();
+  const kissFrom = new THREE.Vector3();
+  const kissTo = new THREE.Vector3();
+  let idleKind = "lip"; // the last one done (so the first is the comb)
+  let idleFor = 0;
+  let idleComb = null; // time into the comb (or lipstick), or null
+  function stopIdleComb() {
+    idleComb = null;
+    comb.visible = false;
+    lipstick.visible = false;
+    compact.visible = false;
+    kissHeart.visible = false;
+    teacher.faceOverride = null;
+    teacher.bob = 0;
+  }
+  function idleLipTick(t0, t) {
+    lipstick.visible = t > 0.45 && t < 2.5;
+    compact.visible = t > 0.45 && t < 2.95;
+    // lips pursed while she paints them; a kiss with her eyes shut
+    teacher.faceOverride = t > 0.6 && t < 3.0 ? "pucker" : t >= 3.0 && t < 4.4 ? "kiss" : t >= 4.6 && t < 5.4 ? "open" : null;
+    if (t0 < 3.6 && t >= 3.6) {
+      // mwah! off her fingertips toward the camera
+      teacher.hands[0].getWorldPosition(kissFrom);
+      kissTo.lerpVectors(kissFrom, camera.position, 0.55);
+      kissTo.y += 0.35;
+      burst(kissFrom, 18, { speed: 0.8, colors: [0xff7fb0, 0xffc2dc, 0xffffff], life: 0.6 });
+      sound.kiss();
+    }
+    const u = (t - 3.6) / 1.3;
+    kissHeart.visible = u > 0 && u < 1;
+    if (kissHeart.visible) {
+      kissHeart.position.lerpVectors(kissFrom, kissTo, smooth(u));
+      kissHeart.position.x += Math.sin(u * 9) * 0.06;
+      kissHeart.scale.setScalar(0.12 + 0.5 * smooth(Math.min(1, u * 1.6)));
+      kissHeart.material.opacity = 1 - smooth(clamp01((u - 0.65) / 0.35));
+      kissHeart.material.rotation = Math.sin(u * 7) * 0.2;
+    }
+    teacher.bob = t > 4.6 && t < 5.2 ? Math.abs(Math.sin((t - 4.6) * 10.5)) * 0.02 : 0;
+    if (t >= IDLE_LIP_END) stopIdleComb();
+  }
+  function idleCombTick(dt) {
+    if (performing || queue.length) {
+      if (idleComb != null) stopIdleComb();
+      idleFor = 0;
+      return;
+    }
+    // counted from the start of the last one, so it comes round every 22s
+    idleFor += dt;
+    if (idleComb == null) {
+      if (idleFor < IDLE_COMB_EVERY) return;
+      idleComb = 0;
+      idleFor = 0;
+      idleKind = idleKind === "comb" ? "lip" : "comb";
+    }
+    const t0 = idleComb;
+    idleComb += dt;
+    const t = idleComb;
+    if (idleKind === "lip") return idleLipTick(t0, t);
+    comb.visible = t > 0.45 && t < 3.05;
+    teacher.faceOverride = t > 0.6 && t < 3.0 ? "blink" : t >= 3.0 && t < 4.0 ? "open" : null;
+    // a happy little hop as she finishes
+    teacher.bob = t > 3.0 && t < 3.6 ? Math.abs(Math.sin((t - 3.0) * 10.5)) * 0.02 : 0;
+    if (t0 < 3.0 && t >= 3.0) {
+      teacher.head.getWorldPosition(eyeTmp);
+      eyeTmp.y += 0.2;
+      burst(eyeTmp, 30, { speed: 1.2, colors: [0xfff3b0, 0xffb3e6, 0xffffff], life: 0.8 });
+    }
+    if (t >= IDLE_COMB_END) stopIdleComb();
+  }
+
+  // ----- the coin diver: a boy who lives in the river, swimming from
+  // krathong to krathong fishing out the coins people leave in them -----
+  const BOY_Y = -0.66; // his feet: shoulders just out of the water
+  const BOY_SPEED = 0.85;
+  const boy = buildPerson({ skin: "#c98f62", hair: "#140d0a", top: "#4fc3f7", pants: "#2d3c6b", headScale: 1.5, openEyes: true }, 1.2, 0);
+  // (he keeps clear of the pier, where she floats her krathongs and falls in)
+  const inPierZone = (x, z) => x < -0.4 && z > -1.8;
+  const diver = {
+    script: null, // the coin gag drives him while it runs
+    goal: null,
+    grab: -1,
+    wait: rand(1, 3),
+    rippleT: 0,
+    swim: 0,
+    wob: 0,
+    face: null,
+    want: null,
+    cur: { l: { x: -0.4, o: 0.9, e: -0.5, w: 0 }, r: { x: -0.4, o: 0.9, e: -0.5, w: 0 } },
+  };
+  {
+    const g = boy.group.position;
+    for (let i = 0; i < 12; i++) {
+      randomSpot(g, false);
+      if (!inPierZone(g.x, g.z)) break;
+    }
+    if (inPierZone(g.x, g.z)) g.set(2, 0, -4);
+    g.y = BOY_Y;
+  }
+  // a gold coin in his right hand, with a glint
+  const boyCoin = (() => {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.016, 18), new THREE.MeshToonMaterial({ color: 0xffd34a, emissive: 0x6a4400, gradientMap: softToonRamp() }));
+    m.rotation.x = Math.PI / 2;
+    m.position.set(0, -0.06, 0);
+    const glint = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex.glow, color: 0xffe9a0, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    glint.scale.setScalar(0.45);
+    glint.userData.ownFade = true;
+    m.add(glint);
+    m.visible = false;
+    boy.hands[1].add(m);
+    return m;
+  })();
+  // a bump on his head, and stars going round it
+  const bump = (() => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), new THREE.MeshToonMaterial({ color: 0xf0a090, emissive: 0x24160c }));
+    m.position.set(0.04, boy.faceC + HEAD_R + 0.02, 0.03);
+    m.scale.set(1, 0.8, 1);
+    m.visible = false;
+    boy.head.add(m);
+    return m;
+  })();
+  const starTex = canvasTexture(drawStar());
+  const stars = [0, 1, 2].map(() => {
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: starTex, transparent: true, depthWrite: false }));
+    m.scale.setScalar(0.17);
+    m.visible = false;
+    m.userData.ownFade = true;
+    boy.group.add(m);
+    return m;
+  });
+  // her comb out of her hand: thrown, in the river, in his hand
+  const flyComb = new THREE.Mesh(comb.geometry, propMat);
+  flyComb.scale.setScalar(1.3);
+  flyComb.visible = false;
+  scene.add(flyComb);
+
+  const KARM = {
+    tread: { x: -0.4, o: 0.9, e: -0.5 }, // sculling just under the water
+    reach: { x: -1.35, o: -0.15, e: -0.25 },
+    up: { x: -2.95, o: 0.2, e: -0.1 }, // held high
+    limp: { x: -0.15, o: 0.7, e: -0.15 },
+    wave: { x: -0.25, o: 0.38, e: -2.15, w: 1 },
+    wai: { x: -0.22, o: -0.4, e: -2.35 }, // sorry!
+    cheer: { x: -2.6, o: 0.75, e: -0.4 },
+  };
+  const armWant = { x: 0, o: 0, e: 0, w: 0 };
+  function poseBoy(p, dt) {
+    const d = diver;
+    const t = p.t;
+    const s = p.height / 1.8;
+    const k = 1 - Math.exp(-dt * 9);
+    const want = d.want || { l: KARM.tread, r: KARM.tread };
+    ["l", "r"].forEach((sd, i) => {
+      const a = d.cur[sd];
+      let b = want[sd];
+      const ph = t * 8 + i * Math.PI;
+      if (b === "paddle") {
+        // doggy paddle: hands churning in front, out of step
+        armWant.x = -1.25 + Math.sin(ph) * 0.55;
+        armWant.o = -0.1;
+        armWant.e = -0.7 + Math.cos(ph) * 0.4;
+        armWant.w = 0;
+        b = armWant;
+      } else if (b === KARM.tread) {
+        armWant.x = b.x;
+        armWant.o = b.o + Math.sin(t * 3 + i * Math.PI) * 0.25;
+        armWant.e = b.e;
+        armWant.w = 0;
+        b = armWant;
+      }
+      a.x += (b.x - a.x) * k;
+      a.o += (b.o - a.o) * k;
+      a.e += (b.e - a.e) * k;
+      a.w += ((b.w ?? 0) - a.w) * k;
+      const side = i ? 1 : -1;
+      p.arms[i].rotation.set(a.x, 0, side * a.o);
+      p.elbows[i].rotation.set(a.e, 0, side * a.w * Math.sin(t * 6) * 0.4);
+    });
+    p.inner.scale.setScalar(s);
+    p.inner.position.set(0, 0, 0);
+    p.inner.rotation.set(d.swim * 0.35, 0, Math.sin(t * 2.1) * 0.04);
+    // legs kicking lazily under the water
+    p.legs[0].rotation.x = Math.sin(t * 5) * 0.4;
+    p.legs[1].rotation.x = -Math.sin(t * 5) * 0.4;
+    // dizzy after the bonk: his head goes round and round
+    p.head.rotation.set(Math.sin(t * 0.6) * 0.05 + Math.sin(t * 7) * 0.2 * d.wob, Math.sin(t * 0.4) * 0.1, Math.sin(t * 0.9) * 0.06 + Math.cos(t * 7) * 0.25 * d.wob);
+    p.faceOverride = d.face;
+  }
+  function turnBoy(yaw, dt) {
+    boy.group.rotation.y += wrapAngle(yaw - boy.group.rotation.y) * Math.min(1, dt * 5);
+  }
+  const boyTmp = new THREE.Vector3();
+  function boyRipples(dt, every) {
+    diver.rippleT -= dt;
+    if (diver.rippleT > 0) return;
+    diver.rippleT = every;
+    const g = boy.group.position;
+    if (g.y > BOY_Y - 0.4) ripple(g.x, g.z, 0.8, 0xcfe8ff);
+  }
+  // free time: off to a krathong, a coin, off to the next
+  function boyRoam(dt) {
+    const d = diver;
+    if (d.script) return;
+    const g = boy.group.position;
+    const toCam = Math.atan2(camera.position.x - g.x, camera.position.z - g.z);
+    let moving = false;
+    let yaw = null;
+    d.face = null;
+    d.wob = 0;
+    d.want = null;
+    boyCoin.visible = false;
+    if (inPierZone(g.x, g.z)) {
+      // out of the way of the pier first (e.g. after handing her comb back)
+      boyTmp.set(-0.1, 0, Math.min(g.z, 1.2));
+      const dx = boyTmp.x - g.x;
+      const dz = boyTmp.z - g.z;
+      const dist = Math.hypot(dx, dz) || 1;
+      g.x += (dx / dist) * Math.min(dist, BOY_SPEED * dt);
+      g.z += (dz / dist) * Math.min(dist, BOY_SPEED * dt);
+      yaw = Math.atan2(dx, dz);
+      moving = true;
+      d.goal = null;
+      d.grab = -1;
+    } else if (d.grab >= 0) {
+      // at a krathong: reach in... a coin! hold it up, then off again
+      const u0 = d.grab;
+      d.grab += dt;
+      const u = d.grab;
+      if (u < 0.6) {
+        d.want = { l: KARM.tread, r: KARM.reach };
+        if (d.goal && krathongs.includes(d.goal)) yaw = Math.atan2(d.goal.root.position.x - g.x, d.goal.root.position.z - g.z);
+      } else if (u < 1.7) {
+        d.want = { l: KARM.tread, r: KARM.up };
+        boyCoin.visible = true;
+        yaw = toCam;
+      }
+      if (u0 < 0.6 && u >= 0.6) {
+        boy.hands[1].getWorldPosition(boyTmp);
+        burst(boyTmp, 14, { speed: 0.9, colors: [0xffe27a, 0xfff6c8, 0xffffff], life: 0.5 });
+        sound.ting(Math.min(0.06, 0.5 / camera.position.distanceTo(boyTmp)));
+      }
+      if (u > 2.0) {
+        d.grab = -1;
+        d.goal = null;
+        d.wait = rand(1.5, 4);
+      }
+    } else if (d.goal && krathongs.includes(d.goal) && d.goal.placed && !d.goal.stolen && d.goal.sinking == null) {
+      const kp = d.goal.root.position;
+      const dx = kp.x - g.x;
+      const dz = kp.z - g.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist < 0.6) {
+        d.grab = 0;
+      } else {
+        const step = Math.min(dist - 0.55, BOY_SPEED * dt);
+        g.x += (dx / dist) * step;
+        g.z += (dz / dist) * step;
+        yaw = Math.atan2(dx, dz);
+        moving = true;
+      }
+      if (inPierZone(kp.x, kp.z)) d.goal = null; // it drifted to the pier: leave it
+    } else {
+      d.goal = null;
+      d.wait -= dt;
+      if (d.wait <= 0) {
+        const pick = krathongs.filter((k) => !k.sky && k.placed && !k.stolen && k.sinking == null && !inPierZone(k.root.position.x, k.root.position.z));
+        d.goal = pick.length ? pick[Math.floor(Math.random() * pick.length)] : null;
+        d.wait = 2;
+      }
+    }
+    g.y = BOY_Y + Math.sin(boy.t * 2.4) * 0.03;
+    d.swim += ((moving ? 1 : 0) - d.swim) * Math.min(1, dt * 4);
+    if (!d.want) d.want = moving ? { l: "paddle", r: "paddle" } : { l: KARM.tread, r: KARM.tread };
+    if (yaw != null) turnBoy(yaw, dt);
+    boyRipples(dt, moving ? 0.35 : 1.3);
+  }
+
+  // ----- the coin gag: now and then (at least once every 2.22 minutes)
+  // the coin diver fishes the coin out of one of Kru Song's krathongs and
+  // it sinks. She gasps, points at him, fumes (cutely) and throws her comb
+  // at him: bonk, a bump and stars. He dives for the krathong and floats
+  // it again with its candle relit, then dives for her comb and brings it
+  // back while she huffs. She combs her hair, and she's herself again. -----
+  const COIN_EVERY = 133.2; // 2.22 minutes: the longest it ever waits
+  const COIN_MIN = 45;
+  let coinDue = rand(COIN_MIN, COIN_EVERY); // (the clock starts at 0)
+  let coinQueued = false;
+  const COIN_EDGE = new THREE.Vector3(-2.55, PIER.top, 1.95); // she kneels here for the comb
+  const COIN_RETURN = new THREE.Vector3(-1.95, BOY_Y, 1.95); // he hands it up from here
+  Object.assign(ARM, {
+    point: { x: -1.55, o: 0.05, e: -0.05 }, // "YOU!"
+    fist: { x: 0.08, o: 0.3, e: -1.0 }, // little fists, cross
+    windup: { x: -2.75, o: 0.4, e: -1.9 }, // comb back over her head
+    fling: { x: -1.2, o: 0.0, e: -0.1 }, // ... and thrown
+  });
+  const yawTo = (a, b) => Math.atan2(b.x - a.x, b.z - a.z);
+  // one of her krathongs out on the water, the one nearest the pier
+  function coinTarget() {
+    let best = null;
+    let bd = Infinity;
+    for (const k of krathongs) {
+      if (k.simple || k.sky || !k.placed || k.sinking != null || k.stolen) continue;
+      const p = k.root.position;
+      if (inPierZone(p.x, p.z)) continue;
+      const d = Math.hypot(p.x - TEACHER_POS.x, p.z - TEACHER_POS.z);
+      if (d < bd) {
+        bd = d;
+        best = k;
+      }
+    }
+    return best;
+  }
+  // once it's due, it waits for her to be free and for a krathong of hers
+  function coinTick() {
+    if (coinQueued || clock < coinDue || !coinTarget()) return;
+    queue.push({ coin: true });
+    coinQueued = true;
+  }
+  // everything is planned up front from where the krathong and the boy
+  // are, so each beat is a function of the gag's time
+  function planCoin(k) {
+    const K = k.root.position.clone().setY(0);
+    const S = boy.group.position.clone();
+    // he stops beside it (to its right as the camera sees it)
+    const G1 = new THREE.Vector3(K.x + 0.6, BOY_Y, K.z + 0.1);
+    const CL = new THREE.Vector3(G1.x + 0.55, 0, G1.z + 0.35); // where the comb lands
+    const a = Math.min(5, Math.max(1.2, Math.hypot(S.x - G1.x, S.z - G1.z) / 2.2));
+    const b = a + 2.4; // she sees
+    const c = b + 2.6; // winds up
+    const rel = c + 1.0; // throws
+    const h = rel + 0.9; // bonk
+    const sw = h + 8.0; // he swims her comb back
+    const j = sw + Math.min(6, Math.max(1.5, Math.hypot(CL.x - COIN_RETURN.x, CL.z - COIN_RETURN.z) / 1.7));
+    const end = j + 5.8;
+    const yawK = yawTo(TEACHER_POS, G1);
+    const keys = [
+      [0, pose("clasp", "clasp", { hz: 0.08, yaw: TEACHER_YAW })],
+      [b, pose("brace", "brace", { hx: -0.1, yaw: yawK })], // gasp!
+      [b + 1.0, pose("fist", "point", { hx: -0.05, hz: 0.1, yaw: yawK })], // YOU!
+      [c, pose("windup", "fist", { hx: -0.15, lean: -0.06, yaw: yawK })],
+      [rel, pose("fling", "fist", { hx: 0.05, lean: 0.12, yaw: yawK })],
+      [h, pose("fist", "fist", { hx: -0.3, hz: 0.14, yaw: yawK - 0.6 })], // hmph!
+      [h + 1.6, pose("fist", "fist", { hx: -0.1, yaw: yawK })],
+    ];
+    // huffing while he brings it back: chin up and away, then a glance
+    for (let tt = h + 6.6, n = 0; tt < j - 1.3; tt += 1.3, n++) {
+      keys.push([tt, n % 2 ? pose("fist", "fist", { hx: -0.05, hz: -0.1, yaw: yawTo(TEACHER_POS, COIN_RETURN) - 0.3 }) : pose("fist", "fist", { hx: -0.28, hz: 0.15, yaw: FACE_CAM - 0.5 })]);
+    }
+    keys.push(
+      [j - 1.0, pose("rest", "rest", { yaw: FACE_WATER })], // to the edge
+      [j + 0.3, pose("reach", "reach", { dip: 0.16, lean: 0.2, hx: 0.4, yaw: FACE_WATER })], // takes it
+      [j + 1.1, pose("rest", "rest", { yaw: FACE_CAM })],
+      [j + 1.3, pose("comb", "rest", { hz: -0.16, yaw: FACE_CAM })],
+      [j + 2.1, pose("comb", "rest", { hz: 0.12, yaw: FACE_CAM })],
+      [j + 2.9, pose("comb", "rest", { hz: -0.16, yaw: FACE_CAM })],
+      [j + 3.7, pose("heart", "heart", { hz: 0.14, yaw: FACE_CAM })], // pretty again
+      [j + 4.4, pose("clasp", "clasp", { yaw: TEACHER_YAW })], // back to her spot
+      [j + 5.0, pose("clasp", "wave", { hz: -0.12, yaw: FACE_CAM })],
+      [end, null]
+    );
+    return { K, S, G1, CL, a, b, c, rel, h, sw, j, end, keys };
+  }
+  function startCoin(item) {
+    const k = coinTarget();
+    if (!k) {
+      coinQueued = false;
+      return false;
+    }
+    item.target = k;
+    item.plan = planCoin(k);
+    k.stolen = true;
+    diver.script = item;
+    diver.goal = null;
+    diver.grab = -1;
+    return true;
+  }
+  function endCoin(item) {
+    const k = item.target;
+    if (krathongs.includes(k) && k.stolen) {
+      // (in case it was cut short) her krathong is back, lit, on the water
+      k.root.position.set(item.plan.K.x, 0, item.plan.K.z);
+      k.root.rotation.z = 0;
+      k.root.scale.setScalar(1);
+      k.root.visible = true;
+      k.flame.visible = true;
+      k.pool.visible = true;
+      k.lit = 1;
+      k.placed = true;
+    }
+    if (k) k.stolen = false;
+    diver.script = null;
+    diver.face = null;
+    diver.wob = 0;
+    boyCoin.visible = false;
+    flyComb.visible = false;
+    bump.visible = false;
+    for (const s of stars) s.visible = false;
+    coinQueued = false;
+    coinDue = clock + rand(COIN_MIN, COIN_EVERY);
+  }
+  // her side of it: faces, the cross mark, stomping, the comb, where she is
+  function coinState(t, pl) {
+    const g = gagBase();
+    if (t < pl.b) return g;
+    if (t < pl.b + 1.0) {
+      g.face = "huh";
+      g.exclaim = Math.sin(clamp01((t - pl.b) / 1.0) * Math.PI);
+    } else if (t < pl.j + 1.1) g.face = "pout";
+    else if (t < pl.j + 3.7) g.face = "blink"; // eyes shut, combing
+    if (t >= pl.b + 1.0 && t < pl.j + 0.3) g.anger = smooth(clamp01((t - pl.b - 1.0) / 0.3)) * (1 - smooth(clamp01((t - pl.j) / 0.3)));
+    // stomp, stomp
+    if (t > pl.b + 1.2 && t < pl.c) g.bob = Math.abs(Math.sin((t - pl.b - 1.2) * 6)) * 0.03;
+    if (t > pl.h + 6.6 && t < pl.j - 1.0) g.bob = Math.abs(Math.sin((t - pl.h) * 5)) * 0.022;
+    g.comb = (t > pl.c - 0.05 && t < pl.rel) || (t > pl.j + 0.9 && t < pl.j + 3.75);
+    if (t >= pl.j - 1.0 && t < pl.j + 5.0) {
+      const p = wetPos;
+      if (t < pl.j - 0.3) p.lerpVectors(TEACHER_POS, COIN_EDGE, smooth((t - pl.j + 1.0) / 0.7));
+      else if (t < pl.j + 4.4) p.copy(COIN_EDGE);
+      else p.lerpVectors(COIN_EDGE, TEACHER_POS, smooth(clamp01((t - pl.j - 4.4) / 0.6)));
+      g.pos = p;
+    }
+    return g;
+  }
+  const coinTmp = new THREE.Vector3();
+  const coinTmp2 = new THREE.Vector3();
+  function coinPerformance(P, item, t, dt) {
+    const pl = item.plan;
+    applyGag(coinState(t, pl));
+    const d = diver;
+    const g = boy.group.position;
+    const k = item.target;
+    const alive = krathongs.includes(k);
+    const toCam = Math.atan2(camera.position.x - g.x, camera.position.z - g.z);
+    let yaw = toCam;
+    let y = BOY_Y + Math.sin(boy.t * 2.4) * 0.03;
+    let want = { l: KARM.tread, r: KARM.tread };
+    let combInHand = false;
+    d.swim = 0;
+    d.wob = 0;
+    d.face = null;
+    boyCoin.visible = false;
+
+    // ---- him ----
+    if (t < pl.a) {
+      g.lerpVectors(pl.S, pl.G1, smooth(t / pl.a));
+      yaw = yawTo(pl.S, pl.G1);
+      d.swim = 1;
+      want = { l: "paddle", r: "paddle" };
+    } else if (t < pl.h + 3.0) {
+      g.copy(pl.G1);
+      if (t < pl.a + 0.6) {
+        want = { l: KARM.tread, r: KARM.reach };
+        yaw = yawTo(pl.G1, pl.K);
+      } else if (t < pl.a + 1.6) {
+        want = { l: KARM.tread, r: KARM.up }; // a coin!
+        boyCoin.visible = true;
+        d.face = "open";
+      } else if (t < pl.b + 1.0) {
+        yaw = yawTo(pl.G1, pl.K); // uh-oh, it's sinking
+        d.face = "huh";
+      } else if (t < pl.h) {
+        yaw = yawTo(pl.G1, TEACHER_POS); // who, me?
+        d.face = "huh";
+      } else {
+        d.face = "daze";
+        d.wob = 1;
+        want = { l: KARM.limp, r: KARM.limp };
+      }
+    } else if (t < pl.h + 4.6) {
+      // dives for the krathong
+      g.copy(pl.G1);
+      y = lerp(BOY_Y, -2.4, smooth(clamp01((t - pl.h - 3.0) / 0.35)));
+      want = { l: KARM.up, r: KARM.up };
+    } else if (t < pl.h + 6.4) {
+      // up with it over his head, sets it back on the water, ta-da
+      g.copy(pl.G1);
+      y = lerp(-2.4, BOY_Y, smooth(clamp01((t - pl.h - 4.6) / 0.3)));
+      if (t < pl.h + 5.4) want = { l: KARM.up, r: KARM.up };
+      else if (t < pl.h + 6.0) {
+        want = { l: KARM.reach, r: KARM.reach };
+        yaw = yawTo(pl.G1, pl.K);
+      } else {
+        want = { l: KARM.cheer, r: KARM.cheer };
+        d.face = "open";
+      }
+    } else if (t < pl.sw) {
+      // dives again for her comb
+      g.lerpVectors(pl.G1, coinTmp.set(pl.CL.x, 0, pl.CL.z), smooth(clamp01((t - pl.h - 6.4) / 1.0)));
+      if (t < pl.h + 7.4) {
+        y = lerp(BOY_Y, -2.4, smooth(clamp01((t - pl.h - 6.4) / 0.35)));
+        want = { l: KARM.up, r: KARM.up };
+      } else {
+        y = lerp(-2.4, BOY_Y, smooth(clamp01((t - pl.h - 7.4) / 0.3)));
+        want = { l: KARM.tread, r: KARM.up };
+        combInHand = true;
+        d.face = "open";
+      }
+    } else if (t < pl.j) {
+      // one-handed doggy paddle to the pier, her comb held up high
+      coinTmp.set(pl.CL.x, 0, pl.CL.z);
+      g.lerpVectors(coinTmp, COIN_RETURN, smooth((t - pl.sw) / (pl.j - pl.sw)));
+      yaw = yawTo(coinTmp, COIN_RETURN);
+      d.swim = 1;
+      want = { l: "paddle", r: KARM.up };
+      combInHand = true;
+    } else {
+      g.copy(COIN_RETURN);
+      // turned half to her, half to the camera
+      yaw = yawTo(COIN_RETURN, COIN_EDGE) + wrapAngle(toCam - yawTo(COIN_RETURN, COIN_EDGE)) * 0.5;
+      if (t < pl.j + 0.9) {
+        want = { l: KARM.tread, r: KARM.up };
+        combInHand = true;
+      } else if (t < pl.j + 2.0) {
+        want = { l: KARM.wai, r: KARM.wai }; // sorry, kru!
+        d.face = "blink";
+      } else {
+        want = { l: KARM.tread, r: KARM.wave };
+        d.face = "open";
+      }
+    }
+    g.y = y;
+    d.want = want;
+    turnBoy(yaw, dt);
+    if (y > BOY_Y - 0.2) boyRipples(dt, d.swim > 0.5 ? 0.3 : 1.2);
+
+    // ---- the bump and the stars ----
+    const bumpAmt = t < pl.h ? 0 : t < pl.j + 1.5 ? smooth(clamp01((t - pl.h) / 0.15)) : 1 - smooth(clamp01((t - pl.j - 1.5) / 0.5));
+    bump.visible = bumpAmt > 0.01;
+    bump.scale.set(1, 0.8, 1).multiplyScalar(Math.max(0.001, bumpAmt) * (1 + 0.25 * Math.exp(-(t - pl.h) * 6) * Math.sin((t - pl.h) * 40)));
+    const starOn = t > pl.h && t < pl.h + 3.0;
+    stars.forEach((s, i) => {
+      s.visible = starOn;
+      if (!starOn) return;
+      const a = t * 4 + (i / 3) * TAU;
+      s.position.set(Math.cos(a) * 0.24, boy.topY + 0.1 + Math.sin(a * 2) * 0.02, Math.sin(a) * 0.24);
+      s.material.opacity = 1 - smooth(clamp01((t - pl.h - 2.6) / 0.4));
+    });
+
+    // ---- her krathong ----
+    if (alive) {
+      const kp = k.root.position;
+      if (t < pl.a + 0.6) {
+        kp.set(pl.K.x, Math.sin(clock * 1.4 + k.phase) * 0.025, pl.K.z);
+      } else if (t < pl.a + 2.4) {
+        // rocks as the coin comes out, then goes down, candle and all
+        const u = (t - pl.a - 0.6) / 1.8;
+        k.placed = false;
+        kp.set(pl.K.x, -2.4 * u * u, pl.K.z);
+        k.root.rotation.z = Math.sin(t * 14) * 0.15 * (1 - u) + 0.45 * u;
+        if (t > pl.a + 0.9) {
+          k.flame.visible = false;
+          k.pool.visible = false;
+          k.lit = 0;
+        }
+      } else if (t < pl.h + 4.6) {
+        k.root.visible = false;
+      } else if (t < pl.h + 5.4) {
+        // up over his head
+        k.root.visible = true;
+        k.root.rotation.z = 0;
+        boy.hands[0].getWorldPosition(kp);
+        boy.hands[1].getWorldPosition(coinTmp2);
+        kp.add(coinTmp2).multiplyScalar(0.5);
+        kp.y += 0.04;
+        k.root.scale.setScalar(0.6);
+      } else if (t < pl.h + 6.0) {
+        if (!P.kHeld) P.kHeld = kp.clone();
+        const u = smooth((t - pl.h - 5.4) / 0.6);
+        kp.lerpVectors(P.kHeld, coinTmp.set(pl.K.x, 0, pl.K.z), u);
+        k.root.scale.setScalar(lerp(0.6, 1, u));
+      } else {
+        kp.set(pl.K.x, Math.sin(clock * 1.4 + k.phase) * 0.025, pl.K.z);
+        k.root.scale.setScalar(1);
+        if (once(P, "relight", t, pl.h + 6.0)) {
+          k.flame.visible = true;
+          k.pool.visible = true;
+          k.lit = 1;
+          k.flame.getWorldPosition(coinTmp2);
+          burst(coinTmp2, 50, { speed: 1.4, colors: [0xfff3b0, 0xffd27a, 0xffb3e6, 0xffffff], life: 0.9 });
+          ripple(pl.K.x, pl.K.z, 1.8);
+          ripple(pl.K.x, pl.K.z, 2.8);
+          sound.chime();
+        }
+        if (t > pl.h + 6.3 && k.stolen) {
+          k.placed = true;
+          k.stolen = false;
+          k.vel.set(0, 0, 0);
+        }
+      }
+    }
+
+    // ---- her comb ----
+    if (t >= pl.rel && t < pl.h + 0.6) {
+      if (!P.combFrom) {
+        P.combFrom = new THREE.Vector3();
+        comb.getWorldPosition(P.combFrom);
+      }
+      flyComb.visible = true;
+      const hit = coinTmp2.set(pl.G1.x, BOY_Y + boy.topY - 0.05, pl.G1.z);
+      if (t < pl.h) {
+        const u = (t - pl.rel) / (pl.h - pl.rel);
+        flyComb.position.lerpVectors(P.combFrom, hit, u);
+        flyComb.position.y += Math.sin(u * Math.PI) * 0.9;
+      } else {
+        // bonk! it bounces off into the river
+        const u = (t - pl.h) / 0.6;
+        flyComb.position.lerpVectors(hit, pl.CL, u);
+        flyComb.position.y += Math.sin(u * Math.PI) * 0.6;
+      }
+      flyComb.rotation.set(t * 14, 0.3, t * 9);
+    } else if (combInHand) {
+      flyComb.visible = true;
+      boy.hands[1].getWorldPosition(flyComb.position);
+      flyComb.position.y += 0.05;
+      flyComb.rotation.set(0, boy.group.rotation.y, 0.3);
+    } else {
+      flyComb.visible = false;
+    }
+
+    // ---- effects and sounds, each once ----
+    const head = teacher.head.getWorldPosition(eyeTmp);
+    if (once(P, "coin", t, pl.a + 0.6)) {
+      boy.hands[1].getWorldPosition(coinTmp2);
+      burst(coinTmp2, 24, { speed: 1.1, colors: [0xffe27a, 0xfff6c8, 0xffffff], life: 0.6 });
+      sound.ting(0.08);
+    }
+    if (alive && once(P, "out", t, pl.a + 0.9)) {
+      puff(coinTmp2.set(pl.K.x + 0.24, 0.75, pl.K.z + 0.1), { size: 0.08, grow: 2.5, life: 1.0, rise: 0.3, spread: 0.05, a: 0.6, color: 0x8a8088 });
+      sound.fizzle();
+    }
+    // bubbles where it went down, and where he dives
+    const bubbling = (t > pl.a + 0.9 && t < pl.a + 2.8) || (t > pl.h + 3.1 && t < pl.h + 4.6) || (t > pl.h + 6.5 && t < pl.h + 7.4);
+    if (bubbling) {
+      P.bub = (P.bub ?? 0) - dt;
+      if (P.bub <= 0) {
+        P.bub = rand(0.12, 0.25);
+        const at = coinTmp2.set(g.x + rand(-0.3, 0.3), 0.05, g.z + rand(-0.3, 0.3));
+        if (t < pl.a + 2.8) at.set(pl.K.x + rand(-0.25, 0.25), 0.05, pl.K.z + rand(-0.25, 0.25));
+        burst(at, 4, { speed: 0.35, colors: [0xcfeeff, 0xffffff], life: 0.4, up: 0.4 });
+        ripple(at.x, at.z, 0.5, 0xcfe8ff);
+        sound.blub();
+      }
+    }
+    if (once(P, "gasp", t, pl.b)) sound.pop(0.15);
+    for (const at of [pl.b + 1.0, pl.b + 1.9, pl.c + 0.3]) if (once(P, "hmph" + at, t, at)) sound.hmph();
+    if (once(P, "throw", t, pl.rel)) sound.whoosh();
+    if (once(P, "bonk", t, pl.h)) {
+      coinTmp2.set(pl.G1.x, BOY_Y + boy.topY, pl.G1.z);
+      burst(coinTmp2, 30, { speed: 1.6, colors: [0xffe27a, 0xffffff], life: 0.5 });
+      sound.bonk();
+    }
+    if (once(P, "combin", t, pl.h + 0.6)) {
+      burst(coinTmp2.set(pl.CL.x, 0.05, pl.CL.z), 20, { speed: 1.2, colors: [0xbfe6ff, 0xffffff], life: 0.5 });
+      ripple(pl.CL.x, pl.CL.z, 1.0, 0xcfe8ff);
+      sound.plop();
+    }
+    for (const at of [pl.h + 3.0, pl.h + 6.4]) {
+      if (once(P, "dive" + at, t, at)) {
+        burst(coinTmp2.set(g.x, 0.05, g.z), 40, { speed: 1.8, colors: [0xbfe6ff, 0xffffff], life: 0.6, up: 1.2 });
+        ripple(g.x, g.z, 1.4, 0xcfe8ff);
+        sound.plop();
+      }
+    }
+    for (const at of [pl.h + 4.6, pl.h + 7.4]) {
+      if (once(P, "up" + at, t, at)) {
+        burst(coinTmp2.set(g.x, 0.05, g.z), 40, { speed: 1.8, colors: [0xbfe6ff, 0xffffff], life: 0.6, up: 1.2 });
+        ripple(g.x, g.z, 1.6, 0xcfe8ff);
+        sound.splash();
+      }
+    }
+    // huffing: little puffs of steam from both sides of her head
+    const huffing = (t > pl.b + 1.0 && t < pl.c) || (t > pl.h + 6.6 && t < pl.j - 1.0);
+    if (huffing) {
+      P.steam = (P.steam ?? 0) - dt;
+      if (P.steam <= 0) {
+        P.steam = 0.5;
+        fwd.set(1, 0, 0).applyQuaternion(teacher.group.quaternion);
+        for (const s of [-1, 1]) {
+          coinTmp2.copy(head).addScaledVector(fwd, s * 0.22);
+          coinTmp2.y += 0.12;
+          puff(coinTmp2, { size: 0.05, grow: 2.4, life: 0.7, rise: 0.35, spread: 0.04, a: 0.75, color: 0xffffff });
+        }
+      }
+      P.huffT = (P.huffT ?? 1.0) - dt;
+      if (t > pl.h && P.huffT <= 0) {
+        P.huffT = 2.6;
+        sound.hmph();
+      }
+    }
+    if (once(P, "back", t, pl.j + 0.9)) {
+      comb.getWorldPosition(coinTmp2);
+      burst(coinTmp2, 20, { speed: 0.9, colors: [0xfff3b0, 0xffb3e6, 0xffffff], life: 0.6 });
+    }
+    if (once(P, "pretty", t, pl.j + 3.7)) {
+      coinTmp2.copy(head);
+      coinTmp2.y += 0.2;
+      burst(coinTmp2, 50, { speed: 1.5, colors: [0xfff3b0, 0xffb3e6, 0xffffff], life: 0.9 });
+      sound.chime();
+    }
+  }
+  function coinShot(pos, look, P) {
+    const pl = P.k.plan;
+    const t = P.t;
+    const portrait = camera.aspect < 1;
+    // close on the boy and her krathong, from the front a little to the side
+    const onBoy = () => {
+      const x = (pl.K.x + pl.G1.x) / 2;
+      const z = (pl.K.z + pl.G1.z) / 2;
+      const dd = portrait ? 5.8 : 4.4;
+      look.set(x, 0.45, z);
+      pos.set(x + Math.sin(0.35) * dd, 1.55, z + Math.cos(0.35) * dd);
+    };
+    if (t < pl.b - 0.3) onBoy();
+    else if (t < pl.c - 0.4) {
+      // from in front of her as she turns on him, so her cross little
+      // face is what we see (he's behind the camera)
+      const yawK = yawTo(TEACHER_POS, pl.G1) + 0.6;
+      const dd = 3.7 + (portrait ? 1.6 : 0);
+      look.set(TEACHER_POS.x, 1.55, TEACHER_POS.z);
+      pos.set(TEACHER_POS.x + Math.sin(yawK) * dd, 1.85, TEACHER_POS.z + Math.cos(yawK) * dd);
+    } else if (t < pl.h + 0.6) {
+      // both of them, set and still before the throw
+      const mx = (TEACHER_POS.x + pl.G1.x) / 2;
+      const mz = (TEACHER_POS.z + pl.G1.z) / 2;
+      const sep = Math.hypot(TEACHER_POS.x - pl.G1.x, TEACHER_POS.z - pl.G1.z);
+      const dd = Math.max(4.5, sep * 0.95 + 2.6) * (portrait ? 1.6 : 1);
+      look.set(mx, 0.9, mz);
+      pos.set(mx + Math.sin(0.25) * dd, 1.4 + dd * 0.12, mz + Math.cos(0.25) * dd);
+    } else if (t < pl.h + 6.5) onBoy();
+    else if (t > pl.j - 1.6 && t < pl.j + 1.2) {
+      // the hand-over: side on, her at the pier's edge and him in the water
+      // below her (set before he arrives)
+      const dd = 4.2 + (portrait ? 1.8 : 0);
+      look.set((COIN_EDGE.x + COIN_RETURN.x) / 2, 0.8, 1.95);
+      pos.set(look.x + Math.sin(0.15) * dd, 1.6, 1.95 + Math.cos(0.15) * dd);
+    } else closeOnHer(pos, look);
+  }
+
   // ----- NPC behaviours -----
   function npcAct(p, dt) {
     p.next -= dt;
@@ -4830,6 +5814,8 @@ function mount() {
       if (p === teacher) {
         easeTeacher(dt);
         poseTeacher(p);
+      } else if (p === boy) {
+        poseBoy(p, dt);
       } else {
         const breathe = Math.sin(p.t * 1.6) * 0.012;
         // crouching leans forward over the water
@@ -4858,7 +5844,7 @@ function mount() {
       if (p.faces.blink) {
         p.blinkAt -= dt;
         const shut = p === teacher && teacher.cur.eyes > 0.5;
-        if (p === teacher && teacher.faceOverride) p.faceMat.map = p.faces[teacher.faceOverride];
+        if (p.faceOverride && p.faces[p.faceOverride]) p.faceMat.map = p.faces[p.faceOverride];
         else p.faceMat.map = shut || p.blinkAt < 0 ? p.faces.blink : p.faces.open;
         if (p.blinkAt < -0.13) p.blinkAt = rand(2, 5);
       }
@@ -4948,7 +5934,7 @@ function mount() {
     ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
     raycaster.setFromCamera(ndc, camera);
     // (not one still with Kru Song, e.g. waiting on the pier in the wet gag)
-    const hit = raycaster.intersectObjects(pickables, false).find((h) => h.object.userData.krathong.placed);
+    const hit = raycaster.intersectObjects(pickables, false).find((h) => h.object.userData.krathong.placed && !h.object.userData.krathong.stolen);
     if (hit) {
       focusOn(hit.object.userData.krathong, 25);
       els.hint.style.opacity = "0";
@@ -5083,7 +6069,7 @@ function mount() {
         k.pool.position.y = 0.012 - k.root.position.y;
         k.pool.material.opacity = 0.26 * clamp01((9 - k.root.position.y) / 7) * k.lit;
         k.pool.visible = k.placed;
-      } else if (k.placed) {
+      } else if (k.placed && !k.stolen) {
         const p = k.root.position;
         const tx = k.target.x - p.x;
         const tz = k.target.z - p.z;
@@ -5190,6 +6176,9 @@ function mount() {
     if (lanterns.length > 60) lanterns.splice(lanterns.findIndex((l) => !l.held), 1);
 
     runPerformance(dt);
+    idleCombTick(dt);
+    coinTick();
+    boyRoam(dt);
     for (const n of npcs) npcAct(n, dt);
     walkAbout(dt);
     updateSparks(dt);
@@ -5218,7 +6207,9 @@ function mount() {
         goalPos.set(p.x + 0.25, 1.7, p.z + (camera.aspect < 1 ? 5.4 : 4.1));
       }
     } else if (camState.mode === "teacher") {
-      if (performing?.k.fire) {
+      if (performing?.k.coin) {
+        coinShot(goalPos, goalLook, performing);
+      } else if (performing?.k.fire) {
         fireShot(goalPos, goalLook, performing);
       } else if (performing?.k.wet) {
         wetShot(goalPos, goalLook, performing);
