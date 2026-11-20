@@ -4233,19 +4233,24 @@ function mount() {
     return {
       draw() {
         if (!left.length) {
-          left = items.slice();
-          for (let i = left.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [left[i], left[j]] = [left[j], left[i]];
+          // reshuffle until no item comes up twice running (an item can be in
+          // the bag more than once, like the blank tickets)
+          for (let tries = 0; tries < 100; tries++) {
+            left = items.slice();
+            for (let i = left.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [left[i], left[j]] = [left[j], left[i]];
+            }
+            if (left.every((v, i) => v !== (i === left.length - 1 ? last : left[i + 1]))) break;
           }
-          if (left.length > 1 && left[left.length - 1] === last) [left[0], left[left.length - 1]] = [left[left.length - 1], left[0]];
         }
         last = left.pop();
         return last;
       },
     };
   }
-  const floatBag = makeBag(["wet", "glasses", "firefly", "fish", "boomerang", "candle", "turtle"]);
+  // (two blank tickets: that float is a plain one, no gag)
+  const floatBag = makeBag(["wet", "glasses", "firefly", "fish", "boomerang", "candle", "turtle", "blank", "blank"]);
   // what happens when she's had nothing to do for a while
   const idleBag = makeBag(["comb", "lip", "frog", "cracker", "coin", "mozzie", "ramwong", "star", "sleepy", "cat"]);
   function runPerformance(dt) {
@@ -4257,11 +4262,11 @@ function mount() {
       if (pk.coin || pk.timed) {
         // (the coin, frog and firecracker gags: none of the krathong set-up below)
       } else if (!pk.fire && !pk.sky) {
-        // every float has a gag, drawn like a lucky-draw stall: each one
+        // most floats have a gag, drawn like a lucky-draw stall: each one
         // once in a random order, then a fresh shuffle (never the same one
         // twice running, even across rounds)
         const gag = floatBag.draw();
-        if (EXTRA[gag]) pk.extra = gag;
+        if (gag === "blank") { /* a plain float */ } else if (EXTRA[gag]) pk.extra = gag;
         else pk[gag] = true;
       } else if (pk.sky) {
         // ... and now and then a lantern carries her off, by the same rule
