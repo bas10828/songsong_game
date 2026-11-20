@@ -35,6 +35,9 @@ const RIVER = { minX: -17, maxX: 19, nearZ: 3.9, farZ: -17 };
 const PIER = { x: -3.2, z0: 1.4, z1: 4.6, top: 0.42 };
 const TEACHER_POS = new THREE.Vector3(-3.35, PIER.top, 1.95);
 const DROP_POS = new THREE.Vector3(-1.95, 0, 1.55);
+// a mooring post standing up at the back corner of the deck (behind her
+// as the camera sees her; she wais it by mistake without her glasses)
+const MOOR_POS = new THREE.Vector3(PIER.x - 0.8, PIER.top, (PIER.z0 + PIER.z1) / 2);
 // Kru Song faces the viewer, turned toward the water; she turns further to
 // face the drop point while floating a krathong
 const TEACHER_YAW = 0.45;
@@ -567,8 +570,8 @@ function drawFace(style = "closed") {
     } else if (style === "huh" && s > 0) {
       g.moveTo(ex - 9, 40);
       g.quadraticCurveTo(ex + 1, 33, ex + 12, 38);
-    } else if (style === "pout") {
-      // cross: inner ends pulled down (still short and soft)
+    } else if (style === "pout" || style === "squint") {
+      // cross (or peering): inner ends pulled down (still short and soft)
       g.moveTo(ex - 9 * s, 50);
       g.quadraticCurveTo(ex + 1 * s, 43, ex + 11 * s, 40);
     } else {
@@ -577,14 +580,19 @@ function drawFace(style = "closed") {
     }
     g.stroke();
   }
-  const openEyes = () => {
-    for (const ex of EYES) {
+  const openEyes = (cross = false) => {
+    for (let ex of EYES) {
       const s = ex < 128 ? -1 : 1;
       // white of the eye
       g.fillStyle = "#ffffff";
       g.beginPath();
       g.ellipse(ex, EY + 2, 19, 21, 0, 0, TAU);
       g.fill();
+      // cross-eyed: everything inside the white slides toward her nose
+      g.save();
+      g.clip();
+      const ox = cross ? -s * 8 : 0;
+      ex += ox;
       // big round iris: dark at the top, warm amber at the bottom
       const iris = g.createLinearGradient(0, EY - 18, 0, EY + 22);
       iris.addColorStop(0, "#24120c");
@@ -615,6 +623,8 @@ function drawFace(style = "closed") {
       g.beginPath();
       g.arc(ex - 7 * s, EY - 6, 1.4, 0, TAU);
       g.fill();
+      g.restore();
+      ex -= ox;
       // a round, even upper lash line (no grown-up cat-eye flick)
       g.strokeStyle = "#1c0e0a";
       g.lineWidth = 4.2;
@@ -646,6 +656,62 @@ function drawFace(style = "closed") {
     g.beginPath();
     g.ellipse(128, 115.5, 4.5, 2.6, 0, 0, TAU);
     g.fill();
+    return c;
+  }
+  if (style === "cross") {
+    // cross-eyed at something on her nose, a small round "o"
+    openEyes(true);
+    nose();
+    g.fillStyle = "#a8303f";
+    g.beginPath();
+    g.ellipse(128, 114, 3.5, 4.5, 0, 0, TAU);
+    g.fill();
+    return c;
+  }
+  if (style === "squint") {
+    // peering without her glasses: eyes screwed up into soft arcs (no
+    // creases, which read older) and a wobbly little mouth
+    g.strokeStyle = "#1c0e0a";
+    for (const ex of EYES) {
+      g.lineWidth = 5;
+      g.beginPath();
+      g.moveTo(ex - 17, EY + 6);
+      g.quadraticCurveTo(ex, EY - 3, ex + 17, EY + 6);
+      g.stroke();
+      g.lineWidth = 2.2;
+      g.beginPath();
+      g.moveTo(ex - 11, EY + 12);
+      g.quadraticCurveTo(ex, EY + 15, ex + 11, EY + 12);
+      g.stroke();
+    }
+    nose();
+    g.strokeStyle = "#a8303f";
+    g.lineWidth = 2.8;
+    g.beginPath();
+    g.moveTo(119, 114);
+    g.bezierCurveTo(124, 108, 129, 119, 137, 112);
+    g.stroke();
+    return c;
+  }
+  if (style === "shy") {
+    // glasses back on: big eyes, very pink cheeks, a small closed smile
+    openEyes();
+    nose();
+    for (const bx of [48, 208]) {
+      const grad = g.createRadialGradient(bx, 108, 2, bx, 108, 24);
+      grad.addColorStop(0, "rgba(255,95,135,0.6)");
+      grad.addColorStop(1, "rgba(255,95,135,0)");
+      g.fillStyle = grad;
+      g.beginPath();
+      g.ellipse(bx, 108, 25, 16, 0, 0, TAU);
+      g.fill();
+    }
+    g.strokeStyle = "#a8303f";
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(121, 111);
+    g.quadraticCurveTo(128, 117, 135, 111);
+    g.stroke();
     return c;
   }
   // fresh red lips, pursed into a little kiss
@@ -701,6 +767,72 @@ function drawFace(style = "closed") {
     g.beginPath();
     g.moveTo(121, 116);
     g.quadraticCurveTo(128, 109, 135, 116);
+    g.stroke();
+    return c;
+  }
+  if (style === "yawn") {
+    // eyes squeezed shut, mouth wide open in a big yawn, a tear at the corner
+    g.strokeStyle = "#2a1a16";
+    g.lineWidth = 4.5;
+    for (const ex of EYES) {
+      g.beginPath();
+      g.moveTo(ex - 15, EY + 2);
+      g.quadraticCurveTo(ex, EY + 9, ex + 15, EY + 2);
+      g.stroke();
+    }
+    g.fillStyle = "rgba(160,220,255,0.9)";
+    g.beginPath();
+    g.ellipse(EYES[1] + 19, EY + 7, 3, 4.5, 0, 0, TAU);
+    g.fill();
+    nose();
+    g.fillStyle = "#a8303f";
+    g.beginPath();
+    g.ellipse(128, 117, 8, 11, 0, 0, TAU);
+    g.fill();
+    g.fillStyle = "#ff8e9e";
+    g.beginPath();
+    g.ellipse(128, 123, 5, 3.5, 0, 0, TAU);
+    g.fill();
+    return c;
+  }
+  if (style === "sleep") {
+    // dozing: relaxed shut eyes and a small open mouth
+    g.strokeStyle = "#2a1a16";
+    g.lineWidth = 4;
+    for (const ex of EYES) {
+      g.beginPath();
+      g.arc(ex, EY - 4, 14, Math.PI * 0.15, Math.PI * 0.85);
+      g.stroke();
+    }
+    nose();
+    g.fillStyle = "#a8303f";
+    g.beginPath();
+    g.ellipse(128, 114, 3, 3.5, 0, 0, TAU);
+    g.fill();
+    return c;
+  }
+  if (style === "yum") {
+    // happy shut eyes, cheeks full, a little munching mouth
+    g.strokeStyle = "#2a1a16";
+    g.lineWidth = 4.5;
+    for (const ex of EYES) {
+      g.beginPath();
+      g.arc(ex, EY + 8, 13, Math.PI * 1.12, Math.PI * 1.88);
+      g.stroke();
+    }
+    nose();
+    g.fillStyle = "rgba(255,120,150,0.4)";
+    for (const bx of [50, 206]) {
+      g.beginPath();
+      g.ellipse(bx, 110, 18, 13, 0, 0, TAU);
+      g.fill();
+    }
+    g.strokeStyle = "#a8303f";
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(120, 112);
+    g.quadraticCurveTo(124, 116, 128, 112);
+    g.quadraticCurveTo(132, 116, 136, 112);
     g.stroke();
     return c;
   }
@@ -1563,6 +1695,59 @@ const sound = (() => {
       osc.stop(t + 0.3);
     },
     // "hmph!": a short huff through the nose
+    // a frog: two low, buzzy croaks
+    ribbit(vol = 0.12) {
+      const a = on && ac();
+      if (!a || vol < 0.005) return;
+      [0, 0.16].forEach((dt) => {
+        const t = a.currentTime + dt;
+        const osc = a.createOscillator();
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(150, t);
+        osc.frequency.exponentialRampToValueAtTime(95, t + 0.11);
+        const lp = a.createBiquadFilter();
+        lp.type = "lowpass";
+        lp.frequency.value = 900;
+        osc.connect(lp).connect(env(a, vol, t, 0.01, 0.11));
+        osc.start(t);
+        osc.stop(t + 0.14);
+      });
+    },
+    // a little shriek
+    eek(vol = 0.1) {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const osc = a.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(900, t);
+      osc.frequency.exponentialRampToValueAtTime(1900, t + 0.12);
+      osc.frequency.exponentialRampToValueAtTime(1500, t + 0.4);
+      osc.connect(env(a, vol, t, 0.01, 0.4));
+      osc.start(t);
+      osc.stop(t + 0.45);
+    },
+    // ah... CHOO
+    sneeze() {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const src = a.createBufferSource();
+      src.buffer = noiseBuf(a);
+      const bp = a.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = 2600;
+      bp.Q.value = 0.7;
+      src.connect(bp).connect(env(a, 0.28, t, 0.005, 0.25));
+      src.start(t, 0, 0.3);
+      const osc = a.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(700, t);
+      osc.frequency.exponentialRampToValueAtTime(300, t + 0.2);
+      osc.connect(env(a, 0.06, t, 0.005, 0.2));
+      osc.start(t);
+      osc.stop(t + 0.25);
+    },
     hmph() {
       const a = on && ac();
       if (!a) return;
@@ -1582,6 +1767,175 @@ const sound = (() => {
       osc.connect(env(a, 0.05, t, 0.01, 0.2));
       osc.start(t);
       osc.stop(t + 0.25);
+    },
+    // a mosquito's whine, wandering in pitch, for len seconds
+    buzz(len = 2, vol = 0.03) {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const osc = a.createOscillator();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(620, t);
+      const lfo = a.createOscillator();
+      lfo.frequency.value = 1.3;
+      const lg = a.createGain();
+      lg.gain.value = 90;
+      lfo.connect(lg).connect(osc.frequency);
+      const bp = a.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = 1400;
+      bp.Q.value = 1.5;
+      const g = a.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.15);
+      g.gain.setValueAtTime(vol, t + Math.max(0.2, len - 0.2));
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      g.connect(a.destination);
+      osc.connect(bp).connect(g);
+      osc.start(t);
+      lfo.start(t);
+      osc.stop(t + len + 0.05);
+      lfo.stop(t + len + 0.05);
+    },
+    // a smack on the cheek
+    slap() {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const src = a.createBufferSource();
+      src.buffer = noiseBuf(a);
+      const bp = a.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = 1100;
+      bp.Q.value = 0.9;
+      src.connect(bp).connect(env(a, 0.32, t, 0.002, 0.12));
+      src.start(t, rand(0, 0.2), 0.15);
+      const osc = a.createOscillator();
+      osc.frequency.setValueAtTime(180, t);
+      osc.frequency.exponentialRampToValueAtTime(90, t + 0.1);
+      osc.connect(env(a, 0.15, t, 0.002, 0.1));
+      osc.start(t);
+      osc.stop(t + 0.15);
+    },
+    // a long, sliding yawn
+    yawn() {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const osc = a.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(380, t);
+      osc.frequency.linearRampToValueAtTime(560, t + 0.35);
+      osc.frequency.exponentialRampToValueAtTime(300, t + 1.2);
+      const lp = a.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 1300;
+      osc.connect(lp).connect(env(a, 0.07, t, 0.15, 1.1));
+      osc.start(t);
+      osc.stop(t + 1.3);
+    },
+    meow(vol = 0.08) {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const osc = a.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(560, t);
+      osc.frequency.exponentialRampToValueAtTime(920, t + 0.12);
+      osc.frequency.exponentialRampToValueAtTime(520, t + 0.45);
+      const lp = a.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 2200;
+      osc.connect(lp).connect(env(a, vol, t, 0.03, 0.45));
+      osc.start(t);
+      osc.stop(t + 0.5);
+    },
+    // a soft mallet note (the ram wong tune)
+    note(f, vol = 0.05, len = 0.4) {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      [1, 2].forEach((m, i) => {
+        const osc = a.createOscillator();
+        osc.frequency.value = f * m;
+        osc.connect(env(a, vol * (i ? 0.3 : 1), t, 0.005, len));
+        osc.start(t);
+        osc.stop(t + len + 0.05);
+      });
+    },
+    // a falling sparkle (a shooting star)
+    shimmer() {
+      const a = on && ac();
+      if (!a) return;
+      [2637, 2349, 2093, 1760, 1568, 1319, 1175].forEach((f, i) => {
+        const t = a.currentTime + i * 0.07;
+        const osc = a.createOscillator();
+        osc.frequency.value = f;
+        osc.connect(env(a, 0.04, t, 0.005, 0.5));
+        osc.start(t);
+        osc.stop(t + 0.55);
+      });
+    },
+    munch() {
+      const a = on && ac();
+      if (!a) return;
+      [0, 0.15, 0.3].forEach((dt) => {
+        const t = a.currentTime + dt;
+        const src = a.createBufferSource();
+        src.buffer = noiseBuf(a);
+        const bp = a.createBiquadFilter();
+        bp.type = "bandpass";
+        bp.frequency.value = 800;
+        bp.Q.value = 1;
+        src.connect(bp).connect(env(a, 0.12, t, 0.004, 0.06));
+        src.start(t, rand(0, 0.2), 0.08);
+      });
+    },
+    // a big puff of breath
+    blow() {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const src = a.createBufferSource();
+      src.buffer = noiseBuf(a);
+      const lp = a.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 900;
+      src.connect(lp).connect(env(a, 0.16, t, 0.08, 0.3));
+      src.start(t, 0, 0.4);
+    },
+    // hee hee hee
+    giggle() {
+      const a = on && ac();
+      if (!a) return;
+      [0, 0.13, 0.26].forEach((dt, i) => {
+        const t = a.currentTime + dt;
+        const osc = a.createOscillator();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(900 + i * 60, t);
+        osc.frequency.exponentialRampToValueAtTime(1250 + i * 60, t + 0.07);
+        osc.connect(env(a, 0.06, t, 0.01, 0.08));
+        osc.start(t);
+        osc.stop(t + 0.1);
+      });
+    },
+    boing() {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const osc = a.createOscillator();
+      osc.frequency.setValueAtTime(420, t);
+      osc.frequency.exponentialRampToValueAtTime(140, t + 0.5);
+      const lfo = a.createOscillator();
+      lfo.frequency.value = 14;
+      const lg = a.createGain();
+      lg.gain.value = 40;
+      lfo.connect(lg).connect(osc.frequency);
+      osc.connect(env(a, 0.1, t, 0.01, 0.5));
+      osc.start(t);
+      lfo.start(t);
+      osc.stop(t + 0.55);
+      lfo.stop(t + 0.55);
     },
     chime() {
       const a = on && ac();
@@ -1779,6 +2133,21 @@ function mount() {
         const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.2, 6), wood);
         post.position.set(PIER.x + dx, -0.2, z);
         scene.add(post);
+      }
+    }
+    {
+      const moor = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, 0.6, 8), wood);
+      moor.position.set(MOOR_POS.x, PIER.top + 0.3, MOOR_POS.z);
+      scene.add(moor);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.078, 8, 5, 0, TAU, 0, Math.PI / 2), wood);
+      cap.position.set(MOOR_POS.x, PIER.top + 0.6, MOOR_POS.z);
+      scene.add(cap);
+      const rope = new THREE.Mesh(new THREE.TorusGeometry(0.088, 0.018, 5, 14), new THREE.MeshLambertMaterial({ color: 0xc9a46a }));
+      rope.rotation.x = Math.PI / 2;
+      for (const y of [0.4, 0.44]) {
+        const r = rope.clone();
+        r.position.set(MOOR_POS.x, PIER.top + y, MOOR_POS.z);
+        scene.add(r);
       }
     }
 
@@ -3343,7 +3712,7 @@ function mount() {
     if (look.openEyes) {
       faces.blink = canvasTexture(drawFace("blink"));
       faces.closed = faces.blink; // happy closed eyes, held for a wish
-      for (const f of ["wince", "huh", "daze", "cry", "cry2", "pout", "pucker", "kiss"]) faces[f] = canvasTexture(drawFace(f));
+      for (const f of ["wince", "huh", "daze", "cry", "cry2", "pout", "pucker", "kiss", "squint", "shy", "cross", "yawn", "sleep", "yum"]) faces[f] = canvasTexture(drawFace(f));
     }
     const faceMat = new THREE.MeshToonMaterial({ map: faces.open, transparent: true, emissive: 0x24160c });
     const faceGeo = new THREE.SphereGeometry(HEAD_R + 0.004, 18, 12, Math.PI * 0.5 - 0.75, 1.5, Math.PI * 0.5 - 0.3, 0.84);
@@ -3700,7 +4069,7 @@ function mount() {
 
   // each button shows how many of its kind are still waiting for Kru Song
   function updateFloatBtn() {
-    const waiting = [...queue, ...(performing ? [performing.k] : [])].filter((k) => !k.coin);
+    const waiting = [...queue, ...(performing ? [performing.k] : [])].filter((k) => !k.coin && !k.timed);
     const sky = waiting.filter((k) => k.sky).length;
     const fire = waiting.filter((k) => k.fire).length;
     const water = waiting.length - sky - fire;
@@ -3777,6 +4146,12 @@ function mount() {
       for (const [at, p] of keys) if (performing.t >= at && p) want = p;
       return want;
     }
+    // tapped: a little reaction
+    if (poke) {
+      let want = IDLE;
+      for (const [at, p] of POKE_KEYS[poke.kind]) if (poke.t >= at && p) want = p;
+      return want;
+    }
     // nothing to do for a while: she combs her hair
     if (idleComb != null) {
       let want = IDLE;
@@ -3808,7 +4183,7 @@ function mount() {
     const s = p.height / 1.8;
     // weight shifts gently from foot to foot; the back stays straight
     const sway = Math.sin(t * 0.9);
-    p.inner.rotation.set(c.lean + (p.tilt || 0), 0, sway * 0.025 * (1 - c.dip * 2));
+    p.inner.rotation.set(c.lean + (p.tilt || 0), p.spin || 0, sway * 0.025 * (1 - c.dip * 2));
     p.inner.position.set(sway * 0.012 + (p.shake || 0) * s, (-c.dip * 0.95 + c.rise + (p.bob || 0)) * s, 0);
     p.inner.scale.setScalar(s);
     p.inner.scale.y = s * (1 + Math.sin(t * 1.6) * 0.006);
@@ -3849,20 +4224,45 @@ function mount() {
     fwd.set(0, 0, 1).applyQuaternion(teacher.group.quaternion);
     return out.addScaledVector(fwd, ahead);
   }
+  // a lucky-draw bag: each item once, in random order; when it's empty it
+  // is refilled and reshuffled, and a new round never starts with the item
+  // that ended the last one
+  function makeBag(items) {
+    let left = [];
+    let last = null;
+    return {
+      draw() {
+        if (!left.length) {
+          left = items.slice();
+          for (let i = left.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [left[i], left[j]] = [left[j], left[i]];
+          }
+          if (left.length > 1 && left[left.length - 1] === last) [left[0], left[left.length - 1]] = [left[left.length - 1], left[0]];
+        }
+        last = left.pop();
+        return last;
+      },
+    };
+  }
+  const floatBag = makeBag(["wet", "glasses", "firefly", "fish", "boomerang", "candle", "turtle"]);
+  // what happens when she's had nothing to do for a while
+  const idleBag = makeBag(["comb", "lip", "frog", "cracker", "coin", "mozzie", "ramwong", "star", "sleepy", "cat"]);
   function runPerformance(dt) {
     if (!performing && queue.length) {
       const next = queue.shift();
       if (next.coin && !startCoin(next)) return; // no krathong of hers left: still due
       performing = { k: next, t: 0 };
-      // now and then she falls in: never twice running, and never three
-      // dry floats in a row (any three floats in a row have a splash)
       const pk = performing.k;
-      if (pk.coin) {
-        // (the coin gag: none of the krathong set-up below)
+      if (pk.coin || pk.timed) {
+        // (the coin, frog and firecracker gags: none of the krathong set-up below)
       } else if (!pk.fire && !pk.sky) {
-        pk.wet = !lastWet && (dryRun >= 2 || Math.random() < WET_CHANCE);
-        dryRun = pk.wet ? 0 : dryRun + 1;
-        lastWet = pk.wet;
+        // every float has a gag, drawn like a lucky-draw stall: each one
+        // once in a random order, then a fresh shuffle (never the same one
+        // twice running, even across rounds)
+        const gag = floatBag.draw();
+        if (EXTRA[gag]) pk.extra = gag;
+        else pk[gag] = true;
       } else if (pk.sky) {
         // ... and now and then a lantern carries her off, by the same rule
         pk.fly = !lastFly && (flyDry >= 2 || Math.random() < FLY_CHANCE);
@@ -3870,13 +4270,15 @@ function mount() {
         lastFly = pk.fly;
       }
       resetGag();
-      if (!pk.fire && !pk.coin) {
+      if (pk.glasses) startGlasses(pk);
+      if (pk.extra) EXTRA[pk.extra].start?.(pk);
+      if (!pk.fire && !pk.coin && !pk.timed) {
         pk.root.visible = true;
         pk.root.scale.setScalar(0.001);
       }
       camState.mode = "teacher";
       orbit.lastInput = -1e9;
-      if (!pk.coin) sound.chime();
+      if (!pk.coin && !pk.timed) sound.chime();
       updateFloatBtn();
     }
     if (!performing) return;
@@ -3884,16 +4286,30 @@ function mount() {
     const k = P.k;
     P.t += dt;
     const t = P.t;
-    if (k.coin) coinPerformance(P, k, t, dt);
+    if (k.extra) EXTRA[k.extra].perform(P, k, t, dt);
+    else if (k.coin) coinPerformance(P, k, t, dt);
+    else if (k.frog) frogPerformance(P, k, t, dt);
+    else if (k.cracker) crackerPerformance(P, k, t, dt);
     else if (k.fire) firePerformance(P, k, t, dt);
     else if (k.fly) flyPerformance(P, k, t, dt);
     else if (k.sky) skyPerformance(P, k, t, dt);
     else if (k.wet) wetPerformance(P, k, t, dt);
+    else if (k.glasses) glassesPerformance(P, k, t, dt);
+    else if (k.firefly) fireflyPerformance(P, k, t, dt);
+    else if (k.fish) fishPerformance(P, k, t, dt);
     else floatPerformance(P, k, t);
     const keys = keysFor(k);
     if (t > keys[keys.length - 1][0]) {
       if (k.coin) endCoin(k);
+      if (k.glasses) endGlasses(k);
+      if (k.frog) endFrog();
+      if (k.cracker) endCracker();
+      if (k.extra) EXTRA[k.extra].end?.(k);
+      k.extra = null;
       k.wet = false;
+      k.glasses = false;
+      k.firefly = false;
+      k.fish = false;
       k.fly = false;
       performing = null;
       resetGag();
@@ -4040,7 +4456,7 @@ function mount() {
     [17.4, pose("clasp", "wave", { hz: -0.12, yaw: FACE_CAM })],
     [19.0, null],
   ];
-  const keysFor = (k) => k.coin ? k.plan.keys : (k.fire ? (k.fail ? FIRE_FAIL_KEYS : FIRE_OK_KEYS) : k.sky ? (k.fly ? FLY_KEYS : SKY_KEYS) : k.wet ? WET_KEYS : FLOAT_KEYS);
+  const keysFor = (k) => k.extra ? EXTRA[k.extra].keys : k.coin ? k.plan.keys : k.timed ? (k.frog ? FROG_KEYS : CRACKER_KEYS) : (k.fire ? (k.fail ? FIRE_FAIL_KEYS : FIRE_OK_KEYS) : k.sky ? (k.fly ? FLY_KEYS : SKY_KEYS) : k.wet ? WET_KEYS : k.glasses ? k.gplan.keys : k.firefly ? FIREFLY_KEYS : k.fish ? FISH_KEYS : FLOAT_KEYS);
 
   // props
   const propMat = new THREE.MeshToonMaterial({ vertexColors: true, emissive: 0x24160c, gradientMap: softToonRamp() });
@@ -4212,6 +4628,7 @@ function mount() {
     if (teacher.glassesMesh) {
       teacher.glassesMesh.rotation.z = -0.3 * g.askew;
       teacher.glassesMesh.position.set(0.012 * g.askew, -0.03 * g.askew, 0);
+      teacher.glassesMesh.visible = !g.noGlasses;
     }
     teacher.faceOverride = g.face;
     teacher.bob = g.bob;
@@ -4357,9 +4774,6 @@ function mount() {
   // and cries; then towels off, dries and combs her hair, powders her nose,
   // is her pretty self again, picks the krathong up and floats it after
   // all. Like the fire gag, every state is a pure function of time. -----
-  const WET_CHANCE = 1 / 3;
-  let lastWet = false;
-  let dryRun = 0; // water floats since she last fell in
   const WET_IN = new THREE.Vector3(-2.05, 0, 1.95); // where her feet go in
   const WET_UP = new THREE.Vector3(-1.6, 0, 1.95); // where she bobs up
   const WET_EDGE_X = -2.12; // treading water at the pier's edge
@@ -4513,6 +4927,7 @@ function mount() {
     return {
       soot: 0, frizz: 0, askew: 0, face: null, hankie: false, comb: false, bob: 0, shake: 0, question: 0,
       anger: 0, exclaim: 0, tilt: 0, flail: 0, kick: 0, hairBlow: 0, wet: 0, puddle: 0, drops: 0, lily: false, towel: false, headTowel: false, dryer: false, powder: false, pos: null,
+      noGlasses: false, spin: 0,
     };
   }
   // where her feet are at time t of the wet gag (null = on the pier)
@@ -4589,6 +5004,7 @@ function mount() {
   }
   function applyWet(g) {
     teacher.tilt = g.tilt;
+    teacher.spin = g.spin;
     teacher.flail = g.flail;
     teacher.kick = g.kick;
     teacher.hairBlow = g.hairBlow;
@@ -4942,7 +5358,7 @@ function mount() {
   // her hair, tilting her head from side to side, then a happy little
   // pose. Not a performance: the camera and the viewer's orbit are left
   // alone, and anything she's asked to do cuts it short. -----
-  const IDLE_COMB_EVERY = 22; // seconds
+  const IDLE_EVERY = 12; // seconds of nothing before something happens
   const IDLE_COMB_KEYS = [
     [0, pose("pocket", "clasp", { hz: 0.06, yaw: FACE_CAM })],
     [0.6, pose("comb", "rest", { hz: -0.18, hx: -0.05, yaw: FACE_CAM })],
@@ -5041,13 +5457,42 @@ function mount() {
       idleFor = 0;
       return;
     }
-    // counted from the start of the last one, so it comes round every 22s
-    idleFor += dt;
-    if (idleComb == null) {
-      if (idleFor < IDLE_COMB_EVERY) return;
-      idleComb = 0;
+    if (poke) {
       idleFor = 0;
-      idleKind = idleKind === "comb" ? "lip" : "comb";
+      return;
+    }
+    // after 12s of nothing, the next ticket from the idle bag: combing her
+    // hair, lipstick, the frog, the firecracker or the coin diver (counted
+    // from when the last thing ended)
+    if (idleComb == null) {
+      // not while she's busy with the page: the add/edit sheet is open, the
+      // camera is on a student's krathong (its edit bar showing), or she's
+      // turning the view; the 12 s count starts again after
+      if (document.body.classList.contains("sheet-open") || camState.mode === "follow" || clock - orbit.lastInput < 0.5) {
+        idleFor = 0;
+        return;
+      }
+      idleFor += dt;
+      if (idleFor < IDLE_EVERY) return;
+      idleFor = 0;
+      let pick = idleBag.draw();
+      // the coin gag needs a krathong of hers out on the water
+      if (pick === "coin" && !coinTarget()) pick = idleBag.draw();
+      if (pick === "coin" && !coinTarget()) pick = "comb";
+      if (pick === "coin") {
+        queue.push({ coin: true });
+        return;
+      }
+      if (EXTRA[pick]) {
+        queue.push({ timed: true, extra: pick });
+        return;
+      }
+      if (pick === "frog" || pick === "cracker") {
+        queue.push({ [pick]: true, timed: true });
+        return;
+      }
+      idleComb = 0;
+      idleKind = pick;
     }
     const t0 = idleComb;
     idleComb += dt;
@@ -5271,16 +5716,12 @@ function mount() {
     boyRipples(dt, moving ? 0.35 : 1.3);
   }
 
-  // ----- the coin gag: now and then (at least once every 2.22 minutes)
+  // ----- the coin gag (one of the idle-bag tickets): now and then
   // the coin diver fishes the coin out of one of Kru Song's krathongs and
   // it sinks. She gasps, points at him, fumes (cutely) and throws her comb
   // at him: bonk, a bump and stars. He dives for the krathong and floats
   // it again with its candle relit, then dives for her comb and brings it
   // back while she huffs. She combs her hair, and she's herself again. -----
-  const COIN_EVERY = 133.2; // 2.22 minutes: the longest it ever waits
-  const COIN_MIN = 45;
-  let coinDue = rand(COIN_MIN, COIN_EVERY); // (the clock starts at 0)
-  let coinQueued = false;
   const COIN_EDGE = new THREE.Vector3(-2.55, PIER.top, 1.95); // she kneels here for the comb
   const COIN_RETURN = new THREE.Vector3(-1.95, BOY_Y, 1.95); // he hands it up from here
   Object.assign(ARM, {
@@ -5305,12 +5746,6 @@ function mount() {
       }
     }
     return best;
-  }
-  // once it's due, it waits for her to be free and for a krathong of hers
-  function coinTick() {
-    if (coinQueued || clock < coinDue || !coinTarget()) return;
-    queue.push({ coin: true });
-    coinQueued = true;
   }
   // everything is planned up front from where the krathong and the boy
   // are, so each beat is a function of the gag's time
@@ -5358,10 +5793,7 @@ function mount() {
   }
   function startCoin(item) {
     const k = coinTarget();
-    if (!k) {
-      coinQueued = false;
-      return false;
-    }
+    if (!k) return false;
     item.target = k;
     item.plan = planCoin(k);
     k.stolen = true;
@@ -5391,8 +5823,6 @@ function mount() {
     flyComb.visible = false;
     bump.visible = false;
     for (const s of stars) s.visible = false;
-    coinQueued = false;
-    coinDue = clock + rand(COIN_MIN, COIN_EVERY);
   }
   // her side of it: faces, the cross mark, stomping, the comb, where she is
   function coinState(t, pl) {
@@ -5732,6 +6162,2209 @@ function mount() {
     } else closeOnHer(pos, look);
   }
 
+  // ----- the glasses gag: as she leans out to float her krathong, her
+  // glasses slip off her nose, bounce across the deck and plop into the
+  // river. The krathong still goes out fine, but she can't see a thing:
+  // she squints and gropes about, and wais the mooring post instead of the
+  // river. The coin-diver boy dives for them, swims them over and hands
+  // them up; she puts them on, sees what she did and goes all shy, thanks
+  // him, and wais the river properly. -----
+  const GL_SLIP = 3.3; // off her nose
+  const GL_DECK_T = 3.6; // first bounce, on the deck
+  const GL_EDGE_T = 3.9; // off the edge
+  const GL_PLOP_T = 4.15; // into the river
+  const GL_DECK = new THREE.Vector3(-2.75, PIER.top + 0.02, 2.05);
+  const GL_EDGE = new THREE.Vector3(-2.32, PIER.top + 0.02, 2.2);
+  const GL_SPOT = new THREE.Vector3(-1.85, 0.02, 2.35); // where they go in
+  const GL_DIVE = new THREE.Vector3(-1.65, BOY_Y, 2.45); // where he dives for them
+  Object.assign(ARM, {
+    grope: { x: -1.35, o: 0.08, e: -0.3, w: 1 }, // feeling about in front of her
+    specs: { x: -1.55, o: -0.12, e: -1.8 }, // hands up by her face: glasses on
+    cheeks: { x: -1.4, o: -0.45, e: -1.75 }, // hands to her chin, all shy
+  });
+  const glassesTmp = new THREE.Vector3();
+  const glassesTmp2 = new THREE.Vector3();
+  // her glasses out of her face: falling, in the river, in his hand, in hers
+  const flyGlasses = teacher.glassesMesh ? new THREE.Mesh(teacher.glassesMesh.geometry, teacher.glassesMesh.material) : null;
+  if (flyGlasses) {
+    flyGlasses.visible = false;
+    scene.add(flyGlasses);
+  }
+  function planGlasses() {
+    const S = boy.group.position.clone();
+    const go = 4.0; // he heard the plop
+    const a = Math.min(4.5, Math.max(1.2, Math.hypot(S.x - GL_DIVE.x, S.z - GL_DIVE.z) / 2.2));
+    const d0 = Math.max(go + a, 5.4); // dives
+    const d1 = d0 + 1.3; // up, with them
+    const w0 = Math.max(6.6, d1 - 0.6); // she turns to the post...
+    const wai = w0 + 0.7; // ... and wais it
+    const call = Math.max(d1 + 1.6, wai + 1.9); // "kru! here!"
+    const step = call + 0.8; // she feels her way to the edge
+    const take = step + 1.3; // kneels, takes them
+    const on = take + 1.2; // puts them on
+    const shy = on + 1.0; // sees what she did
+    const thanks = shy + 1.6; // wais him
+    const back = thanks + 1.2; // back to her spot
+    const rwai = back + 0.8; // the real wai, to the river
+    const wave = rwai + 1.6;
+    const end = wave + 1.5;
+    const yawPost = yawTo(TEACHER_POS, MOOR_POS);
+    const yawCall = yawTo(TEACHER_POS, COIN_RETURN);
+    const keys = FLOAT_KEYS.filter(([at]) => at < GL_SLIP);
+    keys.push(
+      [GL_EDGE_T, pose("brace", "brace", { dip: 0.1, lean: 0.05, hx: 0.1, yaw: FACE_WATER })], // oh no!
+      [4.7, pose("grope", "grope", { hx: 0.2, yaw: FACE_WATER - 0.3 })]
+    );
+    // feeling about: turning this way and that, peering
+    for (let tt = 5.6, n = 0; tt < w0 - 0.3; tt += 0.9, n++) {
+      keys.push([tt, pose("grope", "grope", { hx: 0.22, hz: n % 2 ? 0.12 : -0.12, yaw: n % 2 ? FACE_WATER - 0.2 : FACE_CAM + 0.15 })]);
+    }
+    keys.push(
+      [w0, pose("grope", "grope", { hx: 0.18, yaw: yawPost })], // there's the river...
+      [wai, pose("wai", "wai", { dip: 0.08, lean: 0.2, hx: 0.38, eyes: 1, yaw: yawPost })],
+      [wai + 1.1, pose("wai", "wai", { dip: 0.04, lean: 0.06, hx: 0.14, eyes: 1, yaw: yawPost })],
+      [call, pose("rest", "rest", { hx: -0.05, hz: 0.14, yaw: yawCall })], // huh?
+      [step, pose("grope", "grope", { hx: 0.2, yaw: FACE_WATER })],
+      [take, pose("reach", "reach", { dip: 0.16, lean: 0.2, hx: 0.4, yaw: FACE_WATER })],
+      [on - 0.3, pose("rest", "rest", { yaw: FACE_CAM })],
+      [on, pose("specs", "specs", { hx: 0.02, yaw: FACE_CAM })],
+      [shy, pose("cheeks", "cheeks", { hx: 0.14, hz: 0.14, yaw: FACE_CAM })],
+      [shy + 0.5, pose("cheeks", "cheeks", { hx: 0.14, hz: -0.14, yaw: FACE_CAM })],
+      [shy + 1.0, pose("cheeks", "cheeks", { hx: 0.16, hz: 0.14, yaw: FACE_CAM })],
+      [thanks, pose("wai", "wai", { dip: 0.06, lean: 0.14, hx: 0.3, eyes: 1, yaw: FACE_WATER })], // thank you!
+      [back, pose("clasp", "clasp", { yaw: TEACHER_YAW_FLOAT })],
+      [rwai, pose("wai", "wai", { dip: 0.12, lean: 0.1, hx: 0.36, eyes: 1, yaw: FACE_WATER })],
+      [wave, pose("clasp", "wave", { hx: 0.05, hz: -0.12, yaw: FACE_CAM })],
+      [end, null]
+    );
+    return { S, go, a, d0, d1, w0, wai, call, step, take, on, shy, thanks, back, rwai, wave, end, keys };
+  }
+  function startGlasses(k) {
+    k.gplan = planGlasses();
+    diver.script = k;
+    diver.goal = null;
+    diver.grab = -1;
+  }
+  function endGlasses(k) {
+    if (diver.script === k) diver.script = null;
+    diver.face = null;
+    if (flyGlasses) flyGlasses.visible = false;
+  }
+  // her side: no glasses, faces, the "!" and "?", walking to the edge
+  function glassesState(t, pl) {
+    const g = gagBase();
+    if (t < GL_SLIP) return g;
+    g.noGlasses = t < pl.on + 0.4;
+    if (t >= GL_EDGE_T && t < 4.7) {
+      g.face = "huh";
+      g.exclaim = Math.sin(clamp01((t - GL_EDGE_T) / 0.8) * Math.PI);
+    } else if (t >= 4.7 && t < pl.wai) g.face = "squint";
+    else if (t >= pl.wai + 1.7 && t < pl.call) g.face = "squint";
+    else if (t >= pl.call && t < pl.call + 0.8) g.face = "huh";
+    else if (t >= pl.call + 0.8 && t < pl.on + 0.4) g.face = "squint";
+    else if (t >= pl.on + 0.4 && t < pl.shy) g.face = "open";
+    else if (t >= pl.shy && t < pl.thanks) g.face = "shy";
+    // "?" while she feels about, and when he calls
+    if (t > 5.2 && t < 6.4) g.question = Math.sin(clamp01((t - 5.2) / 1.2) * Math.PI);
+    if (t > pl.call && t < pl.call + 0.9) g.question = Math.sin(clamp01((t - pl.call) / 0.9) * Math.PI);
+    // little unsure shuffles while groping
+    if (t > 4.8 && t < pl.w0 + 0.3) g.bob = Math.abs(Math.sin((t - 4.8) * 4)) * 0.012;
+    if (t >= pl.step && t < pl.back + 0.6) {
+      const p = wetPos;
+      if (t < pl.step + 1.0) {
+        // small careful steps, feeling the way
+        const u = (t - pl.step) / 1.0;
+        p.lerpVectors(TEACHER_POS, COIN_EDGE, smooth(u));
+        p.y = PIER.top + Math.abs(Math.sin(u * Math.PI * 3)) * 0.025;
+      } else if (t < pl.back) p.copy(COIN_EDGE);
+      else p.lerpVectors(COIN_EDGE, TEACHER_POS, smooth(clamp01((t - pl.back) / 0.6)));
+      g.pos = p;
+    }
+    return g;
+  }
+  function glassesPerformance(P, k, t, dt) {
+    const pl = k.gplan;
+    applyGag(glassesState(t, pl));
+    // the krathong floats out as normal; the camera visits it at the end
+    floatPerformance(P, k, Math.min(t, FLOAT_ON_WATER + 0.2));
+    // it heads straight out into the river, so it never stands between the
+    // camera and her (or the boy) for the rest of the gag
+    if (once(P, "out", t, FLOAT_ON_WATER + 0.1) && k.target) {
+      k.target.set(0.6, 0, -3.6);
+      k.retarget = clock + 40;
+      k.vel.set(0.35, 0, -0.9);
+    }
+    if (once(P, "follow", t, pl.end - 0.6)) focusOn(k, 8);
+
+    // ---- the glasses ----
+    if (flyGlasses) {
+      if (!P.gScale) {
+        P.gScale = new THREE.Vector3();
+        teacher.glassesMesh.getWorldScale(P.gScale);
+      }
+      flyGlasses.scale.copy(P.gScale);
+      const fg = flyGlasses.position;
+      let show = true;
+      if (t < GL_SLIP) show = false;
+      else if (t < GL_DECK_T) {
+        if (!P.gFrom) {
+          P.gFrom = new THREE.Vector3();
+          teacher.glassesMesh.getWorldPosition(P.gFrom);
+          P.gQ = new THREE.Quaternion();
+          teacher.glassesMesh.getWorldQuaternion(P.gQ);
+        }
+        const u = (t - GL_SLIP) / (GL_DECK_T - GL_SLIP);
+        fg.lerpVectors(P.gFrom, GL_DECK, u);
+        fg.y = lerp(P.gFrom.y, GL_DECK.y, u * u) + Math.sin(u * Math.PI) * 0.12;
+        flyGlasses.quaternion.copy(P.gQ);
+        flyGlasses.rotateX(u * 2.2);
+        flyGlasses.rotateZ(u * 1.4);
+      } else if (t < GL_EDGE_T) {
+        // skitter, skitter across the boards
+        const u = (t - GL_DECK_T) / (GL_EDGE_T - GL_DECK_T);
+        fg.lerpVectors(GL_DECK, GL_EDGE, u);
+        fg.y += Math.abs(Math.sin(u * Math.PI * 2)) * 0.1;
+        flyGlasses.rotation.set(-Math.PI / 2 + Math.sin(u * 12) * 0.3, u * 5, 0);
+      } else if (t < GL_PLOP_T) {
+        const u = (t - GL_EDGE_T) / (GL_PLOP_T - GL_EDGE_T);
+        fg.lerpVectors(GL_EDGE, GL_SPOT, u);
+        fg.y = lerp(GL_EDGE.y, GL_SPOT.y, u * u) + Math.sin(u * Math.PI) * 0.08;
+        flyGlasses.rotation.set(-Math.PI / 2 + u * 2, 5 + u * 3, 0);
+      } else if (t < pl.d1) show = false; // at the bottom of the river
+      else if (t < pl.take + 0.4) {
+        // held up high in his hand, toward the camera
+        boy.hands[1].getWorldPosition(fg);
+        fg.y += 0.06;
+        flyGlasses.rotation.set(0, Math.atan2(camera.position.x - fg.x, camera.position.z - fg.z), 0);
+      } else if (t < pl.on + 0.4) {
+        teacher.hands[0].getWorldPosition(fg);
+        flyGlasses.rotation.set(0, Math.atan2(camera.position.x - fg.x, camera.position.z - fg.z), 0);
+      } else show = false; // back on her nose
+      flyGlasses.visible = show;
+    }
+
+    // ---- him ----
+    const d = diver;
+    const g = boy.group.position;
+    const toCam = Math.atan2(camera.position.x - g.x, camera.position.z - g.z);
+    const toHer = yawTo(g, teacher.group.position);
+    let yaw = toCam;
+    let y = BOY_Y + Math.sin(boy.t * 2.4) * 0.03;
+    let want = { l: KARM.tread, r: KARM.tread };
+    d.swim = 0;
+    d.wob = 0;
+    d.face = null;
+    boyCoin.visible = false;
+    if (t < pl.go) {
+      g.copy(pl.S);
+      g.y = BOY_Y;
+    } else if (t < pl.go + pl.a) {
+      g.lerpVectors(pl.S, GL_DIVE, smooth((t - pl.go) / pl.a));
+      yaw = yawTo(pl.S, GL_DIVE);
+      d.swim = 1;
+      want = { l: "paddle", r: "paddle" };
+    } else if (t < pl.d1) {
+      g.copy(GL_DIVE);
+      yaw = yawTo(GL_DIVE, GL_SPOT);
+      if (t >= pl.d0) {
+        y = lerp(BOY_Y, -2.4, smooth(clamp01((t - pl.d0) / 0.35)));
+        want = { l: KARM.up, r: KARM.up };
+      }
+    } else if (t < pl.call) {
+      // up, with them held high... and what is she doing?
+      g.copy(GL_DIVE);
+      y = lerp(-2.4, BOY_Y, smooth(clamp01((t - pl.d1) / 0.3))) + Math.sin(boy.t * 2.4) * 0.03;
+      want = { l: KARM.tread, r: KARM.up };
+      if (t < pl.d1 + 0.9) d.face = "open";
+      else {
+        yaw = toHer;
+        d.face = "huh";
+      }
+    } else if (t < pl.call + 0.7) {
+      g.lerpVectors(GL_DIVE, COIN_RETURN, smooth((t - pl.call) / 0.7));
+      yaw = yawTo(GL_DIVE, COIN_RETURN);
+      d.swim = 1;
+      want = { l: "paddle", r: KARM.up };
+    } else {
+      g.copy(COIN_RETURN);
+      // turned half to her, half to the camera
+      const yh = yawTo(COIN_RETURN, COIN_EDGE);
+      yaw = yh + wrapAngle(toCam - yh) * 0.5;
+      if (t < pl.take + 0.4) {
+        want = { l: t < pl.step ? KARM.wave : KARM.tread, r: KARM.up }; // "kru! over here!"
+        d.face = "open";
+      } else if (t < pl.thanks) {
+        d.face = "open";
+      } else {
+        want = { l: KARM.tread, r: KARM.wave };
+        d.face = "open";
+      }
+    }
+    g.y = y;
+    d.want = want;
+    turnBoy(yaw, dt);
+    if (y > BOY_Y - 0.2) boyRipples(dt, d.swim > 0.5 ? 0.3 : 1.2);
+
+    // ---- effects and sounds, each once ----
+    if (once(P, "slip", t, GL_SLIP)) sound.pop(0.08);
+    if (once(P, "tick", t, GL_DECK_T)) {
+      sound.ting(0.05);
+      burst(GL_DECK, 8, { speed: 0.6, colors: [0xffe9d0, 0xffffff], life: 0.35 });
+    }
+    if (once(P, "tick2", t, GL_DECK_T + 0.15)) sound.ting(0.035);
+    if (once(P, "plop", t, GL_PLOP_T)) {
+      burst(GL_SPOT, 22, { speed: 1.1, colors: [0xbfe6ff, 0xffffff], life: 0.5 });
+      ripple(GL_SPOT.x, GL_SPOT.z, 1.0, 0xcfe8ff);
+      ripple(GL_SPOT.x, GL_SPOT.z, 1.8, 0xcfe8ff);
+      sound.plop();
+    }
+    if (once(P, "gasp", t, GL_EDGE_T + 0.1)) sound.pop(0.15);
+    if (once(P, "dive", t, pl.d0)) {
+      burst(glassesTmp.set(GL_DIVE.x, 0.05, GL_DIVE.z), 40, { speed: 1.8, colors: [0xbfe6ff, 0xffffff], life: 0.6, up: 1.2 });
+      ripple(GL_DIVE.x, GL_DIVE.z, 1.4, 0xcfe8ff);
+      sound.plop();
+    }
+    if (t > pl.d0 + 0.2 && t < pl.d1) {
+      P.bub = (P.bub ?? 0) - dt;
+      if (P.bub <= 0) {
+        P.bub = rand(0.12, 0.25);
+        const at = glassesTmp.set(GL_DIVE.x + rand(-0.25, 0.25), 0.05, GL_DIVE.z + rand(-0.25, 0.25));
+        burst(at, 4, { speed: 0.35, colors: [0xcfeeff, 0xffffff], life: 0.4, up: 0.4 });
+        ripple(at.x, at.z, 0.5, 0xcfe8ff);
+        sound.blub();
+      }
+    }
+    if (once(P, "up", t, pl.d1)) {
+      burst(glassesTmp.set(GL_DIVE.x, 0.05, GL_DIVE.z), 40, { speed: 1.8, colors: [0xbfe6ff, 0xffffff], life: 0.6, up: 1.2 });
+      ripple(GL_DIVE.x, GL_DIVE.z, 1.6, 0xcfe8ff);
+      sound.splash();
+    }
+    if (once(P, "found", t, pl.d1 + 0.35)) {
+      boy.hands[1].getWorldPosition(glassesTmp);
+      burst(glassesTmp, 24, { speed: 1.0, colors: [0xffe9d0, 0xfff6c8, 0xffffff], life: 0.6 });
+      sound.ting(0.08);
+    }
+    if (once(P, "call", t, pl.call + 0.7)) sound.pop(0.12);
+    if (once(P, "call2", t, pl.call + 0.95)) sound.pop(0.12);
+    if (once(P, "take", t, pl.take + 0.4)) {
+      teacher.hands[0].getWorldPosition(glassesTmp);
+      burst(glassesTmp, 16, { speed: 0.8, colors: [0xfff3b0, 0xffffff], life: 0.5 });
+    }
+    if (once(P, "on", t, pl.on + 0.4)) {
+      teacher.head.getWorldPosition(glassesTmp2);
+      glassesTmp2.y += 0.15;
+      burst(glassesTmp2, 50, { speed: 1.4, colors: [0xfff3b0, 0xffb3e6, 0xffffff], life: 0.9 });
+      sound.chime();
+    }
+  }
+  function glassesShot(pos, look, P) {
+    const pl = P.k.gplan;
+    const t = P.t;
+    const portrait = camera.aspect < 1 ? 1.6 : 0;
+    if (t < 2.3) {
+      // as an ordinary float
+      look.set(-2.6, 1.0, 1.6);
+      pos.set(-1.3, 2.0, camera.aspect < 1 ? 8.8 : 7.2);
+    } else if (t < 4.7) {
+      // set and still before they slip: side on, her and the pier edge on
+      // the left, the water where they go in on the right
+      look.set(-2.6, 1.0, 2.05);
+      pos.set(-2.6 + Math.sin(0.15) * 4.6, 1.6, 2.05 + Math.cos(0.15) * 4.6 + portrait);
+    } else if (t < pl.d0 - 0.4) closeOnHer(pos, look);
+    else if (t < pl.call + 0.6) {
+      // both: her waiing the post, him coming up with her glasses
+      const mx = (TEACHER_POS.x + GL_DIVE.x) / 2 - 0.25;
+      const mz = 2.3;
+      const dd = 4.6 * (camera.aspect < 1 ? 1.55 : 1);
+      look.set(mx, 0.95, mz);
+      pos.set(mx + Math.sin(0.05) * dd, 2.15, mz + Math.cos(0.05) * dd);
+    } else if (t < pl.on - 0.2) {
+      // the hand-over: side on, her at the pier's edge and him below her
+      const dd = 4.2 + (camera.aspect < 1 ? 1.8 : 0);
+      look.set((COIN_EDGE.x + COIN_RETURN.x) / 2, 0.8, 1.95);
+      pos.set(look.x + Math.sin(0.15) * dd, 1.6, 1.95 + Math.cos(0.15) * dd);
+    } else closeOnHer(pos, look);
+  }
+
+  // a closer version of closeOnHer, for little face gags
+  function nearHer(pos, look, dd = 2.9) {
+    const g = teacher.group.position;
+    look.set(g.x, 1.4, g.z);
+    pos.set(g.x + Math.sin(0.55) * dd, 1.75, g.z + Math.cos(0.55) * dd + (camera.aspect < 1 ? 1.4 : 0));
+  }
+  function defaultFloatShot(pos, look) {
+    look.set(-2.6, 1.0, 1.6);
+    pos.set(-1.3, 2.0, camera.aspect < 1 ? 8.8 : 7.2);
+  }
+  // her krathong heads out into the river once it's on the water (so it's
+  // never between the camera and a gag)
+  function sendOut(P, k, t) {
+    if (once(P, "out", t, FLOAT_ON_WATER + 0.1) && k.target) {
+      k.target.set(0.6, 0, -3.6);
+      k.retarget = clock + 40;
+      k.vel.set(0.35, 0, -0.9);
+    }
+  }
+  const gagTmp = new THREE.Vector3();
+  const gagTmp2 = new THREE.Vector3();
+  const gagQ = new THREE.Quaternion();
+  const X_AXIS = new THREE.Vector3(1, 0, 0);
+  // little pink hearts rising round her head (shy and happy moments)
+  const heartSprites = [0, 1, 2].map(() => {
+    const m = new THREE.Sprite(kissHeart.material.clone());
+    m.visible = false;
+    m.userData.ownFade = true;
+    teacher.group.add(m);
+    return m;
+  });
+  function showHearts(t, from, to) {
+    heartSprites.forEach((m, i) => {
+      const u = (t - from - i * 0.45) / 1.4;
+      const on = t > from && t < to && u > 0 && u < 1;
+      m.visible = on;
+      if (!on) return;
+      const side = i - 1;
+      m.position.set(side * 0.32 + Math.sin(u * 8 + i) * 0.04, teacher.topY - 0.3 + u * 0.55, 0.1);
+      m.scale.setScalar(0.12 + 0.08 * Math.sin(u * Math.PI));
+      m.material.opacity = Math.sin(u * Math.PI);
+    });
+  }
+  function hideHearts() {
+    for (const m of heartSprites) m.visible = false;
+  }
+
+  // ----- the firefly gag (a gentle float gag): while she makes her wish
+  // with her eyes shut, a firefly settles on the tip of her nose. She opens
+  // her eyes and goes cross-eyed at it... ah... ah... CHOO! The firefly is
+  // blown away, her hair puffs up and her glasses go crooked. She shakes it
+  // off, straightens up with a shy smile and floats the krathong. -----
+  ARM.low = { x: -0.38, o: -0.32, e: -0.85 }; // krathong held low, clear of her face
+  const FF_SHIFT = 5.0; // the ordinary float resumes this much later
+  const FF_LAND = 1.9;
+  const FF_CHOO = 4.3;
+  const FF_HOLD = 2.3; // the float is paused here (krathong in her hands)
+  const FIREFLY_KEYS = [
+    ...FLOAT_KEYS.filter(([at]) => at < FF_HOLD),
+    [FF_HOLD, pose("low", "low", { hx: 0.08, yaw: FACE_CAM })], // what's on my nose?
+    [3.5, pose("low", "low", { hx: -0.34, lean: -0.05, yaw: FACE_CAM })], // ah... ah...
+    [FF_CHOO, pose("low", "low", { hx: 0.32, lean: 0.1, dip: 0.04, yaw: FACE_CAM })], // CHOO!
+    [4.8, pose("low", "low", { hx: 0.0, hz: 0.1, yaw: FACE_CAM })],
+    [5.3, pose("low", "low", { hz: 0.24, yaw: FACE_CAM })], // shake, shake
+    [5.55, pose("low", "low", { hz: -0.24, yaw: FACE_CAM })],
+    [5.8, pose("low", "low", { hz: 0.24, yaw: FACE_CAM })],
+    [6.05, pose("low", "low", { hz: -0.24, yaw: FACE_CAM })],
+    [6.3, pose("low", "low", { hx: 0.18, hz: 0.12, yaw: FACE_CAM })], // a sheepish smile
+    ...FLOAT_KEYS.filter(([at]) => at >= FF_HOLD).map(([at, p]) => [at + FF_SHIFT, p]),
+  ];
+  const firefly = (() => {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), new THREE.MeshBasicMaterial({ color: 0x2a2416 }));
+    body.scale.set(1, 1, 1.6);
+    g.add(body);
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex.glow, color: 0xd8ff6a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    glow.scale.setScalar(0.14);
+    g.add(glow);
+    g.userData.glow = glow;
+    g.visible = false;
+    scene.add(g);
+    return g;
+  })();
+  function fireflyState(t) {
+    const g = gagBase();
+    if (t < FF_HOLD || t > FF_HOLD + FF_SHIFT) return g;
+    if (t < 3.5) g.face = "cross";
+    else if (t < FF_CHOO) g.face = Math.floor(t * 6) % 2 ? "cross" : "wince";
+    else if (t < FF_CHOO + 0.35) g.face = "wince";
+    else if (t < 5.2) g.face = "daze";
+    else if (t < 6.3) g.face = "blink";
+    else g.face = "shy";
+    if (t >= FF_CHOO) {
+      g.frizz = 1 - smooth(clamp01((t - 6.1) / 1.0));
+      g.askew = 1 - smooth(clamp01((t - 6.2) / 0.5));
+      if (t < FF_CHOO + 0.4) g.shake = Math.sin(t * 70) * 0.008;
+    }
+    return g;
+  }
+  function fireflyPerformance(P, k, t, dt) {
+    applyGag(fireflyState(t));
+    floatPerformance(P, k, t < FF_HOLD ? t : t < FF_HOLD + FF_SHIFT ? FF_HOLD : t - FF_SHIFT);
+    // her nose, in the world
+    const nose = gagTmp.set(0, C0 - 0.05, 0.2);
+    teacher.head.localToWorld(nose);
+    const f = firefly.position;
+    firefly.visible = t > 0.4 && t < FF_CHOO + 1.4;
+    if (t < FF_LAND) {
+      // drifts in, looping lazily
+      const u = smooth(clamp01((t - 0.4) / (FF_LAND - 0.4)));
+      gagTmp2.set(nose.x + 1.1, nose.y + 0.6, nose.z + 0.8);
+      f.lerpVectors(gagTmp2, nose, u);
+      f.x += Math.sin(t * 5) * 0.15 * (1 - u);
+      f.y += Math.cos(t * 3.7) * 0.1 * (1 - u);
+    } else if (t < FF_CHOO) {
+      f.copy(nose);
+    } else {
+      // blown away, tumbling
+      const u = t - FF_CHOO;
+      fwd.set(0, 0, 1).applyQuaternion(teacher.group.quaternion);
+      f.copy(nose).addScaledVector(fwd, u * 2.2);
+      f.y += u * 0.6 + Math.sin(u * 14) * 0.08;
+      f.x += Math.cos(u * 14) * 0.08;
+    }
+    const glow = firefly.userData.glow;
+    glow.material.opacity = (0.65 + 0.35 * Math.sin(t * 6)) * (t > FF_CHOO + 1.0 ? 1 - (t - FF_CHOO - 1.0) / 0.4 : 1);
+    glow.scale.setScalar(t > FF_LAND && t < FF_CHOO ? 0.09 : 0.14);
+    if (once(P, "land", t, FF_LAND)) sound.ting(0.03);
+    for (const at of [3.6, 3.95]) if (once(P, "ah" + at, t, at)) sound.pop(0.05);
+    if (once(P, "choo", t, FF_CHOO)) {
+      sound.sneeze();
+      burst(nose, 30, { speed: 1.4, colors: [0xffffff, 0xdff4ff], life: 0.5 });
+      puff(nose, { size: 0.08, grow: 3, life: 0.6, rise: 0.1, spread: 0.1, a: 0.5, color: 0xffffff });
+    }
+    if (once(P, "pretty", t, 6.3)) {
+      teacher.head.getWorldPosition(gagTmp2);
+      gagTmp2.y += 0.18;
+      burst(gagTmp2, 40, { speed: 1.3, colors: [0xfff3b0, 0xffb3e6, 0xffffff], life: 0.8 });
+    }
+  }
+  function fireflyShot(pos, look, P) {
+    const t = P.t;
+    if (t < 0.6 || t > FF_HOLD + FF_SHIFT + 0.3) defaultFloatShot(pos, look);
+    else nearHer(pos, look, 3.0);
+  }
+
+  // ----- the fish gag (a gentle float gag): as she kneels and sets the
+  // krathong on the water, a little fish leaps up and kisses her cheek.
+  // She freezes, goes pink, hands to her cheeks, stands up all shy and
+  // wiggly with hearts round her head, then wais the river. -----
+  // (while she wais the river with her eyes shut, so her krathong is well
+  // out of the way by then)
+  const FISH_SHIFT = 4.0;
+  const FISH_AT = 5.9; // the float pauses here, at the end of her wai
+  const FISH_UP = 5.9; // out of the water
+  const FISH_KISS = 6.35;
+  const FISH_KISS_END = 6.8;
+  const FISH_BACK = 7.35; // back in
+  const FISH_KEYS = [
+    ...FLOAT_KEYS.filter(([at]) => at < FISH_AT),
+    [6.5, pose("cheeks", "cheeks", { dip: 0.12, lean: 0.0, hx: 0.05, yaw: FACE_WATER })], // !!!
+    [7.4, pose("cheeks", "cheeks", { hx: 0.16, hz: 0.16, yaw: FACE_CAM })], // all shy
+    [7.9, pose("cheeks", "cheeks", { hx: 0.16, hz: -0.16, yaw: FACE_CAM - 0.15 })],
+    [8.4, pose("cheeks", "cheeks", { hx: 0.18, hz: 0.16, yaw: FACE_CAM })],
+    [8.9, pose("cheeks", "cheeks", { hx: 0.2, hz: -0.1, yaw: FACE_CAM - 0.1 })],
+    [9.4, pose("heart", "heart", { hz: 0.12, yaw: FACE_CAM })],
+    ...FLOAT_KEYS.filter(([at]) => at >= FISH_AT).map(([at, p]) => [at + FISH_SHIFT, p]),
+  ];
+  const fish = (() => {
+    const { parts, add } = partList();
+    add(new THREE.SphereGeometry(0.05, 12, 8), "#ff8a3d", (d) => d.scale.set(1.7, 1, 0.75));
+    add(new THREE.SphereGeometry(0.042, 10, 6), "#ffe0c0", (d) => { d.position.set(0.01, -0.016, 0); d.scale.set(1.5, 0.6, 0.62); });
+    add(new THREE.ConeGeometry(0.045, 0.07, 3), "#ff6a2a", (d) => { d.position.set(-0.1, 0, 0); d.rotation.z = Math.PI / 2; d.scale.set(1, 1, 0.3); });
+    add(new THREE.ConeGeometry(0.02, 0.04, 3), "#ff6a2a", (d) => { d.position.set(0, 0.05, 0); d.scale.set(1, 1, 0.3); });
+    for (const z of [-0.035, 0.035]) {
+      add(new THREE.SphereGeometry(0.012, 8, 6), "#ffffff", (d) => d.position.set(0.05, 0.012, z));
+      add(new THREE.SphereGeometry(0.007, 6, 4), "#1a1010", (d) => d.position.set(0.056, 0.013, z * 1.15));
+    }
+    add(new THREE.SphereGeometry(0.009, 6, 4), "#ff5a8a", (d) => { d.position.set(0.084, -0.008, 0); d.scale.set(0.6, 1, 1.4); }); // puckered lips
+    const m = new THREE.Mesh(mergeParts(parts), propMat);
+    m.scale.setScalar(1.3);
+    m.visible = false;
+    scene.add(m);
+    return m;
+  })();
+  const FISH_FROM = new THREE.Vector3(-2.1, -0.05, 1.85);
+  const FISH_TO = new THREE.Vector3(-1.8, -0.05, 2.2);
+  const fishPrev = new THREE.Vector3();
+  function fishState(t) {
+    const g = gagBase();
+    if (t < FISH_UP || t > FISH_AT + FISH_SHIFT) return g;
+    if (t < FISH_KISS + 0.15) g.face = null; // eyes still shut in her wai
+    else if (t < 7.3) g.face = "huh";
+    else if (t < 9.4) g.face = "shy";
+    else g.face = "blink";
+    if (t > FISH_KISS + 0.15 && t < 7.1) g.exclaim = Math.sin(clamp01((t - FISH_KISS - 0.15) / 0.8) * Math.PI);
+    if (t > 7.4 && t < 9.4) g.bob = Math.abs(Math.sin((t - 7.4) * 6)) * 0.012;
+    return g;
+  }
+  function fishPerformance(P, k, t, dt) {
+    applyGag(fishState(t));
+    floatPerformance(P, k, t < FISH_AT ? t : t < FISH_AT + FISH_SHIFT ? FISH_AT : t - FISH_SHIFT);
+    sendOut(P, k, t);
+    showHearts(t, 7.2, 9.8);
+    // her cheek (on the water side of her face)
+    const cheek = gagTmp.set(0.07, C0 - 0.04, 0.17);
+    teacher.head.localToWorld(cheek);
+    fishPrev.copy(fish.position);
+    fish.visible = t > FISH_UP && t < FISH_BACK;
+    if (fish.visible) {
+      if (t < FISH_KISS) {
+        if (!P.fishAt) P.fishAt = cheek.clone();
+        const u = (t - FISH_UP) / (FISH_KISS - FISH_UP);
+        fish.position.lerpVectors(FISH_FROM, P.fishAt, smooth(u));
+        fish.position.y += Math.sin(u * Math.PI) * 0.25;
+      } else if (t < FISH_KISS_END) {
+        fish.position.copy(cheek); // mwah
+      } else {
+        const u = (t - FISH_KISS_END) / (FISH_BACK - FISH_KISS_END);
+        fish.position.lerpVectors(cheek, FISH_TO, u);
+        fish.position.y += Math.sin(u * Math.PI) * 0.2;
+      }
+      // nose first along its path (facing her cheek while it kisses)
+      if (t >= FISH_KISS && t < FISH_KISS_END) gagTmp2.subVectors(cheek, FISH_FROM).setY(0);
+      else gagTmp2.subVectors(fish.position, fishPrev);
+      if (gagTmp2.lengthSq() > 1e-8) fish.quaternion.setFromUnitVectors(X_AXIS, gagTmp2.normalize());
+      fish.rotateX(Math.sin(t * 30) * 0.2); // wiggle
+    }
+    if (once(P, "leap", t, FISH_UP)) {
+      burst(gagTmp2.copy(FISH_FROM).setY(0.05), 24, { speed: 1.3, colors: [0xbfe6ff, 0xffffff], life: 0.5 });
+      ripple(FISH_FROM.x, FISH_FROM.z, 1.0, 0xcfe8ff);
+      sound.blub();
+    }
+    if (once(P, "kiss", t, FISH_KISS)) {
+      sound.kiss();
+      burst(cheek, 18, { speed: 0.8, colors: [0xff7fb0, 0xffc2dc, 0xffffff], life: 0.6 });
+    }
+    if (once(P, "back", t, FISH_BACK)) {
+      burst(gagTmp2.copy(FISH_TO).setY(0.05), 22, { speed: 1.1, colors: [0xbfe6ff, 0xffffff], life: 0.5 });
+      ripple(FISH_TO.x, FISH_TO.z, 1.2, 0xcfe8ff);
+      sound.plop();
+    }
+    if (once(P, "gasp", t, FISH_KISS + 0.1)) sound.pop(0.12);
+  }
+  function fishShot(pos, look, P) {
+    const t = P.t;
+    if (t < 2.3 || t > FISH_AT + FISH_SHIFT + 0.4) return defaultFloatShot(pos, look);
+    if (t < 7.4) {
+      // from the river side, so her face shows as she leans to the water
+      const g = TEACHER_POS;
+      const dd = 3.4 + (camera.aspect < 1 ? 1.3 : 0);
+      look.set(g.x + 0.35, 1.2, g.z);
+      pos.set(g.x + Math.sin(1.05) * dd, 1.6, g.z + Math.cos(1.05) * dd);
+    } else nearHer(pos, look, 3.0);
+  }
+
+  // ----- the frog gag: the little frog who lives on a lily pad by the pier
+  // ribbits, hops onto the deck and up onto her bun. She feels it, it
+  // ribbits on her head, she shrieks and spins round and round; it hops
+  // into her hands, and... it's cute! She cuddles it, gives it a kiss,
+  // kneels at the edge and lets it hop back to its lily pad. -----
+  // (toward the bank, clear of where the glasses and the boy go in)
+  const FROG_PAD = new THREE.Vector3(-1.95, 0.02, 2.95);
+  const FROG_EDGE = new THREE.Vector3(-2.45, PIER.top, 2.5);
+  const frogPad = (() => {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.012, 20, 1, false, 0.35, TAU - 0.7), new THREE.MeshLambertMaterial({ color: 0x4f9e52, emissive: 0x0c1a0c }));
+    m.position.copy(FROG_PAD);
+    scene.add(m);
+    return m;
+  })();
+  const frog = (() => {
+    const g = new THREE.Group();
+    const { parts, add } = partList();
+    add(new THREE.SphereGeometry(0.06, 12, 8), "#6cc24a", (d) => { d.position.y = 0.045; d.scale.set(1, 0.72, 1.15); });
+    add(new THREE.SphereGeometry(0.05, 10, 6), "#d8f0a0", (d) => { d.position.set(0, 0.032, 0.02); d.scale.set(0.9, 0.5, 1); });
+    for (const x of [-0.032, 0.032]) {
+      add(new THREE.SphereGeometry(0.022, 10, 6), "#6cc24a", (d) => d.position.set(x, 0.088, 0.035));
+      add(new THREE.SphereGeometry(0.017, 10, 6), "#ffffff", (d) => d.position.set(x, 0.092, 0.047));
+      add(new THREE.SphereGeometry(0.009, 8, 4), "#1a1010", (d) => d.position.set(x, 0.094, 0.06));
+      add(new THREE.SphereGeometry(0.03, 8, 6), "#5aae3a", (d) => { d.position.set(x * 1.6, 0.025, -0.035); d.scale.set(0.7, 0.6, 1.3); }); // back legs
+      add(new THREE.SphereGeometry(0.014, 8, 4), "#5aae3a", (d) => { d.position.set(x * 1.2, 0.01, 0.06); d.scale.set(1, 0.5, 1.4); }); // front feet
+    }
+    add(new THREE.SphereGeometry(0.01, 6, 4), "#ff8fb0", (d) => d.position.set(-0.042, 0.06, 0.055)); // cheeks
+    add(new THREE.SphereGeometry(0.01, 6, 4), "#ff8fb0", (d) => d.position.set(0.042, 0.06, 0.055));
+    g.add(new THREE.Mesh(mergeParts(parts), propMat));
+    const throat = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 6), new THREE.MeshToonMaterial({ color: 0xf4ffc8, emissive: 0x1a1a10 }));
+    throat.position.set(0, 0.03, 0.055);
+    throat.scale.setScalar(0.01);
+    g.add(throat);
+    g.userData.throat = throat;
+    g.position.copy(FROG_PAD);
+    g.rotation.y = -1.9; // facing the pier
+    g.scale.setScalar(1.5);
+    scene.add(g);
+    return g;
+  })();
+  let frogCroak = rand(6, 14);
+  let frogCroakT = -1;
+  function croak(t0) {
+    // the throat puffs out twice
+    const u = t0;
+    const s = u > 0 && u < 0.32 ? Math.sin((u % 0.16) / 0.16 * Math.PI) : 0;
+    frog.userData.throat.scale.setScalar(0.01 + s * 1.1);
+  }
+  // free time: sits on its pad and ribbits now and then
+  function frogIdle(dt) {
+    if (performing?.k.frog) return;
+    frogCroak -= dt;
+    if (frogCroak <= 0) {
+      frogCroak = rand(9, 20);
+      frogCroakT = 0;
+      sound.ribbit(Math.min(0.08, 0.6 / camera.position.distanceTo(frog.position)));
+    }
+    if (frogCroakT >= 0) {
+      frogCroakT += dt;
+      croak(frogCroakT);
+      if (frogCroakT > 0.4) frogCroakT = -1;
+    }
+    frog.position.y = FROG_PAD.y + Math.sin(clock * 1.4) * 0.008;
+  }
+  Object.assign(ARM, {
+    cradle: { x: -0.72, o: -0.4, e: -1.25 }, // holding it in her cupped hands
+  });
+  const FROG_ON = 3.3; // on her bun
+  const FROG_EEK = 4.1;
+  const FROG_SPIN_END = 5.6;
+  const FROG_HANDS = 6.4; // in her hands
+  const FROG_LET = 10.9; // hops off, home
+  const FROG_KEYS = [
+    [0, IDLE],
+    [3.4, pose("clasp", "clasp", { hx: -0.2, hz: 0.1, yaw: FACE_CAM })], // hm? something up there?
+    [FROG_EEK, pose("flail", "flail", { hx: -0.1, yaw: FACE_CAM })], // EEEK
+    [FROG_SPIN_END, pose("rest", "rest", { hz: 0.18, yaw: FACE_CAM })], // dizzy
+    [6.0, pose("cradle", "cradle", { hx: 0.25, yaw: FACE_CAM })], // into her hands
+    [7.2, pose("heart", "heart", { hx: 0.1, hz: 0.14, yaw: FACE_CAM })], // cuddle
+    [7.8, pose("heart", "heart", { hx: 0.1, hz: -0.14, yaw: FACE_CAM })],
+    [8.5, pose("brace", "brace", { hx: 0.05, yaw: FACE_CAM })], // a kiss
+    [9.4, pose("cradle", "cradle", { yaw: FACE_WATER })], // to the edge
+    [10.3, pose("reach", "reach", { dip: 0.16, lean: 0.2, hx: 0.4, yaw: FACE_WATER })],
+    [11.2, pose("clasp", "wave", { hz: -0.1, yaw: FACE_WATER - 0.3 })], // bye bye
+    [12.4, pose("clasp", "clasp", { yaw: TEACHER_YAW })],
+    [13.0, pose("clasp", "wave", { hz: -0.12, yaw: FACE_CAM })],
+    [14.0, null],
+  ];
+  function frogState(t) {
+    const g = gagBase();
+    if (t >= 3.4 && t < FROG_EEK) {
+      g.face = "huh";
+      g.question = Math.sin(clamp01((t - 3.4) / 0.7) * Math.PI);
+    } else if (t >= FROG_EEK && t < FROG_SPIN_END) {
+      g.face = Math.floor(t * 5) % 2 ? "wince" : "cry2";
+      g.exclaim = t < FROG_EEK + 0.8 ? Math.sin(clamp01((t - FROG_EEK) / 0.8) * Math.PI) : 0;
+      g.flail = 0.7;
+      // round and round (two whole turns), hopping
+      g.spin = TAU * 2 * smooth(clamp01((t - FROG_EEK - 0.1) / 1.4));
+      g.bob = Math.abs(Math.sin((t - FROG_EEK) * 9)) * 0.05;
+      g.hairBlow = 1;
+    } else if (t >= FROG_SPIN_END && t < 6.4) g.face = "daze";
+    else if (t >= 6.4 && t < 7.0) g.face = "huh";
+    else if (t >= 7.0 && t < 8.5) g.face = t < 7.2 ? "open" : "shy";
+    else if (t >= 8.5 && t < 9.3) g.face = "kiss";
+    else if (t >= 9.3 && t < 10.3) g.face = "shy";
+    else if (t >= 11.2 && t < 12.4) g.face = "open";
+    if (t >= 9.4 && t < 12.9) {
+      const p = wetPos;
+      if (t < 10.2) p.lerpVectors(TEACHER_POS, COIN_EDGE, smooth((t - 9.4) / 0.8));
+      else if (t < 12.4) p.copy(COIN_EDGE);
+      else p.lerpVectors(COIN_EDGE, TEACHER_POS, smooth(clamp01((t - 12.4) / 0.5)));
+      g.pos = p;
+    }
+    return g;
+  }
+  const frogHop = (P, key, from, to, t, t0, t1, h = 0.35) => {
+    if (!P[key]) P[key] = from.clone();
+    const u = clamp01((t - t0) / (t1 - t0));
+    frog.position.lerpVectors(P[key], to, u);
+    frog.position.y += Math.sin(u * Math.PI) * h;
+    return u;
+  };
+  function frogPerformance(P, k, t, dt) {
+    applyGag(frogState(t));
+    showHearts(t, 7.1, 9.6);
+    // the frog sits where her name tag is
+    if (teacher.nameTag) teacher.nameTag.visible = !(t > 2.9 && t < 6.2);
+    const head = gagTmp.set(0.0, C0 + 0.25, -0.05);
+    teacher.head.localToWorld(head);
+    const hands = palms(gagTmp2, 0.06);
+    let yaw = null;
+    if (t < 2.0) {
+      frog.position.copy(FROG_PAD);
+    } else if (t < 2.5) {
+      frogHop(P, "h1", FROG_PAD, FROG_EDGE, t, 2.0, 2.5);
+      yaw = yawTo(FROG_PAD, FROG_EDGE);
+    } else if (t < 2.8) {
+      frog.position.copy(FROG_EDGE);
+    } else if (t < FROG_ON) {
+      frogHop(P, "h2", FROG_EDGE, head, t, 2.8, FROG_ON, 0.6);
+      yaw = yawTo(FROG_EDGE, TEACHER_POS);
+    } else if (t < 6.0) {
+      // riding on her bun, hanging on through the spin
+      frog.position.copy(head);
+      teacher.head.getWorldQuaternion(gagQ);
+      frog.quaternion.copy(gagQ);
+    } else if (t < FROG_HANDS) {
+      frogHop(P, "h3", head, hands, t, 6.0, FROG_HANDS, 0.25);
+      yaw = teacher.group.rotation.y;
+    } else if (t < FROG_LET) {
+      // in her hands, facing her (lifted to her lips for the kiss)
+      frog.position.copy(hands);
+      frog.position.y += 0.02;
+      yaw = teacher.group.rotation.y + Math.PI;
+    } else if (t < FROG_LET + 0.6) {
+      frogHop(P, "h4", hands, FROG_PAD, t, FROG_LET, FROG_LET + 0.6, 0.4);
+      yaw = yawTo(COIN_EDGE, FROG_PAD);
+    } else {
+      frog.position.copy(FROG_PAD);
+      yaw = -1.9;
+    }
+    if (yaw != null) frog.rotation.set(0, yaw, 0);
+    // croaks: on the pad, on her head, in her hands, back home
+    for (const at of [0.8, 1.5, 3.9, 6.8, FROG_LET + 0.9]) {
+      if (once(P, "rib" + at, t, at)) {
+        sound.ribbit(0.1);
+        P.croakAt = at;
+      }
+    }
+    croak(P.croakAt != null ? t - P.croakAt : -1);
+    if (once(P, "land1", t, 2.5)) sound.pop(0.05);
+    if (once(P, "land2", t, FROG_ON)) sound.pop(0.06);
+    if (once(P, "eek", t, FROG_EEK)) sound.eek();
+    if (once(P, "eek2", t, FROG_EEK + 0.9)) sound.eek(0.07);
+    if (once(P, "cute", t, 7.0)) {
+      teacher.head.getWorldPosition(gagTmp);
+      gagTmp.y += 0.2;
+      burst(gagTmp, 30, { speed: 1.1, colors: [0xffb3e6, 0xfff3b0, 0xffffff], life: 0.7 });
+    }
+    if (once(P, "kiss", t, 8.8)) {
+      sound.kiss();
+      burst(frog.position, 16, { speed: 0.8, colors: [0xff7fb0, 0xffc2dc, 0xffffff], life: 0.6 });
+    }
+    if (once(P, "home", t, FROG_LET + 0.6)) {
+      ripple(FROG_PAD.x, FROG_PAD.z, 1.0, 0xcfe8ff);
+      burst(gagTmp.copy(FROG_PAD).setY(0.05), 14, { speed: 0.8, colors: [0xbfe6ff, 0xffffff], life: 0.4 });
+      sound.plop();
+    }
+  }
+  function endFrog() {
+    frog.position.copy(FROG_PAD);
+    frog.rotation.set(0, -1.9, 0);
+    frog.userData.throat.scale.setScalar(0.01);
+    if (teacher.nameTag) teacher.nameTag.visible = true;
+    hideHearts();
+  }
+  function frogShot(pos, look, P) {
+    const t = P.t;
+    if (t < FROG_ON) {
+      // the pad, the deck's edge and her, set and still
+      look.set(-2.65, 0.8, 2.55);
+      const dd = 4.3 + (camera.aspect < 1 ? 1.6 : 0);
+      pos.set(-2.65 + Math.sin(0.25) * dd, 1.55, 2.55 + Math.cos(0.25) * dd);
+    } else nearHer(pos, look, 3.5);
+  }
+
+  // ----- the firecracker gag: a cheeky kid runs up on the bank, lights a
+  // firecracker and lobs it onto the pier. It skitters round her feet going
+  // bang-bang-bang and she hop-dances out of its way, shrieking. Then she
+  // pants, turns on him and pouts (cross mark, stomping); he wais sorry and
+  // runs off, and she huffs and is herself again. -----
+  const kid = buildPerson({ skin: "#e3b08a", hair: "#1a1210", top: "#ffd54a", pants: "#3a5a8a", headScale: 1.5, openEyes: true }, 1.15, 0);
+  const KID_FROM = new THREE.Vector3(-7.8, 0.35, 4.7);
+  const KID_POS = new THREE.Vector3(-5.0, 0.35, 4.3);
+  const KID_PARK = new THREE.Vector3(-12, -5, 8); // out of sight between gags
+  kid.group.position.copy(KID_PARK);
+  const kidSt = { run: 0, want: null, face: null, cur: { l: { x: -0.1, o: 0.1, e: -0.2, w: 0 }, r: { x: -0.1, o: 0.1, e: -0.2, w: 0 } }, crouch: 0 };
+  function poseKid(p, dt) {
+    const s = p.height / 1.8;
+    const t = p.t;
+    const d = kidSt;
+    const k = 1 - Math.exp(-dt * 9);
+    const want = d.want || { l: KARM.limp, r: KARM.limp };
+    ["l", "r"].forEach((sd, i) => {
+      const a = d.cur[sd];
+      let b = want[sd];
+      if (b === "run") {
+        armWant.x = Math.sin(t * 14 + i * Math.PI) * 0.9;
+        armWant.o = 0.15;
+        armWant.e = -1.1;
+        armWant.w = 0;
+        b = armWant;
+      }
+      a.x += (b.x - a.x) * k;
+      a.o += (b.o - a.o) * k;
+      a.e += (b.e - a.e) * k;
+      a.w += ((b.w ?? 0) - a.w) * k;
+      const side = i ? 1 : -1;
+      p.arms[i].rotation.set(a.x, 0, side * a.o);
+      p.elbows[i].rotation.set(a.e, 0, side * a.w * Math.sin(t * 6) * 0.4);
+    });
+    p.inner.scale.setScalar(s);
+    p.inner.position.set(0, -d.crouch * 0.12 * s + (d.run ? Math.abs(Math.sin(t * 14)) * 0.04 : 0), 0);
+    p.inner.rotation.set(d.crouch * 0.35 + d.run * 0.12, 0, 0);
+    const sw = Math.sin(t * 14) * 0.8 * d.run;
+    p.legs[0].rotation.x = sw + d.crouch * 1.2;
+    p.legs[1].rotation.x = -sw + d.crouch * 1.2;
+    p.head.rotation.set(Math.sin(t * 0.6) * 0.05, Math.sin(t * 0.4) * 0.1, Math.sin(t * 0.9) * 0.05);
+    p.faceOverride = d.face;
+  }
+  const cracker = (() => {
+    const g = new THREE.Group();
+    const { parts, add } = partList();
+    add(new THREE.CylinderGeometry(0.025, 0.025, 0.13, 10), "#e8302a", (d) => d.rotation.z = Math.PI / 2);
+    add(new THREE.CylinderGeometry(0.026, 0.026, 0.02, 10), "#ffd54a", (d) => { d.rotation.z = Math.PI / 2; d.position.x = 0.03; });
+    add(new THREE.CylinderGeometry(0.004, 0.004, 0.05, 5), "#3a2a20", (d) => { d.position.set(-0.08, 0.01, 0); d.rotation.z = Math.PI / 2 + 0.4; });
+    g.add(new THREE.Mesh(mergeParts(parts), propMat));
+    const spark = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex.glow, color: 0xffb04a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    spark.position.set(-0.1, 0.025, 0);
+    spark.scale.setScalar(0.12);
+    g.add(spark);
+    g.userData.spark = spark;
+    g.scale.setScalar(1.4);
+    g.visible = false;
+    scene.add(g);
+    return g;
+  })();
+  const CR_LIT = 1.5;
+  const CR_THROW = 2.3;
+  const CR_LAND_T = 3.0;
+  const CR_END = 6.3; // spent
+  const CR_LAND = new THREE.Vector3(-3.0, PIER.top + 0.03, 2.35);
+  const CR_KEYS = [
+    [0, IDLE],
+    [CR_LAND_T, pose("brace", "brace", { hx: -0.05, yaw: FACE_CAM })], // !
+    [3.4, pose("flail", "flail", { hx: 0.1, yaw: FACE_CAM - 0.3 })],
+    [4.3, pose("flail", "flail", { hx: 0.1, yaw: FACE_CAM + 0.3 })],
+    [5.2, pose("flail", "flail", { hx: 0.1, yaw: FACE_CAM - 0.2 })],
+    [CR_END + 0.1, pose("rest", "rest", { lean: 0.16, dip: 0.04, hx: 0.15, yaw: FACE_CAM })], // phew, panting
+  ];
+  const yawKid = yawTo(TEACHER_POS, KID_POS);
+  CR_KEYS.push(
+    [7.6, pose("fist", "point", { hx: -0.05, hz: 0.1, yaw: yawKid })], // YOU!
+    [8.4, pose("fist", "fist", { hx: -0.1, yaw: yawKid })],
+    [9.7, pose("fist", "fist", { hx: -0.28, hz: 0.15, yaw: FACE_CAM - 0.5 })], // hmph!
+    [10.7, pose("clasp", "clasp", { hz: 0.08, yaw: FACE_CAM })],
+    [11.4, pose("clasp", "wave", { hz: -0.12, yaw: FACE_CAM })],
+    [12.6, null]
+  );
+  const CRACKER_KEYS = CR_KEYS;
+  // where it skitters (a pure function of time), round her feet
+  function crackerAt(out, t) {
+    const u = t - CR_LAND_T;
+    const a = u * 2.6 + Math.sin(u * 5) * 0.7;
+    const r = 0.42 + Math.sin(u * 3.3) * 0.08;
+    return out.set(TEACHER_POS.x + Math.cos(a) * r * 0.8, PIER.top + 0.03, TEACHER_POS.z + Math.sin(a) * r * 0.6 + 0.1);
+  }
+  const crTmp = new THREE.Vector3();
+  function crackerState(t) {
+    const g = gagBase();
+    if (t < CR_LAND_T) return g;
+    if (t < CR_END) {
+      g.face = t < 3.4 ? "huh" : Math.floor(t * 4) % 2 ? "wince" : "cry2";
+      g.exclaim = t < 3.8 ? Math.sin(clamp01((t - CR_LAND_T) / 0.8) * Math.PI) : 0;
+      if (t > 3.3) {
+        // hop! hop! on the side away from it
+        g.bob = Math.abs(Math.sin((t - 3.3) * 8)) * 0.16;
+        g.kick = 0.6;
+        g.flail = 0.5;
+        crackerAt(crTmp, t);
+        const p = wetPos.copy(TEACHER_POS);
+        p.x += (TEACHER_POS.x - crTmp.x) * 0.35;
+        p.z += (TEACHER_POS.z + 0.1 - crTmp.z) * 0.35;
+        g.pos = p;
+      }
+    } else if (t < 7.6) {
+      g.face = "daze";
+      g.bob = Math.abs(Math.sin((t - CR_END) * 7)) * 0.012; // panting
+    } else if (t < 9.7) {
+      g.face = "pout";
+      g.anger = smooth(clamp01((t - 7.6) / 0.3)) * (1 - smooth(clamp01((t - 9.4) / 0.3)));
+      if (t < 8.6) g.bob = Math.abs(Math.sin((t - 7.6) * 6)) * 0.03; // stomp, stomp
+    } else if (t < 10.7) g.face = "pout";
+    return g;
+  }
+  function crackerPerformance(P, k, t, dt) {
+    applyGag(crackerState(t));
+    // ---- him ----
+    const d = kidSt;
+    const g = kid.group.position;
+    d.run = 0;
+    d.crouch = 0;
+    d.face = "open";
+    d.want = null;
+    let yaw = yawTo(KID_POS, TEACHER_POS);
+    if (t < CR_LIT - 0.1) {
+      g.lerpVectors(KID_FROM, KID_POS, smooth(clamp01(t / (CR_LIT - 0.1))));
+      d.run = 1;
+      d.want = { l: "run", r: "run" };
+      yaw = yawTo(KID_FROM, KID_POS);
+    } else if (t < 9.8) {
+      g.copy(KID_POS);
+      if (t < CR_THROW) {
+        d.crouch = 1; // lighting it
+        d.want = { l: KARM.reach, r: KARM.reach };
+      } else if (t < CR_THROW + 0.3) {
+        d.want = { l: KARM.limp, r: ARM.windup };
+      } else if (t < CR_LAND_T) {
+        d.want = { l: KARM.limp, r: ARM.fling };
+      } else if (t < 7.8) {
+        d.want = { l: KARM.cheer, r: KARM.cheer }; // ha ha!
+        d.face = Math.floor(t * 4) % 2 ? "open" : "blink";
+      } else if (t < 8.7) {
+        d.face = "huh"; // uh-oh
+      } else {
+        d.want = { l: KARM.wai, r: KARM.wai }; // sorry, kru!
+        d.face = "blink";
+      }
+    } else if (t < 11.6) {
+      g.lerpVectors(KID_POS, KID_FROM, smooth((t - 9.8) / 1.8));
+      d.run = 1;
+      d.want = { l: "run", r: "run" };
+      yaw = yawTo(KID_POS, KID_FROM);
+    } else {
+      g.copy(KID_PARK);
+    }
+    kid.group.rotation.y += wrapAngle(yaw - kid.group.rotation.y) * Math.min(1, dt * 8);
+
+    // ---- the firecracker ----
+    const c = cracker.position;
+    cracker.visible = t > CR_LIT - 0.2 && t < CR_END + 0.3;
+    if (t < CR_THROW + 0.3) {
+      kid.hands[1].getWorldPosition(c);
+      P.crFrom = c.clone();
+    } else if (t < CR_LAND_T) {
+      const u = (t - CR_THROW - 0.3) / (CR_LAND_T - CR_THROW - 0.3);
+      c.lerpVectors(P.crFrom, CR_LAND, u);
+      c.y += Math.sin(u * Math.PI) * 1.1;
+      cracker.rotation.set(t * 9, 0, t * 6);
+    } else if (t < CR_END) {
+      if (t < 3.3) c.lerpVectors(CR_LAND, crackerAt(crTmp, 3.3), (t - CR_LAND_T) / 0.3);
+      else crackerAt(c, t);
+      cracker.rotation.set(0, t * 7, Math.sin(t * 20) * 0.3);
+    } else cracker.rotation.set(0, cracker.rotation.y, 0);
+    cracker.userData.spark.visible = t > CR_LIT && t < CR_END;
+    cracker.userData.spark.scale.setScalar(0.1 + Math.random() * 0.08);
+    if (t > CR_LIT && t < CR_END) {
+      P.fuse = (P.fuse ?? 0) - dt;
+      if (P.fuse <= 0) {
+        P.fuse = 0.06;
+        cracker.userData.spark.getWorldPosition(crTmp);
+        burst(crTmp, 3, { speed: 0.6, colors: [0xffd27a, 0xffffff], life: 0.3 });
+      }
+    }
+    // bang bang bang
+    if (t > 3.3 && t < CR_END) {
+      P.bang = (P.bang ?? 0) - dt;
+      if (P.bang <= 0) {
+        P.bang = rand(0.22, 0.4);
+        burst(c, 26, { speed: 2.0, colors: [0xffd27a, 0xff6a3a, 0xffffff], life: 0.4, up: 1.2 });
+        flash(c, 1.4, 0xffc070, 0.15);
+        puff(c, { size: 0.06, grow: 3, life: 0.6, rise: 0.3, spread: 0.06, a: 0.5, color: 0x8a8088 });
+        sound.pop(0.22);
+      }
+    }
+    if (once(P, "light", t, CR_LIT)) sound.fizzle();
+    if (once(P, "throw", t, CR_THROW + 0.3)) sound.whoosh();
+    if (once(P, "land", t, CR_LAND_T)) sound.pop(0.08);
+    for (const at of [3.35, 4.6, 5.6]) if (once(P, "eek" + at, t, at)) sound.eek(0.09);
+    if (once(P, "out", t, CR_END)) {
+      puff(c, { size: 0.1, grow: 3, life: 1.2, rise: 0.4, spread: 0.1, a: 0.6, color: 0x8a8088 });
+      sound.fizzle();
+    }
+    for (const at of [7.6, 8.3, 9.7]) if (once(P, "hmph" + at, t, at)) sound.hmph();
+    // steam while she's cross
+    if (t > 7.6 && t < 9.6) {
+      P.steam = (P.steam ?? 0) - dt;
+      if (P.steam <= 0) {
+        P.steam = 0.5;
+        teacher.head.getWorldPosition(crTmp);
+        fwd.set(1, 0, 0).applyQuaternion(teacher.group.quaternion);
+        for (const s of [-1, 1]) {
+          gagTmp.copy(crTmp).addScaledVector(fwd, s * 0.22);
+          gagTmp.y += 0.12;
+          puff(gagTmp, { size: 0.05, grow: 2.4, life: 0.7, rise: 0.35, spread: 0.04, a: 0.75, color: 0xffffff });
+        }
+      }
+    }
+  }
+  function endCracker() {
+    kid.group.position.copy(KID_PARK);
+    cracker.visible = false;
+    kidSt.face = null;
+  }
+  function crackerShot(pos, look, P) {
+    const t = P.t;
+    const two = () => {
+      // both: her on the pier and him on the bank
+      const mx = (TEACHER_POS.x + KID_POS.x) / 2;
+      const mz = (TEACHER_POS.z + KID_POS.z) / 2;
+      const dd = 5.0 * (camera.aspect < 1 ? 1.5 : 1);
+      look.set(mx, 0.9, mz);
+      pos.set(mx + Math.sin(0.45) * dd, 1.9, mz + Math.cos(0.45) * dd);
+    };
+    if (t < CR_LAND_T) two();
+    else if (t < 7.4) closeOnHer(pos, look);
+    else if (t < 9.9) two();
+    else closeOnHer(pos, look);
+  }
+
+  // ===== more gags =====
+  // A registry, so runPerformance, keysFor and the camera don't each grow
+  // another branch: { keys, perform(P, k, t, dt), shot(pos, look, P),
+  // start?(k), end?(k) }. Idle ones are queued as { timed: true, extra },
+  // float ones put the name on her krathong as k.extra.
+  const EXTRA = {};
+  Object.assign(ARM, {
+    clapOpen: { x: -1.3, o: 0.35, e: -0.6 }, // hands apart, lining up a clap
+    clapShut: { x: -1.3, o: -0.5, e: -0.6 }, // ... CLAP
+    pointUp: { x: -2.75, o: 0.12, e: -0.1 }, // up at the sky
+    stretch: { x: -2.95, o: 0.25, e: -0.35 }, // a big stretch
+    ramHi: { x: -2.2, o: 0.6, e: -1.3, w: 0.5 }, // ram wong: hand up by the head
+    ramLo: { x: -0.5, o: 0.55, e: -1.2, w: 0.5 }, // ... and low at the waist
+    snack: { x: -1.0, o: 0.05, e: -1.35 }, // a snack held up in front
+    bite: { x: -1.6, o: -0.3, e: -1.75 }, // ... to her mouth
+    aside: { x: -0.5, o: 0.8, e: -0.7 }, // ... held out to the side
+  });
+  const exTmp = new THREE.Vector3();
+  const exTmp2 = new THREE.Vector3();
+  // a point along a path of points, at an even speed (u = 0..1)
+  function along(out, pts, u) {
+    let total = 0;
+    for (let i = 1; i < pts.length; i++) total += pts[i].distanceTo(pts[i - 1]);
+    let d = clamp01(u) * total;
+    for (let i = 1; i < pts.length; i++) {
+      const seg = pts[i].distanceTo(pts[i - 1]);
+      if (d <= seg || i === pts.length - 1) return out.lerpVectors(pts[i - 1], pts[i], seg ? Math.min(1, d / seg) : 1);
+      d -= seg;
+    }
+    return out.copy(pts[pts.length - 1]);
+  }
+  function sparkleHead(n = 40) {
+    teacher.head.getWorldPosition(exTmp);
+    exTmp.y += 0.18;
+    burst(exTmp, n, { speed: 1.3, colors: [0xfff3b0, 0xffb3e6, 0xffffff], life: 0.8 });
+  }
+  // 0..1..0 between a and b, with r-second ramps
+  const fade = (t, a, b, r = 0.3) => smooth(clamp01((t - a) / r)) * (1 - smooth(clamp01((t - b + r) / r)));
+  // a single swell from a (the "!" and "?")
+  const pulse = (t, a, len = 0.8) => (t > a && t < a + len ? Math.sin(((t - a) / len) * Math.PI) : 0);
+  // the float gags' shot: from the river side, framing her and the water
+  // thing (tx, tz) the gag is about
+  function riverSide(pos, look, tx, tz, base = 3.8, yaw = 0.95) {
+    const g = TEACHER_POS;
+    const mx = (g.x + tx) / 2;
+    const mz = (g.z + tz) / 2;
+    const dd = base + Math.hypot(tx - g.x, tz - g.z) * 0.55 + (camera.aspect < 1 ? 1.5 : 0);
+    look.set(mx, 0.95, mz);
+    pos.set(mx + Math.sin(yaw) * dd, 1.65, mz + Math.cos(yaw) * dd);
+  }
+  // a float gag pauses the ordinary float at `at` for `shift` seconds
+  const floatTime = (t, at, shift) => (t < at ? t : t < at + shift ? at : t - shift);
+  // her krathong, held by the gag rather than the river
+  function holdKrathong(k, x, z, y = null) {
+    k.stolen = true;
+    k.root.position.set(x, y ?? Math.sin(clock * 1.4 + k.phase) * 0.025, z);
+    k.root.rotation.z = Math.sin(clock * 1.1 + k.phase) * 0.025;
+  }
+  // ... and let go, out into the river
+  function freeKrathong(k, vx = 0.35, vz = -0.9) {
+    k.stolen = false;
+    if (!k.target) return;
+    k.target.set(0.6, 0, -3.6);
+    k.retarget = clock + 40;
+    k.vel.set(vx, 0, vz);
+  }
+  function candleOut(k, out) {
+    k.flame.visible = !out;
+    k.pool.visible = !out;
+    k.lit = out ? 0 : 1;
+  }
+
+  // ----- the mosquito (idle): one whines round her head. Her eyes follow
+  // it, she lines up a clap... misses. It lands on her cheek, she slaps it
+  // with both hands... and gets only herself. Teary, then cross, while it
+  // buzzes off without a care. -----
+  const mozzie = (() => {
+    const g = new THREE.Group();
+    const dark = new THREE.MeshBasicMaterial({ color: 0x2a2228 });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.01, 8, 6), dark);
+    body.scale.set(1, 1, 2.4);
+    g.add(body);
+    const nose = new THREE.Mesh(new THREE.CylinderGeometry(0.0015, 0.0015, 0.025, 4), dark);
+    nose.rotation.x = Math.PI / 2;
+    nose.position.z = 0.032;
+    g.add(nose);
+    const wingMat = new THREE.MeshBasicMaterial({ color: 0xeaf6ff, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false });
+    g.userData.wings = [-1, 1].map((s) => {
+      const piv = new THREE.Group();
+      const w = new THREE.Mesh(new THREE.CircleGeometry(0.02, 10), wingMat);
+      w.scale.set(1, 0.5, 1);
+      w.rotation.x = -Math.PI / 2;
+      w.position.x = s * 0.02;
+      piv.add(w);
+      piv.userData.s = s;
+      g.add(piv);
+      return piv;
+    });
+    g.scale.setScalar(2.6);
+    g.visible = false;
+    scene.add(g);
+    return g;
+  })();
+  const MZ_CLAP = 3.45;
+  const MZ_LAND = 4.9;
+  const MZ_SLAP = 5.45;
+  const MOZZIE_KEYS = [
+    [0, IDLE],
+    [0.9, pose("clasp", "clasp", { hx: -0.12, hz: 0.16, yaw: FACE_CAM })], // eyes on it
+    [1.6, pose("clasp", "clasp", { hx: -0.05, hz: -0.16, yaw: FACE_CAM - 0.15 })],
+    [2.2, pose("clasp", "clasp", { hx: -0.15, hz: 0.14, yaw: FACE_CAM + 0.1 })],
+    [2.8, pose("clapOpen", "clapOpen", { hx: -0.15, yaw: FACE_CAM })], // aim...
+    [3.3, pose("clapShut", "clapShut", { hx: -0.12, yaw: FACE_CAM })], // CLAP
+    [3.8, pose("clapOpen", "clapOpen", { hx: 0.2, yaw: FACE_CAM })], // ... nothing?
+    [4.5, pose("clasp", "clasp", { hz: -0.1, yaw: FACE_CAM })],
+    [5.25, pose("specs", "specs", { hx: 0.05, yaw: FACE_CAM })], // SLAP
+    [5.9, pose("cheeks", "cheeks", { hx: 0.12, yaw: FACE_CAM })], // owww
+    [7.0, pose("fist", "fist", { hx: -0.22, hz: 0.12, yaw: FACE_CAM - 0.3 })], // hmph!
+    [8.5, pose("clasp", "clasp", { hz: 0.08, yaw: FACE_CAM })],
+    [9.1, pose("clasp", "wave", { hz: -0.12, yaw: FACE_CAM })],
+    [10.2, null],
+  ];
+  // round her head, up out of the way of the clap, onto her cheek, away
+  function mozzieAt(out, t, head, cheek) {
+    const lift = t > MZ_CLAP && t < MZ_CLAP + 1.0 ? Math.sin(((t - MZ_CLAP) / 1.0) * Math.PI) * 0.35 : 0;
+    const a = t * 2.4;
+    out.set(head.x + Math.cos(a) * 0.42, head.y + 0.08 + Math.sin(t * 3.1) * 0.1 + lift, head.z + 0.06 + Math.sin(a) * 0.4);
+    if (t < 4.4) return out;
+    if (t < MZ_LAND) return out.lerp(cheek, smooth((t - 4.4) / (MZ_LAND - 4.4)));
+    if (t < MZ_SLAP) return out.copy(cheek);
+    const u = t - MZ_SLAP;
+    return out.copy(cheek).add(exTmp2.set(u * 0.9 + Math.sin(u * 9) * 0.08, u * 0.5, u * 0.7));
+  }
+  function mozzieState(t) {
+    const g = gagBase();
+    if (t < 0.7) return g;
+    if (t < 2.8) g.face = "huh";
+    else if (t < MZ_CLAP) g.face = "squint";
+    else if (t < MZ_CLAP + 0.25) g.face = "wince";
+    else if (t < MZ_LAND) g.face = "huh";
+    else if (t < MZ_SLAP) g.face = "squint";
+    else if (t < 5.95) g.face = "wince";
+    else if (t < 7.0) g.face = Math.floor(t * 4) % 2 ? "cry" : "cry2";
+    else if (t < 8.5) g.face = "pout";
+    else if (t < 9.1) g.face = "blink";
+    g.question = pulse(t, 3.9, 0.9);
+    g.exclaim = pulse(t, MZ_LAND, 0.6);
+    if (t > MZ_SLAP && t < MZ_SLAP + 0.35) g.shake = Math.sin(t * 70) * 0.008;
+    if (t > 5.95 && t < 7.0) g.bob = Math.abs(Math.sin((t - 5.95) * 7)) * 0.02;
+    g.anger = fade(t, 7.0, 8.5);
+    if (t > 7.0 && t < 7.8) g.bob = Math.abs(Math.sin((t - 7.0) * 6)) * 0.03; // stomp
+    return g;
+  }
+  function mozziePerformance(P, k, t, dt) {
+    applyGag(mozzieState(t));
+    const head = teacher.head.localToWorld(gagTmp.set(0, C0, 0));
+    const cheek = teacher.head.localToWorld(gagTmp2.set(0.09, C0 - 0.085, 0.165));
+    mozzie.visible = t > 0.3 && t < 7.5;
+    mozzieAt(mozzie.position, t, head, cheek);
+    mozzie.rotation.y = t * 4;
+    const flap = t > MZ_LAND && t < MZ_SLAP ? 0.1 : 0.7; // still while it feeds
+    for (const w of mozzie.userData.wings) w.rotation.z = w.userData.s * Math.sin(t * 70) * flap;
+    if (once(P, "buzz", t, 0.3)) sound.buzz(MZ_LAND - 0.3);
+    if (once(P, "clap", t, MZ_CLAP)) {
+      palms(exTmp, 0.05);
+      burst(exTmp, 14, { speed: 0.8, colors: [0xffffff, 0xfff3b0], life: 0.35 });
+      sound.pop(0.3);
+    }
+    if (once(P, "slap", t, MZ_SLAP)) {
+      burst(cheek, 18, { speed: 1.0, colors: [0xffe27a, 0xffffff], life: 0.4 });
+      sound.slap();
+    }
+    if (once(P, "buzz2", t, MZ_SLAP + 0.05)) sound.buzz(1.6);
+    if (once(P, "sob", t, 6.0)) sound.sob();
+    if (once(P, "hmph", t, 7.1)) sound.hmph();
+  }
+  EXTRA.mozzie = {
+    keys: MOZZIE_KEYS,
+    perform: mozziePerformance,
+    shot: (pos, look) => nearHer(pos, look, 3.1),
+    end() {
+      mozzie.visible = false;
+    },
+  };
+
+  // ----- the shooting star (idle): she gazes up at the sky, a shooting
+  // star streaks across it, she points, then quickly wais with her eyes
+  // shut and makes a wish; hearts, and a happy twirl. -----
+  const shootStar = Array.from({ length: 22 }, () => {
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex.glow, color: 0xeaf4ff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, fog: false }));
+    m.visible = false;
+    m.renderOrder = 3;
+    scene.add(m);
+    return m;
+  });
+  const ST_FROM = 1.5;
+  const ST_LEN = 1.3;
+  // drawn across the top of whatever the camera sees, far away
+  function placeStar(t) {
+    shootStar.forEach((m, i) => {
+      const u = (t - ST_FROM) / ST_LEN - i * 0.016;
+      m.visible = u > 0 && u < 1;
+      if (!m.visible) return;
+      const x = lerp(-0.8, 0.5, u);
+      const y = lerp(0.88, 0.52, u) - Math.sin(u * Math.PI) * 0.05;
+      exTmp.set(x, y, 0.5).unproject(camera).sub(camera.position).normalize();
+      m.position.copy(camera.position).addScaledVector(exTmp, 60);
+      const tail = 1 - i / shootStar.length;
+      m.scale.setScalar(i ? 3.2 * tail + 0.6 : 5.0);
+      m.material.opacity = (i ? 0.9 * tail : 1) * clamp01(u / 0.1) * clamp01((1 - u) / 0.25);
+    });
+  }
+  const STAR_KEYS = [
+    [0, IDLE],
+    [0.5, pose("clasp", "clasp", { hx: -0.38, hz: 0.06, yaw: FACE_CAM })], // a lovely sky
+    [1.9, pose("pointUp", "clasp", { hx: -0.45, hz: -0.08, yaw: FACE_CAM })], // a shooting star!
+    [3.0, pose("wai", "wai", { hx: 0.12, eyes: 1, yaw: FACE_CAM })], // quick, a wish
+    [6.0, pose("heart", "heart", { hx: -0.1, hz: 0.14, yaw: FACE_CAM })],
+    [6.9, pose("open", "open", { hx: -0.2, yaw: FACE_CAM })], // a happy twirl
+    [7.9, pose("clasp", "wave", { hz: -0.12, yaw: FACE_CAM })],
+    [9.0, null],
+  ];
+  function starState(t) {
+    const g = gagBase();
+    if (t > 0.5 && t < 1.9) g.face = "open";
+    else if (t >= 1.9 && t < 3.0) g.face = "huh";
+    else if (t >= 6.0 && t < 7.9) g.face = "open";
+    g.exclaim = pulse(t, 1.9, 0.8);
+    if (t > 6.9 && t < 7.8) {
+      const u = (t - 6.9) / 0.9;
+      g.spin = TAU * smooth(u);
+      g.bob = Math.sin(u * Math.PI) * 0.08;
+    }
+    return g;
+  }
+  function starPerformance(P, k, t, dt) {
+    applyGag(starState(t));
+    placeStar(t);
+    showHearts(t, 6.0, 8.3);
+    if (once(P, "star", t, ST_FROM)) sound.shimmer();
+    if (once(P, "ooh", t, 1.95)) sound.pop(0.1);
+    // little sparkles rise from her hands while she wishes
+    if (t > 3.3 && t < 5.9) {
+      P.tw = (P.tw ?? 0) - dt;
+      if (P.tw <= 0) {
+        P.tw = 0.35;
+        palms(exTmp, 0.05);
+        exTmp.y += 0.1;
+        burst(exTmp, 4, { speed: 0.5, colors: [0xfff3b0, 0xffffff], life: 0.6, up: 0.6 });
+      }
+    }
+    if (once(P, "wish", t, 5.9)) sound.ting(0.06);
+    if (once(P, "twirl", t, 7.8)) {
+      sparkleHead();
+      sound.chime();
+    }
+  }
+  // low in front of her, looking up past her at the sky
+  function starShot(pos, look, P) {
+    if (P.t < 0.4 || P.t > 8.6) return nearHer(pos, look, 3.1);
+    const g = teacher.group.position;
+    const dd = 3.3 + (camera.aspect < 1 ? 1.4 : 0);
+    look.set(g.x, 1.95, g.z);
+    pos.set(g.x + Math.sin(0.5) * dd, 0.95, g.z + Math.cos(0.5) * dd);
+  }
+  EXTRA.star = {
+    keys: STAR_KEYS,
+    perform: starPerformance,
+    shot: starShot,
+    end() {
+      for (const m of shootStar) m.visible = false;
+      hideHearts();
+    },
+  };
+
+  // ----- sleepy (idle): a big yawn and a stretch, she nods off on her
+  // feet (Zzz, a bubble at her nose growing and shrinking with each
+  // breath), the firefly bumps the bubble, POP, she jolts awake, looks
+  // round and goes pink: did anyone see that? -----
+  const zTex = (() => {
+    const c = makeCanvas(96, 96);
+    const g = c.getContext("2d");
+    g.font = "bold 72px sans-serif";
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    g.lineWidth = 10;
+    g.lineJoin = "round";
+    g.strokeStyle = "#3a4a8a";
+    g.strokeText("Z", 48, 50);
+    g.fillStyle = "#ffffff";
+    g.fillText("Z", 48, 50);
+    return canvasTexture(c);
+  })();
+  const zzz = [0, 1, 2].map(() => {
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: zTex, transparent: true, depthWrite: false }));
+    m.visible = false;
+    m.userData.ownFade = true;
+    teacher.group.add(m);
+    return m;
+  });
+  function showZzz(t, from, to) {
+    zzz.forEach((m, i) => {
+      const v = t - from - i * 0.6;
+      const u = (v % 1.8) / 1.8;
+      const on = t < to && v > 0;
+      m.visible = on;
+      if (!on) return;
+      m.position.set(0.24 + u * 0.2, teacher.topY - 0.42 + u * 0.32, 0.05);
+      m.scale.setScalar(0.09 + 0.08 * u);
+      m.material.opacity = Math.sin(u * Math.PI);
+    });
+  }
+  const snot = (() => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.065, 16, 12), new THREE.MeshToonMaterial({ color: 0xd8f2ff, emissive: 0x2a3a4a, transparent: true, opacity: 0.6, depthWrite: false }));
+    const glint = new THREE.Mesh(new THREE.SphereGeometry(0.009, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    glint.position.set(-0.024, 0.03, 0.05);
+    m.add(glint);
+    m.visible = false;
+    teacher.head.add(m);
+    return m;
+  })();
+  const SL_POP = 7.6;
+  const SLEEPY_KEYS = [
+    [0, IDLE],
+    [0.5, pose("stretch", "brace", { hx: -0.25, hz: 0.1, yaw: FACE_CAM })], // a big yawn and a stretch
+    [2.0, pose("clasp", "clasp", { hx: 0.12, yaw: FACE_CAM })],
+    [2.7, pose("clasp", "clasp", { hx: 0.45, hz: 0.1, yaw: FACE_CAM })], // nodding off...
+    [3.3, pose("clasp", "clasp", { hx: 0.0, yaw: FACE_CAM })], // ... jerks awake
+    [3.8, pose("clasp", "clasp", { hx: 0.42, hz: -0.1, yaw: FACE_CAM })],
+    [4.5, pose("clasp", "clasp", { hx: 0.5, hz: 0.2, lean: 0.04, yaw: FACE_CAM })], // asleep on her feet
+    [SL_POP, pose("shock", "shock", { rise: 0.05, hx: -0.1, yaw: FACE_CAM })], // POP!
+    [8.4, pose("rest", "rest", { hz: 0.25, yaw: FACE_CAM - 0.25 })], // who? what?
+    [8.9, pose("rest", "rest", { hz: -0.25, yaw: FACE_CAM + 0.25 })],
+    [9.4, pose("cheeks", "cheeks", { hx: 0.15, hz: 0.12, yaw: FACE_CAM })], // did anyone see?
+    [10.6, pose("clasp", "wave", { hz: -0.12, yaw: FACE_CAM })],
+    [11.6, null],
+  ];
+  function sleepyState(t) {
+    const g = gagBase();
+    if (t > 0.5 && t < 2.0) g.face = "yawn";
+    else if (t >= 2.0 && t < 3.3) g.face = "sleep";
+    else if (t >= 3.3 && t < 3.75) g.face = "huh";
+    else if (t >= 3.75 && t < SL_POP) g.face = "sleep";
+    else if (t >= SL_POP && t < 9.4) g.face = "huh";
+    else if (t >= 9.4 && t < 10.6) g.face = "shy";
+    g.exclaim = pulse(t, SL_POP, 0.8);
+    if (t > SL_POP && t < SL_POP + 0.3) g.shake = Math.sin(t * 70) * 0.008;
+    if (t > 9.4 && t < 10.6) g.bob = Math.abs(Math.sin((t - 9.4) * 6)) * 0.012;
+    return g;
+  }
+  function sleepyPerformance(P, k, t, dt) {
+    applyGag(sleepyState(t));
+    showZzz(t, 4.4, SL_POP);
+    // the bubble swells and shrinks with each breath
+    const s = smooth(clamp01((t - 4.8) / 1.4)) * (0.75 + 0.35 * Math.sin(t * 2.6));
+    snot.visible = t > 4.8 && t < SL_POP;
+    snot.scale.setScalar(Math.max(0.01, s));
+    snot.position.set(0.03, C0 - 0.055, 0.2 + 0.06 * s);
+    const at = snot.getWorldPosition(gagTmp);
+    // the firefly drifts in and bumps it, then flits off
+    firefly.visible = t > 6.0 && t < 9.2;
+    if (firefly.visible) {
+      const f = firefly.position;
+      if (t < SL_POP) {
+        const u = smooth((t - 6.0) / (SL_POP - 6.0));
+        gagTmp2.set(at.x + 1.2, at.y + 0.6, at.z + 0.7);
+        f.lerpVectors(gagTmp2, at, u);
+        f.x += Math.sin(t * 5) * 0.12 * (1 - u);
+        f.y += Math.cos(t * 3.7) * 0.08 * (1 - u);
+      } else {
+        const u = t - SL_POP;
+        if (!P.ffFrom) P.ffFrom = f.clone();
+        f.copy(P.ffFrom);
+        f.x += u * 0.8 + Math.sin(u * 10) * 0.06;
+        f.y += u * 0.7;
+        f.z += u * 0.3;
+      }
+      firefly.userData.glow.material.opacity = (0.65 + 0.35 * Math.sin(t * 6)) * (t > 8.8 ? 1 - (t - 8.8) / 0.4 : 1);
+      firefly.userData.glow.scale.setScalar(0.14);
+    }
+    if (once(P, "yawn", t, 0.6)) sound.yawn();
+    if (once(P, "nod", t, 3.3)) sound.pop(0.06);
+    if (once(P, "pop", t, SL_POP)) {
+      burst(at, 24, { speed: 1.0, colors: [0xd8f2ff, 0xffffff], life: 0.45 });
+      sound.pop(0.25);
+    }
+    if (once(P, "eek", t, SL_POP + 0.1)) sound.eek(0.07);
+  }
+  EXTRA.sleepy = {
+    keys: SLEEPY_KEYS,
+    perform: sleepyPerformance,
+    shot: (pos, look) => nearHer(pos, look, 3.1),
+    end() {
+      snot.visible = false;
+      firefly.visible = false;
+      for (const m of zzz) m.visible = false;
+    },
+  };
+
+  // ----- ram wong (idle): the firecracker kid comes back (good as gold
+  // this time) and they dance the ram wong together on the pier to a
+  // little tune, then wai each other and he runs off. -----
+  const RAM_KID = new THREE.Vector3(-3.65, PIER.top, 2.75);
+  const RAM_PATH = [KID_FROM, new THREE.Vector3(-3.6, PIER.top, 4.45), RAM_KID];
+  const yawRam = yawTo(TEACHER_POS, RAM_KID);
+  const RAM_T0 = 2.9;
+  const RAM_BEAT = 1.1;
+  const RAM_N = 6;
+  const RAM_END = RAM_T0 + RAM_N * RAM_BEAT;
+  const ramPose = (i) =>
+    i % 2
+      ? pose("ramLo", "ramHi", { hz: -0.14, hx: -0.05, yaw: FACE_CAM - 0.22 })
+      : pose("ramHi", "ramLo", { hz: 0.14, hx: -0.05, yaw: FACE_CAM + 0.22 });
+  const RAM_KEYS = [
+    [0, IDLE],
+    [1.2, pose("clasp", "clasp", { hx: 0.12, yaw: yawRam })], // oh, him again?
+    [2.0, pose("wai", "wai", { hx: 0.22, dip: 0.03, yaw: yawRam })],
+    ...Array.from({ length: RAM_N }, (_, i) => [RAM_T0 + i * RAM_BEAT, ramPose(i)]),
+    [RAM_END, pose("wai", "wai", { hx: 0.22, dip: 0.03, yaw: yawRam })],
+    [10.5, pose("clasp", "wave", { hz: -0.12, yaw: yawRam })],
+    [11.6, pose("clasp", "wave", { hz: -0.12, yaw: FACE_CAM })],
+    [12.6, null],
+  ];
+  const RAM_NOTES = [523, 587, 659, 784, 659, 587, 659, 523, 587, 659, 784, 880];
+  function ramState(t) {
+    const g = gagBase();
+    if (t > 1.2 && t < 2.0) g.face = "huh";
+    else if (t >= 2.0 && t < RAM_T0) g.face = "blink";
+    else if (t >= RAM_T0 && t < RAM_END) {
+      g.face = Math.floor((t - RAM_T0) / RAM_BEAT) % 2 ? "open" : "blink";
+      g.bob = Math.abs(Math.sin(((t - RAM_T0) / RAM_BEAT) * Math.PI * 2)) * 0.025;
+    } else if (t >= RAM_END && t < 10.5) g.face = "blink";
+    g.question = pulse(t, 1.2, 0.8);
+    return g;
+  }
+  function ramPerformance(P, k, t, dt) {
+    applyGag(ramState(t));
+    const d = kidSt;
+    const g = kid.group.position;
+    d.run = 0;
+    d.crouch = 0;
+    d.face = "open";
+    d.want = null;
+    const toCam = Math.atan2(camera.position.x - g.x, camera.position.z - g.z);
+    const toHer = yawTo(g, TEACHER_POS);
+    let yaw = toHer;
+    if (t < 2.0) {
+      const u = clamp01(t / 2.0);
+      along(g, RAM_PATH, u);
+      along(exTmp, RAM_PATH, Math.min(1, u + 0.02));
+      if (u < 0.99) yaw = yawTo(g, exTmp);
+      d.run = 1;
+      d.want = { l: "run", r: "run" };
+    } else if (t < 10.6) {
+      g.copy(RAM_KID);
+      if (t < RAM_T0 || (t >= RAM_END && t < 10.0)) {
+        d.want = { l: KARM.wai, r: KARM.wai };
+        d.face = "blink";
+        yaw = toCam + wrapAngle(toHer - toCam) * 0.55;
+      } else if (t >= 10.0) {
+        d.want = { l: KARM.limp, r: KARM.wave };
+      } else {
+        // a beat behind her, copying
+        const v = (t - RAM_T0 - 0.25) / RAM_BEAT;
+        const i = Math.floor(v);
+        d.want = i < 0 ? { l: KARM.wai, r: KARM.wai } : i % 2 ? { l: ARM.ramLo, r: ARM.ramHi } : { l: ARM.ramHi, r: ARM.ramLo };
+        yaw = toCam + wrapAngle(toHer - toCam) * 0.3;
+        g.y = RAM_KID.y + (v > 0 ? Math.abs(Math.sin(v * Math.PI * 2)) * 0.03 : 0);
+      }
+    } else if (t < 12.5) {
+      const u = clamp01((t - 10.6) / 1.9);
+      along(g, RAM_PATH, 1 - u);
+      along(exTmp, RAM_PATH, Math.max(0, 1 - u - 0.02));
+      yaw = yawTo(g, exTmp);
+      d.run = 1;
+      d.want = { l: "run", r: "run" };
+    } else g.copy(KID_PARK);
+    kid.group.rotation.y += wrapAngle(yaw - kid.group.rotation.y) * Math.min(1, dt * 8);
+    // the tune: a note on every half beat, "ching" and "chap" between
+    for (let i = 0; i < RAM_N * 2; i++) {
+      if (once(P, "n" + i, t, RAM_T0 + i * RAM_BEAT * 0.5)) {
+        sound.note(RAM_NOTES[i % RAM_NOTES.length]);
+        if (i % 2 === 0) sound.ting(0.022);
+        else sound.pop(0.05);
+      }
+    }
+    if (once(P, "done", t, RAM_END)) {
+      sparkleHead(30);
+      sound.chime();
+    }
+  }
+  function ramShot(pos, look) {
+    const mx = (TEACHER_POS.x + RAM_KID.x) / 2;
+    const mz = (TEACHER_POS.z + RAM_KID.z) / 2;
+    const dd = 4.4 * (camera.aspect < 1 ? 1.45 : 1);
+    look.set(mx, 1.2, mz);
+    pos.set(mx + Math.sin(0.5) * dd, 1.9, mz + Math.cos(0.5) * dd);
+  }
+  EXTRA.ramwong = {
+    keys: RAM_KEYS,
+    perform: ramPerformance,
+    shot: ramShot,
+    end() {
+      kid.group.position.copy(KID_PARK);
+      kidSt.face = null;
+    },
+  };
+
+  // ----- the cat (idle): she has a grilled banana on a stick, takes a
+  // bite and savours it with her eyes shut, holding it out to one side...
+  // a cat creeps up the pier, leaps and makes off with it. She goes for
+  // another bite: nothing! Looks at her empty hand, spots the cat, wails,
+  // sighs, then laughs it off. -----
+  const banana = handProp((add) => {
+    add(new THREE.CylinderGeometry(0.004, 0.004, 0.3, 5), "#c8a070", (d) => {
+      d.position.set(0, -0.02, 0.1);
+      d.rotation.x = Math.PI / 2;
+    });
+    for (const z of [0.1, 0.16, 0.22]) add(new THREE.SphereGeometry(0.024, 10, 8), "#d8962e", (d) => { d.position.set(0, -0.02, z); d.scale.set(1, 0.8, 1.25); });
+  });
+  const CAT_FROM = new THREE.Vector3(-4.7, 0.35, 5.1);
+  const CAT_ON = new THREE.Vector3(-3.5, PIER.top, 4.4);
+  const CAT_AWAY = new THREE.Vector3(-7.5, 0.35, 5.6);
+  const CAT_PARK = new THREE.Vector3(-12, -5, 9);
+  const cat = (() => {
+    const g = new THREE.Group();
+    const fur = "#f2a24e";
+    const dark = "#c9752c";
+    const white = "#fff3e2";
+    const { parts, add } = partList();
+    add(new THREE.SphereGeometry(0.09, 14, 10), fur, (d) => { d.position.set(0, 0.15, 0); d.scale.set(0.85, 0.78, 1.45); });
+    add(new THREE.SphereGeometry(0.06, 12, 8), white, (d) => { d.position.set(0, 0.12, 0.05); d.scale.set(0.9, 0.7, 1.2); }); // tummy
+    for (const z of [-0.07, -0.02, 0.03]) add(new THREE.TorusGeometry(0.074, 0.009, 4, 14, Math.PI), dark, (d) => d.position.set(0, 0.152, z)); // tabby stripes
+    add(new THREE.SphereGeometry(0.075, 14, 10), fur, (d) => d.position.set(0, 0.25, 0.13));
+    add(new THREE.SphereGeometry(0.038, 10, 8), white, (d) => { d.position.set(0, 0.228, 0.19); d.scale.set(1.25, 0.8, 0.8); }); // muzzle
+    add(new THREE.SphereGeometry(0.008, 6, 4), "#ff8fa8", (d) => d.position.set(0, 0.242, 0.212)); // nose
+    for (const s of [-1, 1]) {
+      add(new THREE.ConeGeometry(0.03, 0.055, 4), fur, (d) => { d.position.set(s * 0.042, 0.32, 0.12); d.rotation.set(0, Math.PI / 4, -s * 0.3); });
+      add(new THREE.SphereGeometry(0.013, 8, 6), "#1a1410", (d) => d.position.set(s * 0.03, 0.262, 0.196));
+      add(new THREE.SphereGeometry(0.005, 6, 4), "#ffffff", (d) => d.position.set(s * 0.03 + 0.004, 0.268, 0.207));
+    }
+    g.add(new THREE.Mesh(mergeParts(parts), propMat));
+    const legs = [[-0.045, 0.08], [0.045, 0.08], [-0.045, -0.08], [0.045, -0.08]].map(([x, z]) => {
+      const piv = new THREE.Group();
+      piv.position.set(x, 0.12, z);
+      const lp = partList();
+      lp.add(new THREE.CylinderGeometry(0.018, 0.016, 0.11, 8), fur, (d) => (d.position.y = -0.06));
+      lp.add(new THREE.SphereGeometry(0.019, 8, 6), white, (d) => d.position.set(0, -0.115, 0.004));
+      piv.add(new THREE.Mesh(mergeParts(lp.parts), propMat));
+      g.add(piv);
+      return piv;
+    });
+    const tail = new THREE.Group();
+    tail.position.set(0, 0.17, -0.12);
+    const tp = partList();
+    tp.add(new THREE.CylinderGeometry(0.014, 0.018, 0.2, 8), fur, (d) => { d.position.set(0, 0.09, -0.03); d.rotation.x = -0.35; });
+    tp.add(new THREE.SphereGeometry(0.016, 8, 6), dark, (d) => d.position.set(0, 0.185, -0.065));
+    tail.add(new THREE.Mesh(mergeParts(tp.parts), propMat));
+    g.add(tail);
+    // the stolen banana, crosswise in its mouth
+    const snack = new THREE.Mesh(banana.geometry, propMat);
+    snack.position.set(-0.13, 0.235, 0.2);
+    snack.rotation.y = Math.PI / 2;
+    snack.visible = false;
+    g.add(snack);
+    g.userData.legs = legs;
+    g.userData.tail = tail;
+    g.userData.snack = snack;
+    g.scale.setScalar(1.25);
+    g.position.copy(CAT_PARK);
+    scene.add(g);
+    return g;
+  })();
+  const CAT_SNEAK = 1.2;
+  const CAT_SIT_T = 4.2;
+  const CAT_LEAP = 4.6;
+  const CAT_GRAB = 4.85;
+  const CAT_LAND = 5.2;
+  const CAT_GONE = 7.4;
+  const yawCat = yawTo(TEACHER_POS, CAT_ON);
+  const CAT_KEYS = [
+    [0, pose("pocket", "clasp", { hz: 0.06, yaw: FACE_CAM })],
+    [0.7, pose("snack", "clasp", { hz: 0.1, yaw: FACE_CAM })], // grilled banana!
+    [1.6, pose("bite", "clasp", { hx: 0.05, yaw: FACE_CAM })], // nom
+    [2.3, pose("aside", "heart", { hx: -0.05, hz: 0.15, yaw: FACE_CAM })], // mmm, so good
+    [3.1, pose("aside", "heart", { hx: -0.05, hz: -0.12, yaw: FACE_CAM })],
+    [3.9, pose("aside", "heart", { hx: -0.05, hz: 0.15, yaw: FACE_CAM })],
+    [5.1, pose("bite", "clasp", { hx: 0.05, yaw: FACE_CAM })], // another bite... air
+    [5.9, pose("snack", "clasp", { hx: 0.3, yaw: FACE_CAM })], // where did it go?
+    [6.8, pose("point", "fist", { yaw: yawCat })], // YOU!
+    [7.7, pose("cry", "cry", { hx: -0.1, yaw: FACE_CAM })], // waaah
+    [9.1, pose("rest", "rest", { hz: 0.2, yaw: FACE_CAM })], // sigh
+    [9.7, pose("heart", "heart", { hz: 0.12, yaw: FACE_CAM })], // oh well, hee hee
+    [10.5, pose("clasp", "wave", { hz: -0.12, yaw: FACE_CAM })],
+    [11.5, null],
+  ];
+  function catState(t) {
+    const g = gagBase();
+    if (t > 0.7 && t < 1.6) g.face = "open";
+    else if (t >= 1.6 && t < 5.55) g.face = "yum";
+    else if (t >= 5.55 && t < 6.8) g.face = "huh";
+    else if (t >= 6.8 && t < 7.7) g.face = "pout";
+    else if (t >= 7.7 && t < 9.1) g.face = Math.floor(t * 4) % 2 ? "cry" : "cry2";
+    else if (t >= 9.1 && t < 9.7) g.face = "blink";
+    else if (t >= 9.7 && t < 10.5) g.face = "open";
+    g.question = pulse(t, 5.9, 0.9);
+    g.exclaim = pulse(t, 6.8, 0.7);
+    if (t > 2.3 && t < 4.6) g.bob = Math.abs(Math.sin((t - 2.3) * 4)) * 0.01;
+    if (t > 7.7 && t < 9.1) g.bob = Math.abs(Math.sin((t - 7.7) * 7)) * 0.02;
+    if (t > 9.7 && t < 10.5) g.bob = Math.abs(Math.sin((t - 9.7) * 9)) * 0.015;
+    return g;
+  }
+  function catPerformance(P, k, t, dt) {
+    applyGag(catState(t));
+    banana.visible = t > 0.45 && t < CAT_GRAB;
+    const c = cat.position;
+    const ud = cat.userData;
+    ud.snack.visible = t > CAT_GRAB && t < CAT_GONE;
+    // it sits on the deck under her hand
+    const hand = banana.getWorldPosition(gagTmp);
+    const sit = gagTmp2.set(hand.x, PIER.top, hand.z);
+    let yaw = null;
+    let walk = 0;
+    let crouch = 0;
+    if (t < CAT_SNEAK) {
+      c.copy(CAT_FROM);
+      yaw = yawTo(CAT_FROM, CAT_ON);
+    } else if (t < CAT_SIT_T) {
+      // creeping along the bank, onto the pier and up behind her hand
+      P.catPath ??= [CAT_FROM, CAT_ON, new THREE.Vector3()];
+      P.catPath[2].copy(sit);
+      const v = smooth((t - CAT_SNEAK) / (CAT_SIT_T - CAT_SNEAK));
+      along(c, P.catPath, v);
+      along(exTmp, P.catPath, Math.min(1, v + 0.02));
+      if (v < 0.98) yaw = yawTo(c, exTmp);
+      walk = 0.6;
+      crouch = 1;
+    } else if (t < CAT_LEAP) {
+      c.copy(sit); // eyes on the prize
+      yaw = yawTo(c, teacher.group.position);
+    } else if (t < CAT_LAND) {
+      P.leap ??= sit.clone();
+      const v = (t - CAT_LEAP) / (CAT_LAND - CAT_LEAP);
+      c.copy(P.leap);
+      c.y = PIER.top + Math.sin(v * Math.PI) * Math.max(0.1, hand.y - PIER.top - 0.32);
+      yaw = yawTo(c, teacher.group.position);
+    } else if (t < CAT_GONE) {
+      // off with it, back up the pier and away
+      P.run ??= [P.leap.clone(), CAT_ON, CAT_FROM, CAT_AWAY];
+      const v = clamp01((t - CAT_LAND) / (CAT_GONE - CAT_LAND));
+      along(c, P.run, v);
+      along(exTmp, P.run, Math.min(1, v + 0.02));
+      yaw = yawTo(c, exTmp);
+      walk = 1.6;
+    } else c.copy(CAT_PARK);
+    if (yaw != null) cat.rotation.y += wrapAngle(yaw - cat.rotation.y) * Math.min(1, dt * 10);
+    ud.legs.forEach((l, i) => (l.rotation.x = walk ? Math.sin(clock * 9 * walk + (i === 0 || i === 3 ? 0 : Math.PI)) * 0.6 : 0));
+    ud.tail.rotation.set(crouch ? 0.7 : 0, 0, Math.sin(clock * 3) * 0.35);
+    cat.scale.set(1.25, 1.25 * (1 - 0.15 * crouch), 1.25);
+    if (once(P, "show", t, 0.8)) sound.ting(0.05);
+    if (once(P, "munch", t, 1.9)) sound.munch();
+    if (once(P, "mew", t, CAT_SIT_T)) sound.meow(0.04);
+    if (once(P, "grab", t, CAT_GRAB)) {
+      burst(hand, 12, { speed: 0.7, colors: [0xffe9a0, 0xffffff], life: 0.4 });
+      sound.pop(0.1);
+    }
+    if (once(P, "chomp", t, 5.45)) sound.pop(0.12);
+    if (once(P, "mew2", t, 5.8)) sound.meow(0.07);
+    if (once(P, "you", t, 6.85)) sound.hmph();
+    if (once(P, "sob", t, 7.8)) sound.sob();
+    if (once(P, "hee", t, 9.8)) sound.giggle();
+  }
+  // from the river side, so the cat's walk up the pier reads
+  function catShot(pos, look, P) {
+    if (P.t > 7.6) return nearHer(pos, look, 3.2);
+    const dd = 4.4 + (camera.aspect < 1 ? 1.6 : 0);
+    look.set(-3.45, 1.0, 2.9);
+    pos.set(-3.45 + Math.sin(1.2) * dd, 1.75, 2.9 + Math.cos(1.2) * dd);
+  }
+  EXTRA.cat = {
+    keys: CAT_KEYS,
+    perform: catPerformance,
+    shot: catShot,
+    end() {
+      cat.position.copy(CAT_PARK);
+      cat.userData.snack.visible = false;
+      banana.visible = false;
+    },
+  };
+
+  // ----- the boomerang krathong (float): she sets it on the water, it
+  // drifts out... and comes back. She pushes it off again; back it comes
+  // again! A pout and a stomp, then she kneels and blows it away with one
+  // big puff, and claps. -----
+  const BM_OUT = new THREE.Vector3(-0.5, 0, 0.7);
+  const BM_S = 7.4;
+  const BM_GO = 11.7;
+  const BM_KEYS = [
+    ...FLOAT_KEYS.filter(([at]) => at < 6.6),
+    [6.7, pose("clasp", "clasp", { hx: 0.25, hz: 0.18, yaw: FACE_WATER })], // huh? it's coming back
+    [7.7, pose("reach", "reach", { dip: 0.14, lean: 0.16, hx: 0.42, yaw: FACE_WATER })], // off you go
+    [8.6, pose("clasp", "clasp", { hx: 0.2, yaw: FACE_WATER })],
+    [9.6, pose("clasp", "clasp", { hx: 0.3, hz: -0.2, yaw: FACE_WATER })], // AGAIN?!
+    [10.2, pose("fist", "fist", { hx: 0.1, hz: 0.12, yaw: FACE_WATER })], // hmph
+    [11.0, pose("rest", "rest", { dip: 0.16, lean: 0.24, hx: 0.5, yaw: FACE_WATER })], // one big puff
+    [12.1, pose("clap", "clap", { hx: -0.1, yaw: FACE_WATER - 0.4 })], // yay!
+    [13.0, pose("heart", "heart", { hz: 0.14, yaw: FACE_CAM })],
+    ...FLOAT_KEYS.filter(([at]) => at >= 6.6).map(([at, p]) => [at + BM_S, p]),
+  ];
+  function bmAt(out, t) {
+    out.copy(DROP_POS);
+    if (t < 4.6) return out;
+    if (t < 6.4) return out.lerp(BM_OUT, smooth((t - 4.6) / 1.8));
+    if (t < 7.6) return out.copy(BM_OUT).lerp(DROP_POS, smooth((t - 6.4) / 1.2));
+    if (t < 8.2) return out;
+    if (t < 9.3) return out.lerp(BM_OUT, smooth((t - 8.2) / 1.1));
+    if (t < 10.4) return out.copy(BM_OUT).lerp(DROP_POS, smooth((t - 9.3) / 1.1));
+    return out;
+  }
+  function bmState(t) {
+    const g = gagBase();
+    if (t < 6.7 || t > 13.6) return g;
+    if (t < 7.7) g.face = "huh";
+    else if (t < 8.6) g.face = null;
+    else if (t < 9.6) g.face = "open";
+    else if (t < 10.2) g.face = "huh";
+    else if (t < 11.45) g.face = "pout"; // ... cheeks full of air
+    else if (t < 11.9) g.face = "huh"; // whoooo
+    else g.face = "open";
+    g.question = pulse(t, 6.9, 0.9);
+    g.exclaim = pulse(t, 9.6, 0.7);
+    g.anger = fade(t, 10.2, 11.0);
+    if (t > 10.2 && t < 10.9) g.bob = Math.abs(Math.sin((t - 10.2) * 6)) * 0.03;
+    if (t > 12.1 && t < 13.0) g.bob = Math.abs(Math.sin((t - 12.1) * 8)) * 0.03;
+    return g;
+  }
+  function bmPerformance(P, k, t, dt) {
+    applyGag(bmState(t));
+    floatPerformance(P, k, floatTime(t, 5.9, BM_S));
+    const kp = k.root.position;
+    if (t >= FLOAT_ON_WATER && t < BM_GO) {
+      bmAt(exTmp, t);
+      holdKrathong(k, exTmp.x, exTmp.z);
+    }
+    for (const at of [7.6, 10.4]) {
+      if (once(P, "bump" + at, t, at)) {
+        ripple(DROP_POS.x, DROP_POS.z, 1.0, 0xcfe8ff);
+        sound.pop(0.07);
+      }
+    }
+    if (once(P, "huh", t, 6.9)) sound.pop(0.1);
+    if (once(P, "hmph", t, 10.25)) sound.hmph();
+    if (once(P, "blow", t, 11.45)) {
+      const mouth = teacher.head.localToWorld(exTmp.set(0, C0 - 0.07, 0.2));
+      for (let i = 0; i < 5; i++) puff(exTmp2.lerpVectors(mouth, kp, i / 5), { size: 0.06, grow: 2, life: 0.6, rise: 0.05, spread: 0.05, a: 0.5, color: 0xffffff });
+      sound.blow();
+    }
+    if (once(P, "go", t, BM_GO)) {
+      freeKrathong(k, 1.8, -1.5);
+      ripple(kp.x, kp.z, 1.6, 0xcfe8ff);
+      ripple(kp.x, kp.z, 2.4, 0xcfe8ff);
+      sound.whoosh();
+    }
+    // a wake of sparkles as it zooms off
+    if (t > BM_GO && t < BM_GO + 1.0) {
+      P.wake = (P.wake ?? 0) - dt;
+      if (P.wake <= 0) {
+        P.wake = 0.08;
+        burst(exTmp.set(kp.x, 0.08, kp.z), 4, { speed: 0.4, colors: [0xbfe6ff, 0xffffff], life: 0.5, up: 0.3 });
+      }
+    }
+    if (once(P, "yay", t, 12.1)) {
+      sparkleHead();
+      sound.chime();
+    }
+  }
+  EXTRA.boomerang = {
+    keys: BM_KEYS,
+    perform: bmPerformance,
+    shot(pos, look, P) {
+      if (P.t < 2.3 || P.t > 13.6) return defaultFloatShot(pos, look);
+      // side on to its trips out and back
+      riverSide(pos, look, (DROP_POS.x + BM_OUT.x) / 2, (DROP_POS.z + BM_OUT.z) / 2, 4.4, 0.55);
+    },
+    end(k) {
+      k.stolen = false;
+    },
+  };
+
+  // ----- the candle goes out (float): a gust blows her krathong's candle
+  // out while she wais with her eyes shut. She opens them: dark! Tears...
+  // and the coin-diver boy swims up with a lighter and lights it again for
+  // her. She wais him thank you, he waves and swims off. -----
+  const CD_S = 5.0;
+  const CD_OUT = 5.0;
+  const CD_SWIM = 5.4;
+  const CD_AT = 8.4;
+  const CD_FLICK = 8.75;
+  const CD_LIT = 9.2;
+  const CD_BYE = 11.0;
+  // (in front of it and to one side, so the krathong never hides him)
+  const CANDLE_BOY = new THREE.Vector3(-1.3, BOY_Y, 1.2);
+  const CANDLE_KEYS = [
+    ...FLOAT_KEYS.filter(([at]) => at < 5.9),
+    [5.9, pose("clasp", "clasp", { hx: 0.3, yaw: FACE_WATER })], // it went out!
+    [6.8, pose("cry", "cry", { hx: -0.1, yaw: FACE_CAM })],
+    [8.1, pose("clasp", "clasp", { hx: 0.2, yaw: FACE_WATER })], // oh? him?
+    [9.4, pose("heart", "heart", { hx: 0.1, yaw: FACE_WATER })], // it's lit!
+    [10.0, pose("wai", "wai", { hx: 0.25, dip: 0.04, yaw: FACE_WATER })], // thank you
+    [11.0, pose("clasp", "clasp", { hz: 0.1, yaw: FACE_WATER - 0.3 })],
+    ...FLOAT_KEYS.filter(([at]) => at >= 6.6).map(([at, p]) => [at + CD_S, p]),
+  ];
+  const lighter = (() => {
+    const { parts, add } = partList();
+    add(new THREE.BoxGeometry(0.03, 0.055, 0.016), "#e8302a", (d) => (d.position.y = -0.06));
+    add(new THREE.BoxGeometry(0.03, 0.014, 0.017), "#c8c8d0", (d) => (d.position.y = -0.093));
+    const m = new THREE.Mesh(mergeParts(parts), propMat);
+    const fl = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex.flame, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    fl.position.y = -0.125;
+    fl.scale.set(0.05, 0.1, 1);
+    m.add(fl);
+    m.userData.flame = fl;
+    m.visible = false;
+    boy.hands[1].add(m);
+    return m;
+  })();
+  function candleState(t) {
+    const g = gagBase();
+    if (t < 5.9 || t > 11.6) return g;
+    if (t < 6.8) g.face = "huh";
+    else if (t < 8.1) g.face = Math.floor(t * 4) % 2 ? "cry" : "cry2";
+    else if (t < CD_LIT) g.face = "huh";
+    else if (t < 10.0) g.face = "open";
+    else if (t < 11.0) g.face = "shy";
+    g.exclaim = pulse(t, 5.95, 0.8);
+    g.question = pulse(t, 8.2, 0.8);
+    if (t > 6.8 && t < 8.1) g.bob = Math.abs(Math.sin((t - 6.8) * 7)) * 0.02;
+    return g;
+  }
+  function candleBoy(P, k, t, dt) {
+    const d = diver;
+    const g = boy.group.position;
+    if (!P.bS) {
+      P.bS = g.clone();
+      P.bS.y = BOY_Y;
+    }
+    const toCam = Math.atan2(camera.position.x - g.x, camera.position.z - g.z);
+    let yaw = toCam;
+    let want = { l: KARM.tread, r: KARM.tread };
+    d.swim = 0;
+    d.wob = 0;
+    d.face = null;
+    boyCoin.visible = false;
+    if (t < CD_SWIM) {
+      g.copy(P.bS);
+      yaw = boy.group.rotation.y;
+    } else if (t < CD_AT) {
+      // he saw it go out: here he comes, paddling hard
+      g.lerpVectors(P.bS, CANDLE_BOY, smooth((t - CD_SWIM) / (CD_AT - CD_SWIM)));
+      yaw = yawTo(P.bS, CANDLE_BOY);
+      d.swim = 1;
+      want = { l: "paddle", r: "paddle" };
+    } else {
+      g.copy(CANDLE_BOY);
+      const toK = yawTo(CANDLE_BOY, DROP_POS);
+      d.face = "open";
+      if (t < CD_LIT + 0.4) {
+        yaw = toK;
+        want = { l: KARM.tread, r: KARM.reach };
+      } else if (t < 10.0) {
+        yaw = toK + wrapAngle(toCam - toK) * 0.5;
+        want = { l: KARM.tread, r: KARM.up };
+      } else {
+        yaw = yawTo(CANDLE_BOY, TEACHER_POS);
+        want = { l: KARM.tread, r: KARM.wave };
+      }
+    }
+    g.y = BOY_Y + Math.sin(boy.t * 2.4) * 0.03;
+    lighter.visible = t > CD_AT - 0.2 && t < 10.0;
+    lighter.userData.flame.visible = t > CD_FLICK && t < CD_LIT + 0.5;
+    d.want = want;
+    turnBoy(yaw, dt);
+    boyRipples(dt, d.swim > 0.5 ? 0.3 : 1.2);
+  }
+  function candlePerformance(P, k, t, dt) {
+    applyGag(candleState(t));
+    floatPerformance(P, k, floatTime(t, 5.9, CD_S));
+    if (t >= FLOAT_ON_WATER && t < CD_BYE) holdKrathong(k, DROP_POS.x, DROP_POS.z);
+    if (diver.script === k) candleBoy(P, k, t, dt);
+    if (once(P, "out", t, CD_OUT)) {
+      k.flame.getWorldPosition(exTmp);
+      candleOut(k, true);
+      puff(exTmp, { size: 0.05, grow: 3, life: 1.2, rise: 0.4, spread: 0.03, a: 0.6, color: 0x9a929a });
+      sound.fizzle();
+    }
+    if (once(P, "gasp", t, 5.95)) sound.pop(0.12);
+    if (once(P, "sob", t, 6.9)) sound.sob();
+    if (once(P, "flick", t, CD_FLICK)) {
+      lighter.userData.flame.getWorldPosition(exTmp);
+      burst(exTmp, 8, { speed: 0.5, colors: [0xffd27a, 0xffffff], life: 0.3 });
+      sound.ting(0.04);
+    }
+    if (once(P, "lit", t, CD_LIT)) {
+      candleOut(k, false);
+      k.flame.getWorldPosition(exTmp);
+      burst(exTmp, 50, { speed: 1.4, colors: [0xfff3b0, 0xffd27a, 0xffb3e6, 0xffffff], life: 0.9 });
+      ripple(DROP_POS.x, DROP_POS.z, 1.8);
+      sound.chime();
+    }
+    if (once(P, "go", t, CD_BYE)) freeKrathong(k);
+    // he's done: back to his coins
+    if (once(P, "bye", t, CD_BYE + 0.4) && diver.script === k) {
+      diver.script = null;
+      lighter.visible = false;
+    }
+  }
+  EXTRA.candle = {
+    keys: CANDLE_KEYS,
+    perform: candlePerformance,
+    shot(pos, look, P) {
+      if (P.t < 2.3 || P.t > 11.8) return defaultFloatShot(pos, look);
+      riverSide(pos, look, (DROP_POS.x + CANDLE_BOY.x) / 2, (DROP_POS.z + CANDLE_BOY.z) / 2);
+    },
+    start(k) {
+      diver.script = k;
+      diver.goal = null;
+      diver.grab = -1;
+    },
+    end(k) {
+      if (diver.script === k) diver.script = null;
+      diver.face = null;
+      lighter.visible = false;
+      k.stolen = false;
+      candleOut(k, false);
+    },
+  };
+
+  // ----- the turtle (float): while she wais the river, a turtle surfaces
+  // right under her krathong and lifts it on its shell. She opens her
+  // eyes: !! ... aww. It swims off out into the river carrying it, she
+  // waves bye-bye, and out there it dives and leaves the krathong
+  // floating. -----
+  const TU_UP = 5.0;
+  const TU_GO = 6.8;
+  const TU_DIVE = 10.0;
+  const TU_S = 3.6;
+  const TU_TO = new THREE.Vector3(-0.4, 0, -0.9);
+  const TU_SCALE = 2.2; // its shell well wider than a krathong, so it shows
+  const TU_RIDE = 0.12 * TU_SCALE; // the krathong's height on its shell
+  const turtle = (() => {
+    const g = new THREE.Group();
+    const { parts, add } = partList();
+    add(new THREE.SphereGeometry(0.24, 18, 10, 0, TAU, 0, Math.PI / 2), "#4c8a3c", (d) => d.scale.set(1, 0.5, 1.2)); // shell
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 6) * TAU;
+      const r = i === 6 ? 0 : 0.13;
+      const x = Math.cos(a) * r;
+      const z = Math.sin(a) * r * 1.2;
+      const y = 0.12 * Math.sqrt(Math.max(0, 1 - (x / 0.24) ** 2 - (z / 0.288) ** 2));
+      add(new THREE.SphereGeometry(0.055, 10, 6), "#6fae4c", (d) => { d.position.set(x, y - 0.01, z); d.scale.set(1, 0.3, 1); });
+    }
+    add(new THREE.TorusGeometry(0.24, 0.018, 6, 24), "#c7b36a", (d) => { d.scale.set(1, 1.2, 1); d.rotation.x = Math.PI / 2; }); // rim
+    add(new THREE.SphereGeometry(0.07, 12, 10), "#8cc66a", (d) => d.position.set(0, 0.03, 0.34)); // head
+    for (const s of [-1, 1]) {
+      add(new THREE.SphereGeometry(0.014, 8, 6), "#1a1410", (d) => d.position.set(s * 0.032, 0.06, 0.395));
+      add(new THREE.SphereGeometry(0.005, 6, 4), "#ffffff", (d) => d.position.set(s * 0.032 + 0.004, 0.066, 0.406));
+      add(new THREE.SphereGeometry(0.01, 6, 4), "#ff8fb0", (d) => d.position.set(s * 0.05, 0.03, 0.39)); // cheeks
+    }
+    g.add(new THREE.Mesh(mergeParts(parts), propMat));
+    const flip = [[-1, 1], [1, 1], [-1, -1], [1, -1]].map(([sx, sz]) => {
+      const piv = new THREE.Group();
+      piv.position.set(sx * 0.2, 0, sz * 0.17);
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 6), new THREE.MeshToonMaterial({ color: 0x8cc66a, emissive: 0x18240c, gradientMap: softToonRamp() }));
+      m.position.x = sx * 0.06;
+      m.scale.set(1.4, 0.3, 0.7);
+      piv.add(m);
+      piv.userData.s = sx * sz;
+      g.add(piv);
+      return piv;
+    });
+    g.userData.flip = flip;
+    g.scale.setScalar(TU_SCALE);
+    g.visible = false;
+    scene.add(g);
+    return g;
+  })();
+  const TURTLE_KEYS = [
+    ...FLOAT_KEYS.filter(([at]) => at < 5.9),
+    [5.9, pose("clasp", "clasp", { hx: 0.3, yaw: FACE_WATER })], // !!
+    [6.6, pose("heart", "heart", { hx: 0.2, hz: 0.12, yaw: FACE_WATER })], // aww
+    [7.4, pose("clasp", "wave", { hz: -0.1, yaw: FACE_WATER - 0.2 })], // bye-bye!
+    [9.4, pose("heart", "heart", { hz: 0.14, yaw: FACE_CAM })],
+    ...FLOAT_KEYS.filter(([at]) => at >= 6.6).map(([at, p]) => [at + TU_S, p]),
+  ];
+  function turtleState(t) {
+    const g = gagBase();
+    if (t < 5.9 || t > 10.2) return g;
+    if (t < 6.6) g.face = "huh";
+    else if (t < 7.4) g.face = "shy";
+    else g.face = "open";
+    g.exclaim = pulse(t, 5.95, 0.8);
+    return g;
+  }
+  function turtlePerformance(P, k, t, dt) {
+    applyGag(turtleState(t));
+    floatPerformance(P, k, floatTime(t, 5.9, TU_S));
+    showHearts(t, 6.6, 9.4);
+    const tp = turtle.position;
+    turtle.visible = t > TU_UP - 0.1 && t < TU_DIVE + 0.7;
+    let yaw = yawTo(DROP_POS, TEACHER_POS); // looking up at her
+    if (t < TU_GO) {
+      tp.set(DROP_POS.x, lerp(-0.7, 0, smooth(clamp01((t - TU_UP) / 0.5))) + Math.sin(t * 2) * 0.01, DROP_POS.z);
+      if (t < TU_UP + 0.2) turtle.rotation.y = yaw;
+    } else if (t < TU_DIVE) {
+      // out into the river along a lazy curve
+      const u = smooth((t - TU_GO) / (TU_DIVE - TU_GO));
+      tp.lerpVectors(DROP_POS, TU_TO, u);
+      tp.x += Math.sin(u * Math.PI) * 0.6;
+      tp.y = Math.sin(t * 2) * 0.015;
+      exTmp.lerpVectors(DROP_POS, TU_TO, Math.min(1, u + 0.02));
+      exTmp.x += Math.sin(Math.min(1, u + 0.02) * Math.PI) * 0.6;
+      yaw = u < 0.98 ? yawTo(tp, exTmp) : turtle.rotation.y;
+    } else {
+      tp.y = lerp(0, -0.7, smooth(clamp01((t - TU_DIVE) / 0.6)));
+      yaw = turtle.rotation.y;
+    }
+    turtle.rotation.y += wrapAngle(yaw - turtle.rotation.y) * Math.min(1, dt * 3);
+    const swim = t > TU_GO && t < TU_DIVE ? 1 : 0.3;
+    for (const f of turtle.userData.flip) f.rotation.y = f.userData.s * Math.sin(t * 5) * 0.5 * swim;
+    // riding on its shell (it rises under it, and settles back as it dives)
+    if (t >= FLOAT_ON_WATER && t < TU_DIVE + 0.3) {
+      const up = smooth(clamp01((t - TU_UP) / 0.5)) * (1 - smooth(clamp01((t - TU_DIVE) / 0.3)));
+      const bob = Math.sin(clock * 1.4 + k.phase) * 0.025;
+      holdKrathong(k, t < TU_UP ? DROP_POS.x : tp.x, t < TU_UP ? DROP_POS.z : tp.z, lerp(bob, TU_RIDE + tp.y, up));
+    }
+    if (once(P, "up", t, TU_UP)) {
+      burst(exTmp.set(DROP_POS.x, 0.05, DROP_POS.z), 24, { speed: 1.0, colors: [0xbfe6ff, 0xffffff], life: 0.5 });
+      ripple(DROP_POS.x, DROP_POS.z, 1.4, 0xcfe8ff);
+      sound.blub();
+    }
+    if (once(P, "gasp", t, 5.95)) sound.pop(0.12);
+    if (once(P, "aww", t, 6.6)) sound.ting(0.05);
+    if (once(P, "dive", t, TU_DIVE + 0.3)) {
+      freeKrathong(k);
+      ripple(tp.x, tp.z, 1.4, 0xcfe8ff);
+      sound.plop();
+    }
+    if (t > TU_GO && t < TU_DIVE) {
+      P.rip = (P.rip ?? 0) - dt;
+      if (P.rip <= 0) {
+        P.rip = 0.5;
+        ripple(tp.x, tp.z, 0.9, 0xcfe8ff);
+      }
+    }
+  }
+  EXTRA.turtle = {
+    keys: TURTLE_KEYS,
+    perform: turtlePerformance,
+    shot(pos, look, P) {
+      if (P.t < 2.3 || P.t > 10.6) return defaultFloatShot(pos, look);
+      const tp = P.t > TU_GO ? turtle.position : DROP_POS;
+      riverSide(pos, look, tp.x, tp.z);
+    },
+    end(k) {
+      turtle.visible = false;
+      k.stolen = false;
+      hideHearts();
+    },
+  };
+
+  // ----- a tap on Kru Song: a quick little reaction, drawn from its own
+  // lucky-draw bag. Only while she's free (no gag running or waiting);
+  // taps during a reaction are ignored. -----
+  const pokeBag = makeBag(["shy", "hmph", "giggle", "twirl", "dizzy"]);
+  const POKE_LEN = 2.0;
+  const POKE_KEYS = {
+    shy: [
+      [0, pose("cheeks", "cheeks", { hx: 0.15, hz: 0.15, yaw: FACE_CAM })],
+      [0.6, pose("cheeks", "cheeks", { hx: 0.15, hz: -0.15, yaw: FACE_CAM - 0.15 })],
+      [1.2, pose("cheeks", "cheeks", { hx: 0.15, hz: 0.15, yaw: FACE_CAM })],
+    ],
+    hmph: [[0, pose("fist", "fist", { hx: -0.25, hz: 0.15, yaw: FACE_CAM - 0.6 })]],
+    giggle: [
+      [0, pose("heart", "heart", { hx: 0.1, hz: 0.12, yaw: FACE_CAM })],
+      [0.5, pose("heart", "heart", { hx: 0.12, hz: -0.12, yaw: FACE_CAM })],
+      [1.0, pose("heart", "heart", { hx: 0.1, hz: 0.12, yaw: FACE_CAM })],
+    ],
+    twirl: [
+      [0, pose("open", "open", { hx: -0.15, yaw: FACE_CAM })],
+      [1.0, pose("heart", "heart", { hz: 0.14, yaw: FACE_CAM })],
+    ],
+    dizzy: [
+      [0, pose("rest", "rest", { hz: 0.25, yaw: FACE_CAM })],
+      [0.35, pose("rest", "rest", { hz: -0.25, yaw: FACE_CAM })],
+      [0.7, pose("rest", "rest", { hz: 0.25, yaw: FACE_CAM })],
+      [1.05, pose("rest", "rest", { hz: -0.25, yaw: FACE_CAM })],
+      [1.4, pose("rest", "rest", { hz: 0.05, yaw: FACE_CAM })],
+    ],
+  };
+  let poke = null; // { kind, t }
+  function pokeState(kind, t) {
+    const g = gagBase();
+    if (kind === "shy") {
+      g.face = "shy";
+      g.bob = Math.abs(Math.sin(t * 6)) * 0.012;
+    } else if (kind === "hmph") {
+      g.face = "pout";
+      g.anger = fade(t, 0, POKE_LEN, 0.25);
+    } else if (kind === "giggle") {
+      g.face = Math.floor(t * 6) % 2 ? "open" : "blink";
+      g.bob = Math.abs(Math.sin(t * 9)) * 0.02;
+    } else if (kind === "twirl") {
+      g.face = t < 1.0 ? "open" : "blink";
+      const u = clamp01(t / 0.9);
+      g.spin = TAU * smooth(u);
+      g.bob = u < 1 ? Math.sin(u * Math.PI) * 0.07 : 0;
+    } else if (kind === "dizzy") {
+      g.face = "cross";
+      g.question = fade(t, 0.2, POKE_LEN);
+    }
+    return g;
+  }
+  function stopPoke() {
+    poke = null;
+    hideHearts();
+    resetGag();
+  }
+  function pokeTick(dt) {
+    if (!poke) return;
+    if (performing || queue.length) return stopPoke();
+    const t0 = poke.t;
+    poke.t += dt;
+    const t = poke.t;
+    applyGag(pokeState(poke.kind, t));
+    if (poke.kind === "shy") showHearts(t, 0.05, POKE_LEN);
+    if (poke.kind === "twirl" && t0 < 0.9 && t >= 0.9) {
+      sparkleHead(30);
+      sound.ting(0.06);
+    }
+    if (t >= POKE_LEN) stopPoke();
+  }
+  function pokeTeacher() {
+    if (performing || queue.length || poke) return false;
+    if (idleComb != null) stopIdleComb();
+    idleFor = 0;
+    poke = { kind: pokeBag.draw(), t: 0 };
+    sound.pop(0.08); // boop
+    const voice = { shy: () => sound.kiss(), hmph: () => sound.hmph(), giggle: () => sound.giggle(), twirl: () => sound.ting(0.05), dizzy: () => sound.boing() };
+    voice[poke.kind]();
+    return true;
+  }
+  // was the tap on her? (her meshes, or near the line from her feet to
+  // her head on screen: she's small in the wide shot)
+  const tapA = new THREE.Vector3();
+  const tapB = new THREE.Vector3();
+  function hitTeacher(cx, cy) {
+    if (raycaster.intersectObject(teacher.group, true).length) return true;
+    const s = teacher.group.position;
+    tapA.set(s.x, s.y + 0.15, s.z).project(camera);
+    tapB.set(s.x, s.y + teacher.topY * 0.9, s.z).project(camera);
+    if (tapA.z > 1 || tapB.z > 1) return false;
+    const ax = ((tapA.x + 1) / 2) * innerWidth;
+    const ay = ((1 - tapA.y) / 2) * innerHeight;
+    const bx = ((tapB.x + 1) / 2) * innerWidth;
+    const by = ((1 - tapB.y) / 2) * innerHeight;
+    const len = Math.hypot(bx - ax, by - ay) || 1;
+    const u = clamp01(((cx - ax) * (bx - ax) + (cy - ay) * (by - ay)) / (len * len));
+    const d = Math.hypot(cx - (ax + (bx - ax) * u), cy - (ay + (by - ay) * u));
+    // about a third of a metre either side, at least a fingertip
+    return d < Math.max(26, (len / (teacher.topY * 0.9 - 0.15)) * 0.3);
+  }
+
   // ----- NPC behaviours -----
   function npcAct(p, dt) {
     p.next -= dt;
@@ -5816,6 +8449,8 @@ function mount() {
         poseTeacher(p);
       } else if (p === boy) {
         poseBoy(p, dt);
+      } else if (p === kid) {
+        poseKid(p, dt);
       } else {
         const breathe = Math.sin(p.t * 1.6) * 0.012;
         // crouching leans forward over the water
@@ -5933,6 +8568,8 @@ function mount() {
     downAt = null;
     ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
     raycaster.setFromCamera(ndc, camera);
+    // a tap on Kru Song herself, while she's free: a little reaction
+    if (hitTeacher(e.clientX, e.clientY) && pokeTeacher()) return;
     // (not one still with Kru Song, e.g. waiting on the pier in the wet gag)
     const hit = raycaster.intersectObjects(pickables, false).find((h) => h.object.userData.krathong.placed && !h.object.userData.krathong.stolen);
     if (hit) {
@@ -6176,8 +8813,9 @@ function mount() {
     if (lanterns.length > 60) lanterns.splice(lanterns.findIndex((l) => !l.held), 1);
 
     runPerformance(dt);
+    pokeTick(dt);
     idleCombTick(dt);
-    coinTick();
+    frogIdle(dt);
     boyRoam(dt);
     for (const n of npcs) npcAct(n, dt);
     walkAbout(dt);
@@ -6207,12 +8845,24 @@ function mount() {
         goalPos.set(p.x + 0.25, 1.7, p.z + (camera.aspect < 1 ? 5.4 : 4.1));
       }
     } else if (camState.mode === "teacher") {
-      if (performing?.k.coin) {
+      if (performing?.k.extra) {
+        EXTRA[performing.k.extra].shot(goalPos, goalLook, performing);
+      } else if (performing?.k.coin) {
         coinShot(goalPos, goalLook, performing);
       } else if (performing?.k.fire) {
         fireShot(goalPos, goalLook, performing);
       } else if (performing?.k.wet) {
         wetShot(goalPos, goalLook, performing);
+      } else if (performing?.k.glasses) {
+        glassesShot(goalPos, goalLook, performing);
+      } else if (performing?.k.firefly) {
+        fireflyShot(goalPos, goalLook, performing);
+      } else if (performing?.k.fish) {
+        fishShot(goalPos, goalLook, performing);
+      } else if (performing?.k.frog) {
+        frogShot(goalPos, goalLook, performing);
+      } else if (performing?.k.cracker) {
+        crackerShot(goalPos, goalLook, performing);
       } else if (performing?.k.fly) {
         flyShot(goalPos, goalLook, performing);
       } else if (performing?.k.sky) {
