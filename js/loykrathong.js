@@ -1937,6 +1937,27 @@ const sound = (() => {
       osc.stop(t + 0.55);
       lfo.stop(t + 0.55);
     },
+    // Moo Deng: a baby hippo's squeaky little squeal (pitch < 1 = sleepier)
+    squeak(vol = 0.07, pitch = 1) {
+      const a = on && ac();
+      if (!a) return;
+      const t = a.currentTime;
+      const osc = a.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(520 * pitch, t);
+      osc.frequency.exponentialRampToValueAtTime(980 * pitch, t + 0.08);
+      osc.frequency.exponentialRampToValueAtTime(600 * pitch, t + 0.24);
+      const lfo = a.createOscillator();
+      lfo.frequency.value = 22;
+      const lg = a.createGain();
+      lg.gain.value = 30 * pitch;
+      lfo.connect(lg).connect(osc.frequency);
+      osc.connect(env(a, vol, t, 0.015, 0.26));
+      osc.start(t);
+      lfo.start(t);
+      osc.stop(t + 0.32);
+      lfo.stop(t + 0.32);
+    },
     chime() {
       const a = on && ac();
       if (!a) return;
@@ -4250,9 +4271,9 @@ function mount() {
     };
   }
   // (two blank tickets: that float is a plain one, no gag)
-  const floatBag = makeBag(["wet", "glasses", "firefly", "fish", "boomerang", "candle", "turtle", "blank", "blank"]);
+  const floatBag = makeBag(["wet", "glasses", "firefly", "fish", "boomerang", "candle", "turtle", "mdride", "mdtug", "mdwish", "blank", "blank"]);
   // what happens when she's had nothing to do for a while
-  const idleBag = makeBag(["comb", "lip", "frog", "cracker", "coin", "mozzie", "ramwong", "star", "sleepy", "cat"]);
+  const idleBag = makeBag(["comb", "lip", "frog", "cracker", "coin", "mozzie", "ramwong", "star", "sleepy", "cat", "mdsplash"]);
   function runPerformance(dt) {
     if (!performing && queue.length) {
       const next = queue.shift();
@@ -5462,7 +5483,7 @@ function mount() {
       idleFor = 0;
       return;
     }
-    if (poke) {
+    if (poke || mooSt.visit) {
       idleFor = 0;
       return;
     }
@@ -8268,11 +8289,1041 @@ function mount() {
     },
   };
 
+  // ===== Moo Deng: a baby pygmy hippo who lives in the river. Like the
+  // coin diver she swims about on her own, now and then pops over (or
+  // waddles up the pier) to say hello to Kru Song, squeaks and bounces
+  // when tapped, and four gags borrow her (moo.script, like diver.script).
+  const MOO_S = 1.5;
+  const MOO_SWIM = -0.22 * MOO_S; // swimming: head and back out of the water
+  const MOO_UNDER = -0.9; // dived, out of sight
+  const MOO_SPEED = 0.55;
+  const MOO_HI = new THREE.Vector3(-1.9, 0, 2.2); // below Kru Song, to say hi
+  // (on her river side, never between her and the camera)
+  const MOO_CLIMB_W = new THREE.Vector3(-1.85, 0, 1.75); // where she climbs out ...
+  const MOO_CLIMB_D = new THREE.Vector3(-2.45, PIER.top, 1.75); // ... onto the pier
+  const MOO_NEAR = new THREE.Vector3(-2.64, PIER.top, 1.8); // beside Kru Song
+  const moo = (() => {
+    const g = new THREE.Group();
+    const inner = new THREE.Group(); // bob, squash and the tap hop
+    g.add(inner);
+    const SKIN = "#8c7884";
+    const DARK = "#77646f";
+    const SNOUT = "#c9939f";
+    const BELLY = "#d2a5b0";
+    const mat = new THREE.MeshToonMaterial({ vertexColors: true, emissive: 0x1c1418, gradientMap: softToonRamp() });
+    const body = partList();
+    body.add(new THREE.SphereGeometry(0.2, 28, 18), SKIN, (d) => { d.position.set(0, 0.2, -0.02); d.scale.set(1, 0.86, 1.22); });
+    body.add(new THREE.SphereGeometry(0.17, 16, 10), BELLY, (d) => { d.position.set(0, 0.13, 0.0); d.scale.set(0.9, 0.6, 1.12); });
+    body.add(new THREE.SphereGeometry(0.03, 8, 6), DARK, (d) => d.position.set(0, 0.24, -0.27)); // tail
+    // the wet shine on her back
+    body.add(new THREE.SphereGeometry(0.03, 10, 6), "#e8dce4", (d) => { d.position.set(0.05, 0.366, -0.04); d.rotation.y = 0.4; d.scale.set(1.6, 0.22, 0.7); });
+    body.add(new THREE.SphereGeometry(0.015, 8, 6), "#e8dce4", (d) => { d.position.set(0.1, 0.352, 0.04); d.scale.set(1.2, 0.25, 1); });
+    inner.add(new THREE.Mesh(mergeParts(body.parts), mat));
+    // stubby legs, on hip pivots
+    const legs = [[-1, 1], [1, 1], [-1, -1], [1, -1]].map(([sx, sz], i) => {
+      const piv = new THREE.Group();
+      piv.position.set(sx * 0.11, 0.12, sz * 0.13);
+      const lp = partList();
+      lp.add(new THREE.CylinderGeometry(0.058, 0.062, 0.13, 10), SKIN, (d) => (d.position.y = -0.06));
+      lp.add(new THREE.SphereGeometry(0.062, 10, 6), DARK, (d) => { d.position.y = -0.125; d.scale.set(1, 0.3, 1); });
+      piv.add(new THREE.Mesh(mergeParts(lp.parts), mat));
+      piv.userData.ph = i % 3 ? Math.PI : 0; // diagonal pairs step together
+      inner.add(piv);
+      return piv;
+    });
+    // the big round head
+    const head = new THREE.Group();
+    head.position.set(0, 0.3, 0.17);
+    inner.add(head);
+    const hp = partList();
+    hp.add(new THREE.SphereGeometry(0.165, 28, 20), SKIN, (d) => { d.position.set(0, 0.05, 0.04); d.scale.set(1.08, 0.95, 1); });
+    hp.add(new THREE.SphereGeometry(0.105, 24, 16), SNOUT, (d) => { d.position.set(0, -0.035, 0.168); d.scale.set(1.32, 0.76, 0.92); }); // snout
+    for (const s of [-1, 1]) {
+      hp.add(new THREE.SphereGeometry(0.014, 8, 6), "#4a3a44", (d) => { d.position.set(s * 0.045, 0.012, 0.24); d.scale.set(1, 0.6, 0.6); }); // nostrils
+      hp.add(new THREE.SphereGeometry(0.038, 12, 8), "#ff7f9c", (d) => { d.position.set(s * 0.12, 0.05, 0.158); d.rotation.y = s * 0.55; d.scale.set(1, 0.6, 0.35); }); // pink cheeks
+    }
+    head.add(new THREE.Mesh(mergeParts(hp.parts), mat));
+    // little round ears that wiggle
+    const ears = [-1, 1].map((s) => {
+      const piv = new THREE.Group();
+      piv.position.set(s * 0.1, 0.19, -0.01);
+      const ep = partList();
+      ep.add(new THREE.SphereGeometry(0.042, 10, 8), SKIN, (d) => d.scale.set(1, 0.85, 0.6));
+      ep.add(new THREE.SphereGeometry(0.026, 8, 6), "#e7a3b3", (d) => { d.position.z = 0.016; d.scale.set(1, 0.85, 0.5); });
+      piv.add(new THREE.Mesh(mergeParts(ep.parts), mat));
+      piv.userData.s = s;
+      head.add(piv);
+      return piv;
+    });
+    // big, low, round eyes (squashed flat to blink or sleep)
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x1a1216 });
+    const glintMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const eyes = [-1, 1].map((s) => {
+      const e = new THREE.Mesh(new THREE.SphereGeometry(0.034, 12, 10), eyeMat);
+      e.position.set(s * 0.072, 0.1, 0.178);
+      const gl = new THREE.Mesh(new THREE.SphereGeometry(0.011, 6, 4), glintMat);
+      gl.position.set(0.012, 0.014, 0.027);
+      e.add(gl);
+      e.userData.glint = gl;
+      head.add(e);
+      return e;
+    });
+    // the lower jaw opens: pink mouth, two baby teeth
+    const jaw = new THREE.Group();
+    jaw.position.set(0, -0.07, 0.1);
+    head.add(jaw);
+    const jp = partList();
+    jp.add(new THREE.SphereGeometry(0.1, 14, 10), SNOUT, (d) => { d.position.set(0, -0.025, 0.07); d.scale.set(1.2, 0.45, 0.95); });
+    jp.add(new THREE.SphereGeometry(0.085, 14, 10), "#d9566f", (d) => { d.position.set(0, 0.0, 0.07); d.scale.set(1.05, 0.3, 0.85); });
+    for (const s of [-1, 1]) jp.add(new THREE.BoxGeometry(0.018, 0.03, 0.018), "#ffffff", (d) => d.position.set(s * 0.06, 0.012, 0.14));
+    jaw.add(new THREE.Mesh(mergeParts(jp.parts), mat));
+    // a sleepy bubble at her nose (the wish gag)
+    const bubble = new THREE.Mesh(new THREE.SphereGeometry(0.05, 14, 10), new THREE.MeshToonMaterial({ color: 0xd8f2ff, emissive: 0x2a3a4a, transparent: true, opacity: 0.6, depthWrite: false }));
+    bubble.position.set(0.04, 0.01, 0.275);
+    bubble.visible = false;
+    head.add(bubble);
+    // ... and her own Zzz
+    const zs = [0, 1, 2].map(() => {
+      const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: zTex, transparent: true, depthWrite: false }));
+      m.visible = false;
+      g.add(m);
+      return m;
+    });
+    Object.assign(g.userData, { inner, legs, head, ears, eyes, jaw, bubble, zs });
+    g.scale.setScalar(MOO_S);
+    scene.add(g);
+    return g;
+  })();
+  // (rear: up on her hind legs, nose to the sky, 0..1)
+  const mooBase = () => ({ mouth: 0, eyes: 0, hx: 0, hy: 0, hz: 0, ears: 0, squash: 0, paddle: 0, walk: 0, rear: 0 });
+  const mooSt = {
+    script: null, // a gag is driving her
+    goal: null,
+    wait: 2,
+    visit: null, // { kind: "water" | "deck", phase, t }
+    nextVisit: 18, // (clock time) the first hello comes early
+    tapT: -1,
+    yaw: 0,
+    blinkAt: 2,
+    rippleT: 0,
+    stride: 0,
+    t: 0,
+    want: mooBase(),
+    cur: mooBase(),
+  };
+  const mooTmp = new THREE.Vector3();
+  const mooTmp2 = new THREE.Vector3();
+  {
+    randomSpot(moo.position, false);
+    moo.position.y = MOO_SWIM;
+  }
+  // an arc from a to b, h high at the top (u = 0..1)
+  function hopArc(out, a, b, u, h) {
+    out.lerpVectors(a, b, u);
+    out.y += Math.sin(clamp01(u) * Math.PI) * h;
+    return out;
+  }
+  // a point on her, in world space (local head / jaw coordinates)
+  const mooMouth = (out) => moo.userData.jaw.localToWorld(out.set(0, -0.02, 0.17));
+  const mooHead = (out) => moo.userData.head.localToWorld(out.set(0, 0.08, 0.1));
+  function mooFace(p) {
+    mooSt.yaw = Math.atan2(p.x - moo.position.x, p.z - moo.position.z);
+  }
+  function mooRipples(dt, every) {
+    mooSt.rippleT -= dt;
+    if (mooSt.rippleT > 0) return;
+    mooSt.rippleT = every;
+    const g = moo.position;
+    if (g.y < 0.05 && g.y > MOO_UNDER + 0.3) ripple(g.x, g.z, 0.9, 0xcfe8ff);
+  }
+  // swim (or walk) toward p at speed; true once there
+  function mooGo(p, speed, dt) {
+    const g = moo.position;
+    const dx = p.x - g.x;
+    const dz = p.z - g.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 0.05) return true;
+    const step = Math.min(d, speed * dt);
+    g.x += (dx / d) * step;
+    g.z += (dz / d) * step;
+    mooSt.yaw = Math.atan2(dx, dz);
+    return false;
+  }
+  // is Kru Song free for a hello?
+  const herFree = () => !performing && !queue.length && !poke && idleComb == null;
+  function mooGreet(kind) {
+    if (!herFree()) return false;
+    poke = { kind, t: 0 };
+    idleFor = 0;
+    return true;
+  }
+  // free time: swim about, float a while, and now and then pop over to
+  // say hello
+  function mooRoam(dt) {
+    const s = mooSt;
+    if (s.script) return;
+    const g = moo.position;
+    const w = (s.want = mooBase());
+    s.t += dt;
+    const busy = performing || queue.length;
+    // a hello is due: off she goes (not while a gag runs or waits)
+    if (!s.visit && !busy && clock > s.nextVisit && herFree() && !document.body.classList.contains("sheet-open") && g.y < 0.1) {
+      s.visit = { kind: Math.random() < 0.4 ? "deck" : "water", phase: "go", t: 0 };
+    }
+    const v = s.visit;
+    if (v) {
+      v.t += dt;
+      const onDeck = g.y > 0.2;
+      // something started: cut the hello short
+      if (busy && v.phase !== "back" && v.phase !== "hopdown" && v.phase !== "leave") {
+        v.phase = onDeck ? "back" : "leave";
+        v.t = 0;
+      }
+      const to = v.kind === "deck" ? MOO_CLIMB_W : MOO_HI;
+      // far away: duck under and come up a few metres out, so a hello never
+      // keeps Kru Song waiting (the idle counter holds while it runs)
+      if (v.phase === "go" && v.t < dt * 1.5 && Math.hypot(g.x - to.x, g.z - to.z) > 5.5) v.phase = "dive";
+      if (v.phase === "dive") {
+        g.y = lerp(MOO_SWIM, MOO_UNDER, smooth(clamp01(v.t / 0.6)));
+        if (v.t >= 0.6) {
+          mooTmp.set(g.x - to.x, 0, g.z - to.z).normalize().multiplyScalar(4);
+          g.set(to.x + mooTmp.x, MOO_UNDER, to.z + mooTmp.z);
+          v.phase = "go";
+          v.t = 0.5;
+        }
+      } else if (v.phase === "go") {
+        g.y += (MOO_SWIM - g.y) * Math.min(1, dt * 2);
+        w.paddle = 1;
+        if (mooGo(to, 1.3, dt) || v.t > 25) {
+          v.phase = v.kind === "deck" ? "hopup" : "hi";
+          v.t = 0;
+          if (v.phase === "hopup") v.from = g.clone();
+        }
+        mooRipples(dt, 0.35);
+      } else if (v.phase === "hi") {
+        // two happy bounces and a squeak; she waves back
+        mooFace(TEACHER_POS);
+        const u = v.t;
+        const hop = u < 1.6 ? Math.abs(Math.sin((u / 0.8) * Math.PI)) * 0.3 : 0;
+        g.y = MOO_SWIM + hop + Math.sin(s.t * 2) * 0.015;
+        w.mouth = u > 0.15 && u < 1.2 ? 0.8 : 0;
+        w.ears = 1;
+        w.hx = -0.25;
+        w.hz = u > 1.8 ? Math.sin(u * 3) * 0.2 : 0;
+        w.squash = hop < 0.03 && u < 1.6 ? 0.5 : 0;
+        if (once(v, "sq", u, 0.2)) {
+          sound.squeak(0.07);
+          mooGreet("greet");
+        }
+        for (const at of [0.8, 1.6]) if (once(v, "rip" + at, u, at)) ripple(g.x, g.z, 1.0, 0xcfe8ff);
+        if (u > 3.4) {
+          v.phase = "leave";
+          v.t = 0;
+        }
+      } else if (v.phase === "hopup") {
+        const u = clamp01(v.t / 0.7);
+        hopArc(g, v.from, MOO_CLIMB_D, smooth(u), 0.45);
+        mooFace(MOO_CLIMB_D);
+        w.squash = u < 0.15 ? 0.7 : 0;
+        if (once(v, "jump", v.t, 0.05)) {
+          ripple(v.from.x, v.from.z, 1.2, 0xcfe8ff);
+          burst(mooTmp.set(v.from.x, 0.05, v.from.z), 16, { speed: 0.8, colors: [0xbfe6ff, 0xffffff], life: 0.5 });
+          sound.boing();
+        }
+        if (u >= 1) {
+          v.phase = "walk";
+          v.t = 0;
+        }
+      } else if (v.phase === "walk") {
+        g.y = PIER.top;
+        w.walk = 1;
+        if (mooGo(MOO_NEAR, 0.4, dt)) {
+          v.phase = "nuzzle";
+          v.t = 0;
+        }
+      } else if (v.phase === "nuzzle") {
+        // she rubs her cheek on Kru Song's leg, who crouches to pat her
+        g.y = PIER.top;
+        mooFace(TEACHER_POS);
+        const u = v.t;
+        w.hx = -0.35;
+        w.hz = Math.sin(u * 4) * 0.25;
+        w.eyes = u > 0.8 && u < 3.0 ? 1 : 0;
+        w.ears = 1;
+        if (once(v, "sq", u, 0.15)) {
+          sound.squeak(0.06, 1.1);
+          mooGreet("pat");
+        }
+        if (once(v, "sq2", u, 2.2)) sound.squeak(0.05, 1.25);
+        if (u > 3.6) {
+          v.phase = "back";
+          v.t = 0;
+        }
+      } else if (v.phase === "back") {
+        g.y = PIER.top;
+        w.walk = 1;
+        if (mooGo(MOO_CLIMB_D, 0.5, dt)) {
+          v.phase = "hopdown";
+          v.t = 0;
+          v.from = g.clone();
+        }
+      } else if (v.phase === "hopdown") {
+        const u = clamp01(v.t / 0.7);
+        mooTmp2.set(MOO_CLIMB_W.x + 0.2, MOO_SWIM, MOO_CLIMB_W.z - 0.1);
+        hopArc(g, v.from, mooTmp2, smooth(u), 0.4);
+        mooFace(mooTmp2);
+        if (u >= 1 && once(v, "splash", v.t, 0.7)) {
+          ripple(g.x, g.z, 1.6, 0xcfe8ff);
+          burst(mooTmp.set(g.x, 0.05, g.z), 26, { speed: 1.0, colors: [0xbfe6ff, 0xffffff], life: 0.5 });
+          sound.plop();
+          v.phase = "leave";
+          v.t = 0;
+        }
+      } else {
+        // done: back to roaming, and the next hello in a while
+        s.visit = null;
+        s.goal = null;
+        s.wait = 0;
+        s.nextVisit = clock + rand(25, 45);
+      }
+    } else {
+      // roaming the river, clear of the pier while she's busy with a gag
+      g.y += (MOO_SWIM + Math.sin(s.t * 2) * 0.015 - g.y) * Math.min(1, dt * 1.5);
+      if (g.y > 0.2) g.y = MOO_SWIM; // (never left standing on the deck)
+      let moving = false;
+      if (s.goal) {
+        moving = !mooGo(s.goal, MOO_SPEED, dt);
+        if (!moving) {
+          s.goal = null;
+          s.wait = rand(2.5, 6);
+        }
+        w.paddle = moving ? 1 : 0;
+      } else {
+        // floating: looks about, wiggles her ears, the odd yawn
+        s.wait -= dt;
+        w.hy = Math.sin(s.t * 0.7) * 0.4;
+        w.ears = Math.sin(s.t * 0.9) > 0.85 ? 1 : 0;
+        if (Math.sin(s.t * 0.37) > 0.97) {
+          w.mouth = 1;
+          w.eyes = 0.7;
+          w.hx = -0.3;
+        }
+        if (s.wait <= 0) {
+          s.goal = new THREE.Vector3();
+          for (let i = 0; i < 12; i++) {
+            randomSpot(s.goal, false);
+            if (Math.hypot(s.goal.x - g.x, s.goal.z - g.z) < 9) break;
+          }
+        }
+      }
+      // keep clear of the coin diver
+      const b = boy.group.position;
+      const bd = Math.hypot(g.x - b.x, g.z - b.z);
+      if (bd < 1.1 && bd > 0.001) {
+        g.x += ((g.x - b.x) / bd) * (1.1 - bd) * dt * 2;
+        g.z += ((g.z - b.z) / bd) * (1.1 - bd) * dt * 2;
+      }
+      if (busy && inPierZone(g.x, g.z)) {
+        s.goal = mooTmp2.set(-0.1, 0, Math.min(g.z, 1.2)).clone();
+      }
+      mooRipples(dt, moving ? 0.4 : 1.4);
+    }
+  }
+  // her body, from s.want (eased), every frame
+  function mooPose(dt) {
+    const s = mooSt;
+    const u = moo.userData;
+    const c = s.cur;
+    const w = s.want;
+    const k = 1 - Math.exp(-dt * 9);
+    for (const f of ["mouth", "eyes", "hx", "hy", "hz", "squash", "paddle", "walk", "rear"]) c[f] += (w[f] - c[f]) * k;
+    // the tap: a squeaky hop
+    let hop = 0;
+    if (s.tapT >= 0) {
+      s.tapT += dt;
+      const v = s.tapT / 0.75;
+      hop = v < 1 ? Math.sin(v * Math.PI) * 0.22 : 0;
+      c.mouth = Math.max(c.mouth, v < 0.8 ? 0.9 : 0);
+      if (v >= 1.3) s.tapT = -1;
+    }
+    s.blinkAt -= dt;
+    if (s.blinkAt < -0.13) s.blinkAt = rand(2, 5);
+    const shut = Math.max(c.eyes, s.blinkAt < 0 ? 1 : 0);
+    for (const e of u.eyes) {
+      e.scale.y = 1 - 0.85 * shut;
+      e.userData.glint.visible = shut < 0.5;
+    }
+    u.jaw.rotation.x = c.mouth * 0.75;
+    u.head.rotation.set(c.hx + Math.sin(s.t * 0.9) * 0.03, c.hy, c.hz);
+    const wig = s.tapT >= 0 ? 1 : w.ears;
+    for (const e of u.ears) e.rotation.z = e.userData.s * (0.15 + Math.sin(s.t * 20) * 0.4 * wig);
+    s.stride += dt * (c.walk * 9 + c.paddle * 7);
+    for (const l of u.legs) l.rotation.x = Math.sin(s.stride + l.userData.ph) * (0.55 * c.walk + 0.6 * c.paddle);
+    const sq = c.squash;
+    const breathe = Math.sin(s.t * 1.8) * 0.015;
+    u.inner.scale.set(1 + sq * 0.12, 1 - sq * 0.2 + breathe, 1 + sq * 0.12);
+    u.inner.position.y = hop / MOO_S + Math.abs(Math.sin(s.stride)) * 0.02 * c.walk;
+    u.inner.rotation.x = -0.85 * c.rear;
+    moo.rotation.y += wrapAngle(s.yaw - moo.rotation.y) * Math.min(1, dt * 5);
+    moo.visible = moo.position.y > MOO_UNDER + 0.05;
+  }
+  // a tap on her: a squeaky hop, hearts (not while a gag has her)
+  function hitMoo(cx, cy) {
+    if (!moo.visible) return false;
+    if (raycaster.intersectObject(moo, true).length) return true;
+    moo.userData.head.getWorldPosition(mooTmp).project(camera);
+    if (mooTmp.z > 1) return false;
+    const x = ((mooTmp.x + 1) / 2) * innerWidth;
+    const y = ((1 - mooTmp.y) / 2) * innerHeight;
+    return Math.hypot(cx - x, cy - y) < 28;
+  }
+  function tapMoo() {
+    if (mooSt.script || mooSt.tapT >= 0) return mooSt.tapT >= 0;
+    mooSt.tapT = 0;
+    sound.squeak(0.08, 1.15);
+    mooHead(mooTmp);
+    burst(mooTmp, 18, { speed: 0.8, colors: [0xff7fb0, 0xffc2dc, 0xffffff], life: 0.6, up: 0.8 });
+    if (moo.position.y < 0.1) ripple(moo.position.x, moo.position.z, 1.0, 0xcfe8ff);
+    return true;
+  }
+  function showMooZzz(t, from, to) {
+    moo.userData.zs.forEach((m, i) => {
+      const v = t - from - i * 0.6;
+      const u = (v % 1.8) / 1.8;
+      const on = t < to && v > 0;
+      m.visible = on;
+      if (!on) return;
+      m.position.set(-0.05 + u * 0.14, 0.62 + u * 0.3, 0.15);
+      m.scale.setScalar(0.07 + 0.06 * u);
+      m.material.opacity = Math.sin(u * Math.PI);
+    });
+  }
+  // a gag takes her: wherever she is, she ducks under first (so she never
+  // jumps across the river in plain sight); true while still diving
+  function mooDive(P, t, len = 0.6) {
+    if (!P.mooFrom) P.mooFrom = moo.position.clone();
+    if (t >= len) return false;
+    const f = P.mooFrom;
+    const u = smooth(t / len);
+    if (f.y > 0.2) {
+      // (she was up on the pier: a hop off into the water)
+      hopArc(moo.position, f, mooTmp.set(MOO_CLIMB_W.x, MOO_UNDER, MOO_CLIMB_W.z), u, 0.4);
+    } else moo.position.set(f.x, lerp(f.y, MOO_UNDER, u), f.z);
+    if (once(P, "mooDive", t, 0)) ripple(f.x, f.z, 1.1, 0xcfe8ff);
+    return true;
+  }
+  const mooClaim = (k) => {
+    mooSt.script = k;
+    mooSt.visit = null;
+    mooSt.nextVisit = Math.max(mooSt.nextVisit, clock + rand(20, 35)); // (no hello straight after a gag)
+    mooSt.tapT = -1;
+    mooSt.want = mooBase();
+  };
+  function mooRelease(k) {
+    if (mooSt.script !== k) return;
+    mooSt.script = null;
+    mooSt.goal = null;
+    mooSt.wait = 0.5;
+    mooSt.want = mooBase();
+    moo.userData.bubble.visible = false;
+    for (const m of moo.userData.zs) m.visible = false;
+    if (moo.position.y > 0.2) moo.position.y = MOO_UNDER; // (never left on the deck)
+  }
+  Object.assign(ARM, {
+    akimbo: { x: 0.15, o: 0.7, e: -1.75 }, // hands on hips
+    pat: { x: -1.05, o: -0.1, e: -0.45, w: 1 }, // patting someone small
+  });
+
+  // ----- Moo Deng rides by (float): while Kru Song wais the river, a
+  // little krathong comes drifting past with Moo Deng sitting in it,
+  // bouncing, bouncing. It stops in front of the pier, she turns to Kru
+  // Song and gives an enormous yawn (aww!), smacks her lips, then hops off
+  // with a splash and the little krathong drifts on. -----
+  const RD_S = 6.0;
+  const RD_P0 = new THREE.Vector3(1.3, 0, 3.0);
+  const RD_P1 = new THREE.Vector3(-1.7, 0, 2.6);
+  const RD_P2 = new THREE.Vector3(-0.2, 0, 0.9);
+  const RD_IN = 8.4; // stops in front of her
+  const RD_YAWN = 8.9;
+  const RD_OUT = 10.6; // drifts on
+  const RD_HOP = 11.6; // ... and she hops off
+  const RD_RIDE = 0.2; // how high she sits on it
+  const yawRide = yawTo(TEACHER_POS, RD_P1);
+  const RIDE_KEYS = [
+    ...FLOAT_KEYS.filter(([at]) => at < 5.9),
+    [5.9, pose("clasp", "clasp", { hx: 0.25, hz: 0.12, yaw: yawTo(TEACHER_POS, RD_P0) })], // huh? what's that
+    [7.4, pose("clasp", "clasp", { hx: 0.28, yaw: yawRide })],
+    [RD_YAWN + 0.4, pose("heart", "heart", { hx: 0.2, hz: 0.12, yaw: yawRide })], // aww
+    [RD_OUT, pose("clasp", "wave", { hz: -0.1, yaw: yawRide })], // bye-bye!
+    ...FLOAT_KEYS.filter(([at]) => at >= 6.6).map(([at, p]) => [at + RD_S, p]),
+  ];
+  function rideState(t) {
+    const g = gagBase();
+    if (t < 5.9 || t > 12.4) return g;
+    if (t < 6.4) g.face = "huh";
+    else if (t < RD_YAWN + 0.4) g.face = "open";
+    else if (t < RD_OUT) g.face = Math.floor(t * 6) % 2 ? "shy" : "blink";
+    else g.face = "open";
+    g.exclaim = pulse(t, 5.95, 0.8);
+    if (t > RD_YAWN + 0.4 && t < RD_OUT) g.bob = Math.abs(Math.sin(t * 9)) * 0.015;
+    return g;
+  }
+  function ridePerformance(P, k, t, dt) {
+    applyGag(rideState(t));
+    floatPerformance(P, k, floatTime(t, 5.9, RD_S));
+    sendOut(P, k, t);
+    showHearts(t, RD_YAWN + 0.4, RD_OUT + 0.6);
+    const w = (mooSt.want = mooBase());
+    if (mooDive(P, t)) return;
+    if (t < 5.6) {
+      moo.position.y = MOO_UNDER;
+      return;
+    }
+    // the little krathong: a real NPC one, so it just floats on after
+    if (!P.rk) {
+      P.rk = spawnSimple(RD_P0.x, RD_P0.z, false);
+      P.rk.root.scale.setScalar(0.75);
+      P.rk.stolen = true;
+      k.mooRide = P.rk;
+    }
+    const rk = P.rk;
+    const kp = mooTmp;
+    if (t < RD_IN) kp.lerpVectors(RD_P0, RD_P1, smooth((t - 5.6) / (RD_IN - 5.6)));
+    else if (t < RD_OUT) kp.copy(RD_P1);
+    else kp.lerpVectors(RD_P1, RD_P2, smooth(clamp01((t - RD_OUT) / 2.4)));
+    // bounce, bounce (paused while she yawns)
+    const bouncing = t < RD_IN + 0.3 || (t > RD_OUT - 0.2 && t < RD_HOP);
+    const hop = bouncing ? Math.abs(Math.sin(t * 4.4)) * 0.11 : 0;
+    const bob = Math.sin(clock * 1.4 + rk.phase) * 0.02;
+    if (rk.stolen) holdKrathong(rk, kp.x, kp.z, bob - (bouncing && hop < 0.03 ? 0.03 : 0));
+    if (t < RD_HOP) {
+      moo.position.set(kp.x, rk.root.position.y + RD_RIDE + hop, kp.z);
+      w.squash = bouncing && hop < 0.025 ? 0.6 : 0;
+      if (t < RD_IN - 0.3) mooSt.yaw = yawTo(moo.position, camera.position) + Math.sin(t * 1.3) * 0.6; // looking about as she drifts
+      else if (t > RD_YAWN - 0.4 && t < RD_YAWN + 1.9) mooFace(camera.position); // the yawn, for everyone to see
+      else mooFace(TEACHER_POS);
+      w.ears = bouncing ? 1 : 0;
+      if (t > RD_YAWN && t < RD_YAWN + 1.2) {
+        // a huge yawn
+        w.mouth = 1;
+        w.eyes = 0.8;
+        w.hx = -0.4;
+      } else if (t > RD_YAWN + 1.2 && t < RD_YAWN + 1.7) {
+        w.mouth = Math.abs(Math.sin((t - RD_YAWN - 1.2) * 19)) * 0.4; // smack smack
+        w.eyes = 1;
+      }
+    } else {
+      // hop off into the river with a splash, then swim off under
+      if (!P.hopFrom) P.hopFrom = moo.position.clone();
+      const u = clamp01((t - RD_HOP) / 0.7);
+      hopArc(moo.position, P.hopFrom, mooTmp2.set(P.hopFrom.x - 0.5, MOO_SWIM, P.hopFrom.z + 0.45), smooth(u), 0.45);
+      if (u >= 1) moo.position.y = lerp(MOO_SWIM, MOO_UNDER, smooth(clamp01((t - RD_HOP - 1.4) / 0.6)));
+      w.paddle = u >= 1 ? 1 : 0;
+      w.mouth = u < 1 ? 0.7 : 0;
+    }
+    if (once(P, "rkIn", t, 5.65)) ripple(RD_P0.x, RD_P0.z, 1.2, 0xcfe8ff);
+    if (bouncing && hop < 0.02 && clock - (P.lastBoing ?? -9) > 0.5) {
+      P.lastBoing = clock;
+      sound.pop(0.05);
+      ripple(kp.x, kp.z, 0.8, 0xcfe8ff);
+    }
+    if (once(P, "gasp", t, 5.95)) sound.pop(0.12);
+    if (once(P, "yawn", t, RD_YAWN)) sound.squeak(0.06, 0.7);
+    if (once(P, "aww", t, RD_YAWN + 0.45)) sound.giggle();
+    if (once(P, "sq", t, RD_OUT - 0.3)) sound.squeak(0.07);
+    if (once(P, "hop", t, RD_HOP)) sound.boing();
+    if (once(P, "splash", t, RD_HOP + 0.7)) {
+      ripple(moo.position.x, moo.position.z, 1.8, 0xcfe8ff);
+      burst(mooTmp2.set(moo.position.x, 0.05, moo.position.z), 30, { speed: 1.1, colors: [0xbfe6ff, 0xffffff], life: 0.55 });
+      sound.plop();
+      freeKrathong(rk, 0.4, -0.7);
+      randomSpot(rk.target, true);
+    }
+  }
+  EXTRA.mdride = {
+    keys: RIDE_KEYS,
+    perform: ridePerformance,
+    shot(pos, look, P) {
+      if (P.t < 5.7 || P.t > 12.6) return defaultFloatShot(pos, look);
+      riverSide(pos, look, moo.position.x, moo.position.z);
+    },
+    start: mooClaim,
+    end(k) {
+      mooRelease(k);
+      if (k.mooRide?.stolen) {
+        freeKrathong(k.mooRide, 0.4, -0.7);
+        randomSpot(k.mooRide.target, true);
+      }
+      k.mooRide = null;
+      hideHearts();
+    },
+  };
+
+  // ----- bounce bounce SPLASH (idle): Moo Deng pops up below the pier
+  // and bounces on the water, one, two, three (Kru Song claps along),
+  // then a huge jump... belly flop! Kru Song gets soaked, freezes, then
+  // bursts out laughing; Moo Deng squeaks, pleased with herself, and
+  // swims off. -----
+  const SP_SPOT = new THREE.Vector3(-1.65, 0, 1.85);
+  const SP_UP = 1.0;
+  const SP_HOPS = [2.2, 3.0, 3.8];
+  const SP_JUMP = 4.8;
+  const SP_FLOP = 5.6;
+  const SP_GO = 8.8;
+  const yawSp = yawTo(TEACHER_POS, SP_SPOT) * 0.6 + FACE_CAM * 0.4; // (half toward the camera)
+  const SPLASH_KEYS = [
+    [0, IDLE],
+    [1.3, pose("clasp", "clasp", { hx: 0.18, yaw: yawSp })], // huh?
+    [2.3, pose("clap", "clap", { hx: 0.05, yaw: yawSp })], // one, two, three!
+    [4.4, pose("clasp", "clasp", { hx: -0.2, yaw: yawSp })], // ooh, a big one
+    [SP_FLOP, pose("shock", "shock", { rise: 0.04, hx: -0.05, yaw: yawSp })], // SPLOSH
+    [6.9, pose("heart", "heart", { hx: 0.1, hz: 0.12, yaw: yawSp })], // ahahaha
+    [SP_GO, pose("clasp", "wave", { hz: -0.12, yaw: yawSp })],
+    [10.2, pose("clasp", "wave", { hz: -0.12, yaw: FACE_CAM })],
+    [11.0, null],
+  ];
+  function splashState(t) {
+    const g = gagBase();
+    if (t > 1.3 && t < 2.3) g.face = "huh";
+    else if (t >= 2.3 && t < 4.4) g.face = "open";
+    else if (t >= 4.4 && t < SP_FLOP) g.face = "open";
+    else if (t >= SP_FLOP && t < 6.1) g.face = "wince";
+    else if (t >= 6.1 && t < 6.9) g.face = "huh";
+    else if (t >= 6.9 && t < 8.6) g.face = Math.floor(t * 7) % 2 ? "open" : "blink";
+    g.question = pulse(t, 1.35, 0.9);
+    g.exclaim = pulse(t, SP_FLOP + 0.1, 0.7);
+    for (const at of SP_HOPS) if (t > at && t < at + 0.6) g.bob = Math.sin(((t - at) / 0.6) * Math.PI) * 0.02;
+    if (t > SP_FLOP && t < SP_FLOP + 0.35) g.shake = Math.sin(t * 70) * 0.01;
+    if (t > 6.9 && t < 8.6) g.bob = Math.abs(Math.sin((t - 6.9) * 9)) * 0.025;
+    g.wet = t < SP_FLOP + 0.05 ? 0 : 0.8 * (1 - smooth(clamp01((t - 8.6) / 1.8)));
+    g.drops = t < SP_FLOP + 0.1 ? 0 : 1 - smooth(clamp01((t - 8.4) / 1.6));
+    return g;
+  }
+  function splashPerformance(P, k, t, dt) {
+    applyGag(splashState(t));
+    const w = (mooSt.want = mooBase());
+    if (mooDive(P, t)) return;
+    const g = moo.position;
+    mooFace(TEACHER_POS);
+    if (t < SP_UP) g.set(SP_SPOT.x, MOO_UNDER, SP_SPOT.z);
+    else if (t < SP_JUMP - 0.3) {
+      g.set(SP_SPOT.x, lerp(MOO_UNDER, MOO_SWIM, smooth(clamp01((t - SP_UP) / 0.4))), SP_SPOT.z);
+      for (const at of SP_HOPS) {
+        if (t > at && t < at + 0.6) {
+          const u = (t - at) / 0.6;
+          g.y = MOO_SWIM + Math.sin(u * Math.PI) * 0.35;
+          w.ears = 1;
+          w.mouth = 0.5;
+        }
+        if (t > at + 0.55 && t < at + 0.75) w.squash = 0.6;
+      }
+      w.hx = -0.2;
+    } else if (t < SP_JUMP) {
+      g.set(SP_SPOT.x, MOO_SWIM - 0.06, SP_SPOT.z); // crouch...
+      w.squash = 1;
+    } else if (t < SP_FLOP) {
+      // ... and up, up, toward her, and down
+      const u = (t - SP_JUMP) / (SP_FLOP - SP_JUMP);
+      g.set(lerp(SP_SPOT.x, SP_SPOT.x - 0.25, u), MOO_SWIM + Math.sin(u * Math.PI) * 1.05, SP_SPOT.z);
+      w.mouth = 0.9;
+      w.ears = 1;
+      w.hx = lerp(-0.4, 0.3, u);
+    } else if (t < SP_GO) {
+      // under, then pops back up, very pleased with herself
+      const x = SP_SPOT.x - 0.25;
+      if (t < 6.3) g.set(x, MOO_UNDER + 0.2, SP_SPOT.z);
+      else g.set(x, lerp(MOO_UNDER + 0.2, MOO_SWIM, smooth(clamp01((t - 6.3) / 0.35))) + Math.sin(t * 5) * 0.02, SP_SPOT.z);
+      w.mouth = t > 6.6 && t < 7.4 ? 0.8 : 0;
+      w.eyes = t > 7.4 && t < 8.4 ? 1 : 0; // a happy squint
+      w.ears = 1;
+      w.hz = Math.sin(t * 4) * 0.15;
+    } else {
+      // off she swims, then dives
+      const u = clamp01((t - SP_GO) / 1.8);
+      g.set(lerp(SP_SPOT.x - 0.25, 0.1, smooth(u)), MOO_SWIM, lerp(SP_SPOT.z, 0.9, smooth(u)));
+      if (t > 10.0) g.y = lerp(MOO_SWIM, MOO_UNDER, smooth(clamp01((t - 10.0) / 0.6)));
+      mooSt.yaw = yawTo(SP_SPOT, mooTmp.set(0.1, 0, 0.9));
+      w.paddle = 1;
+      if (t < 10.0) mooRipples(dt, 0.35);
+    }
+    if (once(P, "up", t, SP_UP)) {
+      ripple(SP_SPOT.x, SP_SPOT.z, 1.3, 0xcfe8ff);
+      sound.blub();
+    }
+    if (once(P, "huh", t, 1.35)) sound.pop(0.08);
+    SP_HOPS.forEach((at, i) => {
+      if (once(P, "hop" + i, t, at)) sound.squeak(0.05, 1 + i * 0.12);
+      if (once(P, "land" + i, t, at + 0.6)) {
+        ripple(SP_SPOT.x, SP_SPOT.z, 1.1, 0xcfe8ff);
+        sound.pop(0.06);
+      }
+    });
+    if (once(P, "jump", t, SP_JUMP)) {
+      burst(mooTmp.set(SP_SPOT.x, 0.05, SP_SPOT.z), 20, { speed: 0.9, colors: [0xbfe6ff, 0xffffff], life: 0.5 });
+      sound.boing();
+    }
+    if (once(P, "flop", t, SP_FLOP)) {
+      const x = SP_SPOT.x - 0.25;
+      ripple(x, SP_SPOT.z, 2.2, 0xcfe8ff);
+      ripple(x, SP_SPOT.z, 3.2, 0xcfe8ff);
+      burst(mooTmp.set(x, 0.1, SP_SPOT.z), 90, { speed: 2.4, colors: [0xbfe6ff, 0xffffff, 0x9fd6ff], life: 0.85, up: 1.8 });
+      burst(mooTmp.set(x, 0.3, SP_SPOT.z), 60, { speed: 1.4, colors: [0xffffff, 0xd8f2ff], life: 1.0, up: 2.6 });
+      for (let i = 0; i < 4; i++) puff(mooTmp.set(x + rand(-0.3, 0.3), 0.15, SP_SPOT.z + rand(-0.3, 0.3)), { size: 0.25, grow: 2.2, life: 0.7, rise: 0.4, spread: 0.2, a: 0.55, color: 0xeaf6ff });
+      sound.splash();
+    }
+    // a sheet of water flying at her
+    if (t > SP_FLOP && t < SP_FLOP + 0.35) {
+      P.spray = (P.spray ?? 0) - dt;
+      if (P.spray <= 0) {
+        P.spray = 0.04;
+        teacher.head.getWorldPosition(mooTmp2);
+        const u = (t - SP_FLOP) / 0.35;
+        mooTmp.set(SP_SPOT.x - 0.25, 0.2, SP_SPOT.z).lerp(mooTmp2, u);
+        burst(mooTmp, 10, { speed: 0.7, colors: [0xbfe6ff, 0xffffff], life: 0.45 });
+      }
+    }
+    if (once(P, "eek", t, SP_FLOP + 0.15)) sound.eek(0.08);
+    if (once(P, "sq", t, 6.6)) sound.squeak(0.08, 1.1);
+    if (once(P, "haha", t, 6.95)) sound.giggle();
+    if (once(P, "bye", t, SP_GO)) sound.squeak(0.06, 1.2);
+  }
+  // both of them side by side, from the river side, room for the big jump
+  function splashShot(pos, look) {
+    riverSide(pos, look, SP_SPOT.x, SP_SPOT.z, 3.9, 0.85);
+    look.y = 1.05;
+  }
+  EXTRA.mdsplash = {
+    keys: SPLASH_KEYS,
+    perform: splashPerformance,
+    shot: splashShot,
+    start: mooClaim,
+    end: mooRelease,
+  };
+
+  // ----- tug of war (float): as Kru Song kneels to set her krathong on
+  // the water, Moo Deng surfaces and chomps the other side of it. A tug
+  // of war! Moo Deng wins, Kru Song sits back with a bump, hands on hips,
+  // while Moo Deng swims off with it in her mouth, sets it down out on the
+  // river herself, squeaks (cheeky) and dives. Kru Song can't help
+  // laughing, and waves to her krathong. -----
+  const TG_HOLD = 3.3; // her krathong stops in her hands here
+  const TG_UP = 3.4;
+  const TG_BITE = 4.0;
+  const TG_PULL = 4.6;
+  const TG_WIN = 7.0;
+  const TG_DROP = 9.8; // Moo Deng lets go of it, out on the water
+  const TG_TO = new THREE.Vector3(-0.5, 0, 1.0);
+  const tugBack = pose("reach", "reach", { dip: 0.2, lean: -0.04, hx: 0.25, yaw: FACE_WATER });
+  const tugFwd = pose("reach", "reach", { dip: 0.22, lean: 0.26, hx: 0.45, yaw: FACE_WATER });
+  // she's dragged toward the end of the pier, heave by heave, and slides
+  // back on her bottom when she loses
+  const tugPos = new THREE.Vector3();
+  function tugDrag(t) {
+    if (t < TG_PULL || t > TG_WIN + 0.8) return null;
+    let d;
+    if (t < TG_WIN) d = smooth((t - TG_PULL) / (TG_WIN - TG_PULL)) * 0.42 + Math.max(0, Math.sin(((t - TG_PULL) / 0.8) * TAU)) * 0.05;
+    else d = 0.42 * (1 - smooth((t - TG_WIN) / 0.8));
+    return tugPos.copy(TEACHER_POS).addScaledVector(exTmp2.set(Math.sin(FACE_WATER), 0, Math.cos(FACE_WATER)), d);
+  }
+  const TUG_KEYS = [
+    ...FLOAT_KEYS.filter(([at]) => at <= 3.1),
+    [TG_BITE, pose("reach", "reach", { dip: 0.14, lean: 0.1, hx: 0.3, yaw: FACE_WATER })], // !!
+    ...Array.from({ length: 6 }, (_, i) => [TG_PULL + i * 0.4, i % 2 ? tugFwd : tugBack]), // heave! ... heave!
+    [TG_WIN, pose("shock", "shock", { dip: 0.06, lean: -0.14, hx: -0.15, yaw: FACE_WATER })], // whoa
+    [8.0, pose("akimbo", "akimbo", { hx: 0.05, hz: 0.12, yaw: FACE_WATER - 0.3 })], // hmph!
+    [10.2, pose("heart", "heart", { hx: 0.1, hz: 0.12, yaw: FACE_WATER - 0.3 })], // ... hee
+    [11.2, pose("clasp", "wave", { hx: 0.05, hz: -0.12, yaw: FACE_CAM })],
+    [12.9, null],
+  ];
+  function tugState(t) {
+    const g = gagBase();
+    if (t < TG_BITE) return g;
+    if (t < TG_PULL) g.face = "huh";
+    else if (t < TG_WIN) g.face = "squint";
+    else if (t < 8.0) g.face = "huh";
+    else if (t < 10.2) g.face = "pout";
+    else if (t < 11.2) g.face = Math.floor(t * 6) % 2 ? "open" : "blink";
+    g.exclaim = pulse(t, TG_BITE + 0.05, 0.7) + pulse(t, TG_WIN + 0.05, 0.6);
+    g.anger = fade(t, 8.0, 10.1);
+    if (t > TG_PULL && t < TG_WIN) g.shake = Math.sin(t * 40) * 0.004;
+    g.pos = tugDrag(t);
+    if (t > 8.1 && t < 8.9) g.bob = Math.abs(Math.sin((t - 8.1) * 7)) * 0.03; // stomp stomp
+    if (t > 10.2 && t < 11.2) g.bob = Math.abs(Math.sin(t * 9)) * 0.015;
+    return g;
+  }
+  function tugPerformance(P, k, t, dt) {
+    applyGag(tugState(t));
+    const w = (mooSt.want = mooBase());
+    if (t < TG_HOLD) floatPerformance(P, k, t);
+    if (!mooDive(P, t) && t < TG_UP) moo.position.y = MOO_UNDER;
+    if (t < TG_HOLD) return;
+    if (k.standee && !P.released) k.standee.visible = false;
+    // her hands, and where Moo Deng comes up to meet them
+    palms(handWorld, 0.1);
+    handWorld.y -= 0.06;
+    if (!P.anchor) {
+      // up on her hind legs in the water, just off the end of the pier
+      P.anchor = handWorld.clone();
+      P.anchor.x = -1.95;
+      P.anchor.y = MOO_SWIM + 0.04;
+    }
+    const A = P.anchor;
+    const g = moo.position;
+    const kp = k.root.position;
+    if (t < TG_WIN) {
+      const pull = t > TG_PULL ? Math.sin(((t - TG_PULL) / 0.8) * TAU) : 0;
+      const up = smooth(clamp01((t - TG_UP) / 0.5));
+      g.set(A.x + 0.1 * pull, lerp(MOO_UNDER, A.y, up), A.z);
+      mooSt.yaw = -Math.PI / 2;
+      moo.rotation.y = -Math.PI / 2;
+      w.hy = t > TG_PULL ? Math.sin(t * 9) * 0.25 : 0; // shakes her head like a puppy
+      w.mouth = t < TG_BITE - 0.25 ? 0 : t < TG_BITE ? 0.8 : 0.25;
+      w.eyes = t > TG_PULL ? 0.6 : 0;
+      w.ears = t > TG_PULL ? 1 : 0;
+      w.rear = 1;
+      w.hx = 0.45; // (her head stays level while she rears)
+      w.paddle = 0.5;
+      mooMouth(mooTmp);
+      // in her hands, then held between the two of them
+      const share = t < TG_BITE ? 0 : t < TG_PULL ? 0.5 * smooth((t - TG_BITE) / 0.6) : 0.5 + 0.12 * pull;
+      kp.lerpVectors(handWorld, mooTmp, share);
+      k.root.scale.setScalar(0.6);
+    } else if (t < TG_DROP) {
+      // she wins! off she swims with it in her mouth
+      if (!P.winFrom) P.winFrom = g.clone();
+      const u = smooth(clamp01((t - TG_WIN - 0.4) / (TG_DROP - TG_WIN - 0.4)));
+      g.lerpVectors(P.winFrom, mooTmp2.set(TG_TO.x, MOO_SWIM + 0.06, TG_TO.z), u);
+      if (t < TG_WIN + 0.4) g.x += Math.sin(((t - TG_WIN) / 0.4) * Math.PI) * 0.3; // yank!
+      g.y += Math.sin(t * 3) * 0.015;
+      mooSt.yaw = u < 0.95 ? yawTo(P.winFrom, TG_TO) : mooSt.yaw;
+      w.mouth = 0.25;
+      w.paddle = t > TG_WIN + 0.4 ? 1 : 0;
+      w.ears = 1;
+      w.hx = -0.2;
+      mooMouth(mooTmp);
+      kp.copy(mooTmp);
+      kp.y = Math.max(0.02, kp.y - 0.05);
+      k.root.scale.setScalar(lerp(0.6, 0.75, smooth(clamp01((t - TG_WIN) / 0.8))));
+      if (t > TG_WIN + 0.4) mooRipples(dt, 0.35);
+    } else {
+      // lets go of it, turns, squeaks, dives
+      if (!P.released) {
+        P.released = true;
+        k.root.scale.setScalar(1);
+        k.root.position.y = 0;
+        k.placed = true;
+        if (k.standee) {
+          k.standee.visible = true;
+          burst(mooTmp.set(kp.x, 0.9, kp.z), 36, { speed: 1.2, colors: [0xfff3b0, 0xffb3e6, 0xffffff], life: 0.8 });
+        }
+        ripple(kp.x, kp.z, 1.8);
+        sound.plop();
+        freeKrathong(k, 0.3, -0.6);
+        camState.until = 0;
+      }
+      g.x += dt * 0.25;
+      mooFace(TEACHER_POS);
+      w.mouth = t < TG_DROP + 1.0 && t > TG_DROP + 0.3 ? 0.8 : 0;
+      w.eyes = t > TG_DROP + 0.3 && t < TG_DROP + 1.0 ? 1 : 0;
+      w.ears = 1;
+      if (t > TG_DROP + 1.2) g.y = lerp(MOO_SWIM, MOO_UNDER, smooth(clamp01((t - TG_DROP - 1.2) / 0.6)));
+    }
+    if (once(P, "up", t, TG_UP)) {
+      burst(mooTmp.set(A.x, 0.05, A.z), 22, { speed: 1.0, colors: [0xbfe6ff, 0xffffff], life: 0.5 });
+      ripple(A.x, A.z, 1.3, 0xcfe8ff);
+      sound.blub();
+    }
+    if (once(P, "chomp", t, TG_BITE)) sound.pop(0.14);
+    if (once(P, "gasp", t, TG_BITE + 0.05)) sound.eek(0.06);
+    for (let i = 0; i < 6; i++) if (once(P, "heave" + i, t, TG_PULL + i * 0.4)) sound.pop(0.04);
+    if (once(P, "win", t, TG_WIN)) {
+      sound.boing();
+      burst(handWorld, 14, { speed: 0.8, colors: [0xfff3b0, 0xffffff], life: 0.4 });
+    }
+    if (once(P, "hmph", t, 8.05)) sound.hmph();
+    if (once(P, "tee", t, TG_DROP + 0.35)) sound.squeak(0.08, 1.2);
+    if (once(P, "hee", t, 10.25)) sound.giggle();
+    if (once(P, "dive", t, TG_DROP + 1.5)) {
+      ripple(g.x, g.z, 1.4, 0xcfe8ff);
+      sound.plop();
+    }
+    if (once(P, "follow", t, 12.2)) focusOn(k, 8);
+  }
+  EXTRA.mdtug = {
+    keys: TUG_KEYS,
+    perform: tugPerformance,
+    shot(pos, look, P) {
+      if (P.t < 3.0 || P.t > 12.1) return defaultFloatShot(pos, look);
+      const g = moo.position;
+      // side-on for the tug, so it pulls left and right across the screen
+      if (P.t < TG_WIN + 0.6) riverSide(pos, look, g.x, g.z, 3.4, 0.3);
+      else riverSide(pos, look, g.x, g.z);
+    },
+    start: mooClaim,
+    end(k) {
+      mooRelease(k);
+      k.stolen = false;
+      if (!k.placed) {
+        // (cut short: put it on the water where it is)
+        k.placed = true;
+        k.root.scale.setScalar(1);
+        k.root.position.y = 0;
+        if (k.standee) k.standee.visible = true;
+        freeKrathong(k);
+      }
+    },
+  };
+
+  // ----- wishing together (float): Kru Song wais the river with her eyes
+  // shut. Moo Deng surfaces beside the krathong, watches her, copies her
+  // and shuts her eyes too... and nods off (Zzz, a bubble at her nose).
+  // Kru Song opens her eyes: aww. She blows her a kiss, the heart floats
+  // over and pops the bubble, Moo Deng wakes with a squeak, wiggles
+  // happily, and swims away. -----
+  const wsHeart = new THREE.Sprite(kissHeart.material.clone());
+  wsHeart.visible = false;
+  scene.add(wsHeart);
+  const wsFrom = new THREE.Vector3();
+  const WS_AT = 5.5;
+  const WS_S = 7.0;
+  const WS_SPOT = new THREE.Vector3(-1.9, 0, 2.05);
+  const WS_KRATHONG = new THREE.Vector3(-1.1, 0, 1.25); // her krathong waits off to the side
+  const WS_UP = 4.7;
+  const WS_COPY = 5.6;
+  const WS_SLEEP = 6.6;
+  const WS_LOOK = 8.4; // Kru Song opens her eyes
+  const WS_PAT = 10.0;
+  const WS_POP = 10.6;
+  const WS_GO = 11.6;
+  const yawWs = yawTo(TEACHER_POS, WS_SPOT);
+  const WISH_KEYS = [
+    ...FLOAT_KEYS.filter(([at]) => at < WS_AT),
+    [WS_LOOK, pose("clasp", "clasp", { dip: 0.1, lean: 0.06, hx: 0.4, yaw: yawWs })], // oh!
+    [9.0, pose("heart", "heart", { dip: 0.1, hx: 0.35, hz: 0.12, yaw: yawWs })], // aww
+    [WS_PAT - 0.5, pose("kissHand", "rest", { hx: 0.15, hz: 0.08, yaw: yawWs })],
+    [WS_PAT, pose("blow", "rest", { hx: 0.2, hz: -0.1, lean: -0.04, yaw: yawWs })], // mwah!
+    [WS_GO - 0.2, pose("clasp", "wave", { dip: 0.06, hx: 0.25, hz: -0.1, yaw: yawWs })],
+    ...FLOAT_KEYS.filter(([at]) => at >= 5.9).map(([at, p]) => [at + WS_S, p]),
+  ];
+  function wishState(t) {
+    const g = gagBase();
+    if (t < WS_LOOK || t > WS_GO + 1.4) return g;
+    if (t < 9.0) g.face = "huh";
+    else if (t < WS_PAT - 0.5) g.face = "shy";
+    else if (t < WS_PAT + 0.4) g.face = t < WS_PAT ? "pucker" : "kiss";
+    else if (t < WS_POP) g.face = "open";
+    else g.face = "open";
+    g.exclaim = pulse(t, WS_LOOK + 0.05, 0.7);
+    return g;
+  }
+  function wishPerformance(P, k, t, dt) {
+    applyGag(wishState(t));
+    floatPerformance(P, k, floatTime(t, WS_AT, WS_S));
+    showHearts(t, 9.0, WS_POP + 0.8);
+    // her krathong waits by the two of them, then floats off
+    if (t >= FLOAT_ON_WATER && t < WS_GO + 0.5) {
+      const u = smooth(clamp01((t - FLOAT_ON_WATER) / 1.5));
+      holdKrathong(k, lerp(DROP_POS.x, WS_KRATHONG.x, u), lerp(DROP_POS.z, WS_KRATHONG.z, u));
+    }
+    if (once(P, "free", t, WS_GO + 0.5)) freeKrathong(k);
+    const w = (mooSt.want = mooBase());
+    const u = moo.userData;
+    if (mooDive(P, t)) return;
+    const g = moo.position;
+    if (t < WS_UP) {
+      g.set(WS_SPOT.x, MOO_UNDER, WS_SPOT.z);
+      mooSt.yaw = moo.rotation.y = yawTo(WS_SPOT, TEACHER_POS);
+      return;
+    }
+    if (t < WS_GO) {
+      // up beside the pier, chin by the edge, looking up at her
+      g.set(WS_SPOT.x, lerp(MOO_UNDER, MOO_SWIM + 0.08, smooth(clamp01((t - WS_UP) / 0.8))) + Math.sin(t * 1.6) * 0.012, WS_SPOT.z);
+      // mostly toward us, her head turned up to Kru Song
+      const toCam = yawTo(g, camera.position);
+      mooSt.yaw = toCam + wrapAngle(yawTo(g, TEACHER_POS) - toCam) * 0.12;
+      w.hy = wrapAngle(yawTo(g, TEACHER_POS) - mooSt.yaw) * 0.3;
+      if (t < WS_COPY) {
+        w.hz = 0.3; // hm? what is she doing?
+        w.hx = -0.25;
+      } else if (t < WS_SLEEP) {
+        w.eyes = 1; // copying her: eyes shut, a wish
+        w.hx = 0.1;
+      } else if (t < WS_POP) {
+        w.eyes = 1; // ... fast asleep
+        w.hx = 0.35;
+        w.hz = Math.sin(t * 1.1) * 0.15;
+
+      } else {
+        w.ears = 1;
+        w.mouth = t < WS_POP + 0.7 ? 0.8 : 0;
+        w.hx = -0.3;
+        w.hz = Math.sin(t * 5) * 0.25; // a nuzzle
+        w.squash = t < WS_POP + 0.2 ? 0.5 : 0;
+      }
+    } else {
+      // off she goes, then under
+      const v = clamp01((t - WS_GO) / 1.6);
+      g.set(lerp(WS_SPOT.x, -0.6, smooth(v)), MOO_SWIM, lerp(WS_SPOT.z, 1.0, smooth(v)));
+      if (t > WS_GO + 1.3) g.y = lerp(MOO_SWIM, MOO_UNDER, smooth(clamp01((t - WS_GO - 1.3) / 0.6)));
+      mooSt.yaw = yawTo(WS_SPOT, mooTmp.set(-0.6, 0, 1.0));
+      w.paddle = 1;
+      if (v < 0.9) mooRipples(dt, 0.35);
+    }
+    showMooZzz(t, WS_SLEEP + 0.3, WS_POP);
+    // the bubble swells and shrinks with each breath
+    const b = smooth(clamp01((t - 7.2) / 1.4)) * (0.75 + 0.35 * Math.sin(t * 2.6));
+    u.bubble.visible = t > 7.2 && t < WS_POP;
+    u.bubble.scale.setScalar(Math.max(0.01, b));
+    if (once(P, "up", t, WS_UP)) ripple(WS_SPOT.x, WS_SPOT.z, 1.1, 0xcfe8ff);
+    if (once(P, "hm", t, WS_UP + 0.9)) sound.squeak(0.04, 0.9);
+    if (once(P, "oh", t, WS_LOOK + 0.05)) sound.pop(0.1);
+    if (once(P, "aww", t, 9.05)) sound.ting(0.05);
+    // the kiss: a heart from her fingertips to the bubble
+    if (once(P, "kiss", t, WS_PAT)) {
+      teacher.hands[0].getWorldPosition(wsFrom);
+      burst(wsFrom, 16, { speed: 0.7, colors: [0xff7fb0, 0xffc2dc, 0xffffff], life: 0.5 });
+      sound.kiss();
+    }
+    const hu = (t - WS_PAT) / (WS_POP - WS_PAT);
+    wsHeart.visible = hu > 0 && hu < 1;
+    if (wsHeart.visible) {
+      u.bubble.getWorldPosition(mooTmp2);
+      wsHeart.position.lerpVectors(wsFrom, mooTmp2, smooth(hu));
+      wsHeart.position.y += Math.sin(hu * Math.PI) * 0.3;
+      wsHeart.position.x += Math.sin(hu * 9) * 0.04;
+      wsHeart.scale.setScalar(0.1 + 0.12 * Math.sin(hu * Math.PI));
+      wsHeart.material.rotation = Math.sin(hu * 7) * 0.2;
+    }
+    if (once(P, "pop", t, WS_POP)) {
+      u.bubble.getWorldPosition(mooTmp);
+      burst(mooTmp, 22, { speed: 0.9, colors: [0xd8f2ff, 0xffffff], life: 0.45 });
+      sound.pop(0.22);
+    }
+    if (once(P, "awake", t, WS_POP + 0.1)) sound.squeak(0.08, 1.15);
+    if (once(P, "bye", t, WS_GO)) sound.squeak(0.06, 1.25);
+  }
+  EXTRA.mdwish = {
+    keys: WISH_KEYS,
+    perform: wishPerformance,
+    shot(pos, look, P) {
+      if (P.t < 4.4 || P.t > WS_GO + 1.0) return defaultFloatShot(pos, look);
+      riverSide(pos, look, WS_SPOT.x, WS_SPOT.z, 4.0);
+    },
+    start: mooClaim,
+    end(k) {
+      mooRelease(k);
+      k.stolen = false;
+      wsHeart.visible = false;
+      hideHearts();
+    },
+  };
+
   // ----- a tap on Kru Song: a quick little reaction, drawn from its own
   // lucky-draw bag. Only while she's free (no gag running or waiting);
   // taps during a reaction are ignored. -----
   const pokeBag = makeBag(["shy", "hmph", "giggle", "twirl", "dizzy"]);
   const POKE_LEN = 2.0;
+  const POKE_LENS = { greet: 3.2, pat: 3.6 };
   const POKE_KEYS = {
     shy: [
       [0, pose("cheeks", "cheeks", { hx: 0.15, hz: 0.15, yaw: FACE_CAM })],
@@ -8288,6 +9339,17 @@ function mount() {
     twirl: [
       [0, pose("open", "open", { hx: -0.15, yaw: FACE_CAM })],
       [1.0, pose("heart", "heart", { hz: 0.14, yaw: FACE_CAM })],
+    ],
+    // Moo Deng says hello from the water: a wave back, then a happy giggle
+    greet: [
+      [0, pose("clasp", "wave", { hx: 0.2, hz: -0.12, yaw: yawTo(TEACHER_POS, MOO_HI) })],
+      [1.8, pose("heart", "heart", { hx: 0.25, hz: 0.12, yaw: yawTo(TEACHER_POS, MOO_HI) })],
+    ],
+    // ... or waddles up the pier: she crouches to pat her
+    pat: [
+      [0, pose("heart", "heart", { hx: 0.3, yaw: yawTo(TEACHER_POS, MOO_NEAR) })],
+      [0.6, pose("pat", "clasp", { dip: 0.14, lean: 0.14, hx: 0.5, yaw: yawTo(TEACHER_POS, MOO_NEAR) })],
+      [2.8, pose("heart", "heart", { hx: 0.3, hz: 0.12, yaw: yawTo(TEACHER_POS, MOO_NEAR) })],
     ],
     dizzy: [
       [0, pose("rest", "rest", { hz: 0.25, yaw: FACE_CAM })],
@@ -8314,6 +9376,11 @@ function mount() {
       const u = clamp01(t / 0.9);
       g.spin = TAU * smooth(u);
       g.bob = u < 1 ? Math.sin(u * Math.PI) * 0.07 : 0;
+    } else if (kind === "greet") {
+      g.face = t < 1.8 ? "open" : Math.floor(t * 6) % 2 ? "open" : "blink";
+      g.bob = t > 1.8 ? Math.abs(Math.sin(t * 9)) * 0.015 : 0;
+    } else if (kind === "pat") {
+      g.face = t < 0.6 ? "open" : "shy";
     } else if (kind === "dizzy") {
       g.face = "cross";
       g.question = fade(t, 0.2, POKE_LEN);
@@ -8333,11 +9400,13 @@ function mount() {
     const t = poke.t;
     applyGag(pokeState(poke.kind, t));
     if (poke.kind === "shy") showHearts(t, 0.05, POKE_LEN);
+    if (poke.kind === "pat") showHearts(t, 0.6, POKE_LENS.pat);
+    if (poke.kind === "greet" && t0 < 0.4 && t >= 0.4) sound.giggle();
     if (poke.kind === "twirl" && t0 < 0.9 && t >= 0.9) {
       sparkleHead(30);
       sound.ting(0.06);
     }
-    if (t >= POKE_LEN) stopPoke();
+    if (t >= (POKE_LENS[poke.kind] ?? POKE_LEN)) stopPoke();
   }
   function pokeTeacher() {
     if (performing || queue.length || poke) return false;
@@ -8574,6 +9643,7 @@ function mount() {
     ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
     raycaster.setFromCamera(ndc, camera);
     // a tap on Kru Song herself, while she's free: a little reaction
+    if (hitMoo(e.clientX, e.clientY) && tapMoo()) return;
     if (hitTeacher(e.clientX, e.clientY) && pokeTeacher()) return;
     // (not one still with Kru Song, e.g. waiting on the pier in the wet gag)
     const hit = raycaster.intersectObjects(pickables, false).find((h) => h.object.userData.krathong.placed && !h.object.userData.krathong.stolen);
@@ -8822,6 +9892,8 @@ function mount() {
     idleCombTick(dt);
     frogIdle(dt);
     boyRoam(dt);
+    mooRoam(dt);
+    mooPose(dt);
     for (const n of npcs) npcAct(n, dt);
     walkAbout(dt);
     updateSparks(dt);
