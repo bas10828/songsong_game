@@ -4273,7 +4273,7 @@ function mount() {
   // (two blank tickets: that float is a plain one, no gag)
   const floatBag = makeBag(["wet", "glasses", "firefly", "fish", "boomerang", "candle", "turtle", "mdride", "mdtug", "mdwish", "blank", "blank"]);
   // what happens when she's had nothing to do for a while
-  const idleBag = makeBag(["comb", "lip", "frog", "cracker", "coin", "mozzie", "ramwong", "star", "sleepy", "cat", "mdsplash"]);
+  const idleBag = makeBag(["comb", "lip", "frog", "cracker", "coin", "mozzie", "ramwong", "star", "sleepy", "cat", "mdsplash", "mdsplash", "mdnibble", "mdboom"]);
   function runPerformance(dt) {
     if (!performing && queue.length) {
       const next = queue.shift();
@@ -9314,6 +9314,324 @@ function mount() {
       mooRelease(k);
       k.stolen = false;
       wsHeart.visible = false;
+      hideHearts();
+    },
+  };
+
+  // ----- the skirt nibbler (idle): Moo Deng climbs up the pier and
+  // tiptoes up behind Kru Song, and gives the hem of her pha sin a nibble
+  // and a tug. "?" She looks round the wrong way... tug, tug! She turns:
+  // caught! Moo Deng lets go and looks away, all innocence. Kru Song
+  // huffs, then can't help giggling, crouches to pat her, and Moo Deng
+  // hops happily back into the river. -----
+  const NB_SPOT = new THREE.Vector3(-2.78, PIER.top, 1.82); // at her hem
+  const NB_TUGS = [4.0, 4.4, 5.7, 6.0];
+  const NB_CAUGHT = 6.3;
+  const NB_BACK = 10.0;
+  const yawNb = yawTo(TEACHER_POS, NB_SPOT);
+  const NIBBLE_KEYS = [
+    [0, IDLE],
+    [4.0, pose("rest", "rest", { hx: 0.35, hz: 0.12, yaw: FACE_CAM })], // hm? something tugged
+    [4.7, pose("rest", "rest", { hx: 0.2, hz: 0.2, yaw: FACE_CAM - 0.8 })], // ... looks the wrong way
+    [5.2, pose("rest", "rest", { hx: 0.15, hz: -0.1, yaw: FACE_CAM - 0.1 })],
+    [NB_CAUGHT, pose("brace", "brace", { hx: 0.4, yaw: yawNb })], // YOU!
+    [7.0, pose("akimbo", "akimbo", { hx: 0.35, hz: 0.12, yaw: yawNb })], // hmph
+    [7.9, pose("heart", "heart", { hx: 0.35, hz: 0.12, yaw: yawNb })], // ... hee
+    [8.5, pose("pat", "clasp", { dip: 0.14, lean: 0.14, hx: 0.5, yaw: yawNb })],
+    [10.2, pose("clasp", "wave", { hx: 0.2, hz: -0.12, yaw: yawNb })],
+    [11.6, pose("clasp", "wave", { hz: -0.12, yaw: FACE_CAM })],
+    [12.6, null],
+  ];
+  function nibbleState(t) {
+    const g = gagBase();
+    if (t > 4.0 && t < NB_CAUGHT) g.face = "huh";
+    else if (t >= NB_CAUGHT && t < 7.0) g.face = "huh";
+    else if (t >= 7.0 && t < 7.9) g.face = "pout";
+    else if (t >= 7.9 && t < 8.5) g.face = Math.floor(t * 6) % 2 ? "open" : "blink";
+    else if (t >= 8.5 && t < 10.2) g.face = "shy";
+    g.question = pulse(t, 4.05, 1.0) + pulse(t, 5.75, 0.6);
+    g.exclaim = pulse(t, NB_CAUGHT + 0.05, 0.7);
+    g.anger = fade(t, 7.0, 7.9, 0.2);
+    // each tug jerks her toward the nibbler
+    for (const at of NB_TUGS) if (t > at && t < at + 0.25) g.shake = Math.sin(((t - at) / 0.25) * Math.PI) * 0.025;
+    if (t > 7.9 && t < 8.5) g.bob = Math.abs(Math.sin(t * 9)) * 0.015;
+    return g;
+  }
+  function nibblePerformance(P, k, t, dt) {
+    applyGag(nibbleState(t));
+    showHearts(t, 8.5, NB_BACK);
+    const w = (mooSt.want = mooBase());
+    if (mooDive(P, t)) return;
+    const g = moo.position;
+    if (t < 0.8) {
+      g.set(MOO_CLIMB_W.x, MOO_UNDER, MOO_CLIMB_W.z);
+      return;
+    }
+    if (t < 1.4) {
+      g.set(MOO_CLIMB_W.x, lerp(MOO_UNDER, MOO_SWIM, smooth((t - 0.8) / 0.5)), MOO_CLIMB_W.z);
+      mooFace(MOO_CLIMB_D);
+    } else if (t < 2.1) {
+      hopArc(g, mooTmp.set(MOO_CLIMB_W.x, MOO_SWIM, MOO_CLIMB_W.z), MOO_CLIMB_D, smooth((t - 1.4) / 0.7), 0.45);
+      mooFace(MOO_CLIMB_D);
+      w.squash = t < 1.5 ? 0.7 : 0;
+    } else if (t < 3.6) {
+      // tiptoe, tiptoe...
+      g.lerpVectors(MOO_CLIMB_D, NB_SPOT, smooth((t - 2.1) / 1.5));
+      mooFace(NB_SPOT);
+      w.walk = 0.6;
+      w.eyes = 0.4;
+    } else if (t < NB_BACK) {
+      g.copy(NB_SPOT);
+      if (t < NB_CAUGHT + 0.1) {
+        // nibbling her hem, tugging
+        mooFace(TEACHER_POS);
+        w.hx = 0.35;
+        w.mouth = t < 3.85 ? 0.8 : 0.15;
+        w.eyes = 0.5;
+        for (const at of NB_TUGS) {
+          if (t > at && t < at + 0.25) {
+            const j = Math.sin(((t - at) / 0.25) * Math.PI);
+            g.addScaledVector(exTmp2.set(g.x - TEACHER_POS.x, 0, g.z - TEACHER_POS.z).normalize(), 0.05 * j);
+            w.hx = 0.35 - 0.3 * j;
+            w.hy = Math.sin(t * 30) * 0.15 * j;
+          }
+        }
+      } else if (t < 8.5) {
+        // caught: lets go, and looks away, ever so innocent
+        mooSt.yaw = yawTo(g, camera.position) + 0.5;
+        w.eyes = 1;
+        w.hx = -0.3;
+        w.hz = Math.sin(t * 2.5) * 0.2;
+      } else {
+        // a pat: bliss
+        mooFace(TEACHER_POS);
+        w.eyes = 1;
+        w.ears = 1;
+        w.hx = -0.25 + Math.abs(Math.sin(t * 7)) * 0.08;
+      }
+    } else if (t < 10.8) {
+      g.lerpVectors(NB_SPOT, MOO_CLIMB_D, smooth((t - NB_BACK) / 0.8));
+      mooFace(MOO_CLIMB_D);
+      w.walk = 1;
+    } else {
+      const u = clamp01((t - 10.8) / 0.7);
+      mooTmp2.set(MOO_CLIMB_W.x + 0.2, MOO_SWIM, MOO_CLIMB_W.z - 0.1);
+      if (u < 1) hopArc(g, MOO_CLIMB_D, mooTmp2, smooth(u), 0.4);
+      else {
+        const v = clamp01((t - 11.5) / 1.0);
+        g.set(lerp(mooTmp2.x, mooTmp2.x + 0.9, v), lerp(MOO_SWIM, MOO_UNDER, smooth(clamp01((t - 12.0) / 0.5))), lerp(mooTmp2.z, mooTmp2.z - 0.6, v));
+        w.paddle = 1;
+      }
+      mooFace(mooTmp.set(0, 0, 0));
+    }
+    if (once(P, "up", t, 0.8)) ripple(MOO_CLIMB_W.x, MOO_CLIMB_W.z, 1.0, 0xcfe8ff);
+    if (once(P, "hop", t, 1.4)) sound.boing();
+    if (once(P, "chomp", t, 3.85)) sound.pop(0.1);
+    NB_TUGS.forEach((at, i) => {
+      if (once(P, "tug" + i, t, at)) sound.pop(0.06);
+    });
+    if (once(P, "huh", t, 4.05)) sound.pop(0.08);
+    if (once(P, "caught", t, NB_CAUGHT + 0.05)) sound.eek(0.07);
+    if (once(P, "hmph", t, 7.05)) sound.hmph();
+    if (once(P, "hee", t, 7.95)) sound.giggle();
+    if (once(P, "sq", t, 8.7)) sound.squeak(0.07, 1.15);
+    if (once(P, "splash", t, 11.5)) {
+      ripple(mooTmp2.x, mooTmp2.z, 1.6, 0xcfe8ff);
+      burst(mooTmp.set(mooTmp2.x, 0.05, mooTmp2.z), 26, { speed: 1.0, colors: [0xbfe6ff, 0xffffff], life: 0.5 });
+      sound.plop();
+    }
+  }
+  EXTRA.mdnibble = {
+    keys: NIBBLE_KEYS,
+    perform: nibblePerformance,
+    shot(pos, look) {
+      riverSide(pos, look, NB_SPOT.x, NB_SPOT.z, 3.8, 0.6);
+      look.y = 1.05;
+    },
+    start: mooClaim,
+    end(k) {
+      mooRelease(k);
+      hideHearts();
+    },
+  };
+
+  // ----- firecracker fright (idle): Moo Deng floats dozily below the
+  // pier. BANG BANG BANG from a firecracker on the bank! She jumps out of
+  // her skin and dives. Bubbles... then just her eyes and ears peep up,
+  // trembling. Kru Song coaxes her with a slice of watermelon, tosses it,
+  // CHOMP, munch munch munch, hearts, and off she swims, happy again. -----
+  const FC_SPOT = new THREE.Vector3(-1.85, 0, 1.95);
+  const FC_BANG = 2.4;
+  const FC_PEEK = 5.0;
+  const FC_TOSS = 7.3;
+  const FC_CATCH = 8.0;
+  const FC_GO = 10.2;
+  const FC_CRACKER = new THREE.Vector3(-1.15, 0.3, 1.25); // a string of them tossed onto the water
+  const yawFc = yawTo(TEACHER_POS, FC_SPOT) * 0.65 + FACE_CAM * 0.35;
+  const melon = (() => {
+    const { parts, add } = partList();
+    add(new THREE.CylinderGeometry(0.1, 0.1, 0.03, 18, 1, false, 0, Math.PI), "#3f9a3a"); // rind
+    add(new THREE.CylinderGeometry(0.088, 0.088, 0.034, 18, 1, false, 0, Math.PI), "#ff4d5e", (d) => d.position.y = 0.0); // flesh
+    for (let i = 0; i < 5; i++) {
+      const a = 0.4 + i * 0.58;
+      add(new THREE.SphereGeometry(0.006, 6, 4), "#1a1216", (d) => d.position.set(Math.cos(a) * 0.05, 0.018, Math.sin(a) * 0.05));
+    }
+    const m = new THREE.Mesh(mergeParts(parts), propMat);
+    m.scale.setScalar(1.6);
+    m.visible = false;
+    scene.add(m);
+    return m;
+  })();
+  const BOOM_KEYS = [
+    [0, IDLE],
+    [1.2, pose("heart", "heart", { hx: 0.25, hz: 0.12, yaw: yawFc })], // aww, she's dozing
+    [FC_BANG, pose("brace", "brace", { hx: -0.05, yaw: yawFc })], // BANG!
+    [3.5, pose("clasp", "clasp", { hx: 0.4, yaw: yawFc })], // where did she go?
+    [5.4, pose("heart", "heart", { hx: 0.35, hz: 0.12, yaw: yawFc })], // aww, poor thing
+    [6.0, pose("pocket", "rest", { hx: 0.15, yaw: yawFc })],
+    [6.4, pose("show", "clasp", { hx: 0.15, hz: 0.1, yaw: yawFc })], // here, look!
+    [FC_TOSS - 0.3, pose("windup", "clasp", { hx: 0.05, yaw: yawFc })],
+    [FC_TOSS, pose("fling", "clasp", { hx: 0.2, lean: 0.06, yaw: yawFc })],
+    [FC_CATCH + 0.1, pose("clap", "clap", { hx: 0.15, yaw: yawFc })], // yay!
+    [9.0, pose("heart", "heart", { hx: 0.2, hz: 0.12, yaw: yawFc })],
+    [FC_GO, pose("clasp", "wave", { hx: 0.15, hz: -0.12, yaw: yawFc })],
+    [11.4, pose("clasp", "wave", { hz: -0.12, yaw: FACE_CAM })],
+    [12.3, null],
+  ];
+  function boomState(t) {
+    const g = gagBase();
+    if (t > 1.2 && t < FC_BANG) g.face = "shy";
+    else if (t >= FC_BANG && t < 3.5) g.face = "wince";
+    else if (t >= 3.5 && t < 5.4) g.face = "huh";
+    else if (t >= 5.4 && t < 6.0) g.face = "shy";
+    else if (t >= 6.0 && t < FC_CATCH + 0.1) g.face = "open";
+    else if (t >= FC_CATCH + 0.1 && t < FC_GO) g.face = Math.floor(t * 6) % 2 ? "open" : "blink";
+    g.exclaim = pulse(t, FC_BANG + 0.05, 0.7);
+    g.question = pulse(t, 3.7, 1.2);
+    if (t > FC_BANG && t < FC_BANG + 0.7) g.shake = Math.sin(t * 60) * 0.008;
+    if (t > FC_CATCH + 0.1 && t < 9.0) g.bob = Math.abs(Math.sin(t * 8)) * 0.025;
+    return g;
+  }
+  function boomPerformance(P, k, t, dt) {
+    applyGag(boomState(t));
+    showHearts(t, FC_CATCH + 0.3, FC_GO);
+    const w = (mooSt.want = mooBase());
+    // the watermelon: out of her pocket, held up, tossed, caught, munched
+    melon.visible = t > 6.15 && t < FC_CATCH + 1.6;
+    if (melon.visible) {
+      if (t < FC_TOSS) {
+        teacher.hands[0].getWorldPosition(melon.position);
+        melon.rotation.set(Math.PI / 2, 0, Math.sin(t * 2) * 0.2);
+        P.melonFrom = melon.position.clone();
+      } else if (t < FC_CATCH) {
+        const u = (t - FC_TOSS) / (FC_CATCH - FC_TOSS);
+        mooMouth(mooTmp2);
+        hopArc(melon.position, P.melonFrom, mooTmp2, u, 0.6);
+        melon.rotation.set(Math.PI / 2 + u * 6, u * 3, 0);
+      } else {
+        // in her mouth, getting smaller with every munch
+        mooMouth(melon.position);
+        const left = 1 - clamp01((t - FC_CATCH) / 1.5);
+        melon.scale.setScalar(1.6 * Math.max(0.05, left));
+        melon.rotation.set(Math.PI / 2, 0, 0);
+      }
+    } else melon.scale.setScalar(1.6);
+    if (mooDive(P, t)) return;
+    const g = moo.position;
+    // mostly toward us, her head turned up to Kru Song
+    const toCam = yawTo(g, camera.position);
+    mooSt.yaw = toCam + wrapAngle(yawTo(g, TEACHER_POS) - toCam) * 0.3;
+    w.hy = wrapAngle(yawTo(g, TEACHER_POS) - mooSt.yaw) * 0.4;
+    if (t < 0.8) g.set(FC_SPOT.x, MOO_UNDER, FC_SPOT.z);
+    else if (t < FC_BANG) {
+      // floating, dozy
+      g.set(FC_SPOT.x, lerp(MOO_UNDER, MOO_SWIM, smooth(clamp01((t - 0.8) / 0.5))) + Math.sin(t * 1.5) * 0.012, FC_SPOT.z);
+      w.eyes = 0.7;
+      w.hz = Math.sin(t * 1.2) * 0.12;
+    } else if (t < 3.2) {
+      // jumps out of her skin... and dives
+      const u = t - FC_BANG;
+      g.set(FC_SPOT.x, MOO_SWIM + (u < 0.4 ? Math.sin((u / 0.4) * Math.PI) * 0.3 : lerp(0, MOO_UNDER - MOO_SWIM, smooth(clamp01((u - 0.4) / 0.35)))), FC_SPOT.z);
+      w.mouth = 0.9;
+      w.ears = 1;
+      w.hx = -0.3;
+      w.squash = u > 0.35 && u < 0.45 ? 0.8 : 0;
+    } else if (t < FC_PEEK) {
+      g.set(FC_SPOT.x, MOO_UNDER, FC_SPOT.z);
+    } else if (t < 6.4) {
+      // just eyes and ears, trembling
+      g.set(FC_SPOT.x + Math.sin(t * 40) * 0.008, lerp(MOO_UNDER, MOO_SWIM - 0.2, smooth(clamp01((t - FC_PEEK) / 0.6))), FC_SPOT.z);
+      w.hy = Math.sin(t * 1.8) * 0.5;
+      w.hx = 0.1;
+    } else if (t < FC_GO) {
+      // up for the watermelon
+      g.set(FC_SPOT.x, lerp(MOO_SWIM - 0.2, MOO_SWIM + 0.05, smooth(clamp01((t - 6.4) / 0.5))) + Math.sin(t * 3) * 0.01, FC_SPOT.z);
+      w.ears = t > 6.6 ? 1 : 0;
+      w.hx = t < FC_CATCH ? -0.3 : -0.1;
+      if (t > FC_CATCH - 0.4 && t < FC_CATCH) w.mouth = 1; // aaah
+      else if (t > FC_CATCH && t < FC_CATCH + 1.5) {
+        w.mouth = Math.abs(Math.sin((t - FC_CATCH) * 9)) * 0.45; // munch munch munch
+        w.eyes = 1;
+      } else if (t > FC_CATCH + 1.6) {
+        w.eyes = 1;
+        w.hz = Math.sin(t * 4) * 0.2;
+      }
+    } else {
+      const u = clamp01((t - FC_GO) / 1.6);
+      g.set(lerp(FC_SPOT.x, -0.5, smooth(u)), MOO_SWIM, lerp(FC_SPOT.z, 1.0, smooth(u)));
+      if (t > FC_GO + 1.3) g.y = lerp(MOO_SWIM, MOO_UNDER, smooth(clamp01((t - FC_GO - 1.3) / 0.6)));
+      mooSt.yaw = yawTo(FC_SPOT, mooTmp.set(-0.5, 0, 1.0));
+      w.paddle = 1;
+      if (u < 0.9) mooRipples(dt, 0.35);
+    }
+    if (once(P, "up", t, 0.8)) ripple(FC_SPOT.x, FC_SPOT.z, 1.1, 0xcfe8ff);
+    if (once(P, "aww", t, 1.25)) sound.ting(0.04);
+    // the firecracker on the bank: three bangs
+    [FC_BANG, FC_BANG + 0.25, FC_BANG + 0.55].forEach((at, i) => {
+      if (once(P, "bang" + i, t, at)) {
+        burst(mooTmp.set(FC_CRACKER.x + rand(-0.2, 0.2), FC_CRACKER.y, FC_CRACKER.z), 36, { speed: 2.4, colors: [0xfff1a8, 0xffb347, 0xff5a3a, 0xffffff], life: 0.55 });
+        sound.pop(0.3);
+        if (i === 0) sound.boom(0.25);
+      }
+    });
+    if (once(P, "eep", t, FC_BANG + 0.1)) sound.squeak(0.09, 1.4);
+    if (once(P, "dive", t, FC_BANG + 0.75)) {
+      ripple(FC_SPOT.x, FC_SPOT.z, 1.8, 0xcfe8ff);
+      burst(mooTmp.set(FC_SPOT.x, 0.05, FC_SPOT.z), 34, { speed: 1.2, colors: [0xbfe6ff, 0xffffff], life: 0.55 });
+      sound.plop();
+    }
+    // bubbles where she hides
+    if (t > 3.3 && t < FC_PEEK) {
+      P.bub = (P.bub ?? 0) - dt;
+      if (P.bub <= 0) {
+        P.bub = 0.35;
+        burst(mooTmp.set(FC_SPOT.x + rand(-0.15, 0.15), 0.03, FC_SPOT.z + rand(-0.15, 0.15)), 4, { speed: 0.25, colors: [0xd8f2ff, 0xffffff], life: 0.5, up: 0.6 });
+        if (Math.random() < 0.5) sound.blub();
+      }
+    }
+    if (once(P, "peek", t, FC_PEEK + 0.3)) sound.squeak(0.035, 0.85);
+    if (once(P, "look", t, 6.45)) sound.ting(0.05);
+    if (once(P, "toss", t, FC_TOSS)) sound.whoosh();
+    if (once(P, "chomp", t, FC_CATCH)) {
+      sound.pop(0.15);
+      mooHead(mooTmp);
+      burst(mooTmp, 20, { speed: 0.8, colors: [0xff7fb0, 0xff4d5e, 0xffffff], life: 0.6 });
+    }
+    if (once(P, "munch", t, FC_CATCH + 0.15)) sound.munch();
+    if (once(P, "yay", t, FC_CATCH + 1.65)) sound.squeak(0.08, 1.2);
+  }
+  EXTRA.mdboom = {
+    keys: BOOM_KEYS,
+    perform: boomPerformance,
+    shot(pos, look) {
+      riverSide(pos, look, FC_SPOT.x, FC_SPOT.z, 3.7, 0.85);
+      look.y = 1.0;
+    },
+    start: mooClaim,
+    end(k) {
+      mooRelease(k);
+      melon.visible = false;
+      melon.scale.setScalar(1.6);
       hideHearts();
     },
   };
