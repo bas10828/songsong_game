@@ -82,6 +82,7 @@ const els = {
   focusBar: document.getElementById("focusBar"),
   focusName: document.getElementById("focusName"),
   editBtn: document.getElementById("editBtn"),
+  viewBtn: document.getElementById("viewBtn"),
   deleteBtn: document.getElementById("deleteBtn"),
   unfocusBtn: document.getElementById("unfocusBtn"),
 };
@@ -10005,10 +10006,17 @@ function mount() {
     sinkKrathong,
     rebuildKrathong,
     unfocus: () => (camState.mode = "wide"),
+    // keep the current close-up for `seconds` more without recentring
+    holdFocus: (seconds) => {
+      if (camState.mode === "follow") camState.until = clock + seconds;
+    },
     // student krathongs still in the river, oldest first
     students: () => krathongs.filter((k) => !k.simple && k.sinking == null),
     onFocus: null,
     showWishes: false,
+    // clean view level 2: the krathong in close-up hides its wish bubble
+    // and name tag too
+    hideFocusWish: false,
   };
   const tmp = new THREE.Vector3();
   const camDist = new THREE.Vector3();
@@ -10161,6 +10169,8 @@ function mount() {
         const focusedHere = following && camState.follow === k;
         // (a lantern's close-up is framed from further back)
         let near = k.placed && focusedHere ? clamp01(((k.sky ? 11.5 : 9) - d) / 3) : 0;
+        const wishHidden = focusedHere && api.hideFocusWish;
+        if (wishHidden) near = 0;
         // "show all wishes": every student krathong in the river shows its
         // bubble, grown a little with distance so far ones stay readable.
         // A close-up still shows only its own.
@@ -10174,7 +10184,7 @@ function mount() {
         k.bubble.visible = near > 0.01;
         if (k.tag) {
           k.tag.material.opacity = 1 - near;
-          k.tag.visible = k.placed && near < 0.99;
+          k.tag.visible = k.placed && near < 0.99 && !wishHidden;
         }
       }
     }
@@ -10465,11 +10475,36 @@ function setupForm(river) {
 
   // ----- edit / delete bar for the krathong in close-up -----
   let focused = null;
+  // clean view: 0 = everything, 1 = buttons hidden (wish bubble stays),
+  // 2 = wish bubble hidden too. One button cycles 0 → 1 → 2 → 0.
+  let viewLevel = 0;
+  const VIEW_ICON = ["👁", "🙈", "✨"];
+  const VIEW_LABEL = ["ซ่อนปุ่ม", "ซ่อนคำอวยพรด้วย", "แสดงทั้งหมด"];
+  function setView(n) {
+    viewLevel = n;
+    document.body.classList.toggle("view-1", n === 1);
+    document.body.classList.toggle("view-2", n === 2);
+    river.hideFocusWish = n === 2;
+    els.viewBtn.textContent = VIEW_ICON[n];
+    els.viewBtn.setAttribute("aria-label", VIEW_LABEL[n]);
+    els.viewBtn.title = VIEW_LABEL[n];
+  }
   river.onFocus = (k) => {
     focused = k;
     els.focusBar.hidden = !k;
     if (k) els.focusName.textContent = k.rec?.name || "";
+    else if (viewLevel) setView(0);
   };
+  els.viewBtn.addEventListener("click", () => {
+    if (!focused) return;
+    const next = (viewLevel + 1) % 3;
+    // stay on this krathong while the view is clean; back to the usual
+    // close-up time once the buttons return
+    if (next === 1) river.holdFocus(3600);
+    if (next === 0) river.holdFocus(25);
+    setView(next);
+    if (next === 1) els.listPanel.hidden = true;
+  });
   els.editBtn.addEventListener("click", () => focused && openEdit(focused));
   els.unfocusBtn.addEventListener("click", () => river.unfocus());
   els.deleteBtn.addEventListener("click", async () => {

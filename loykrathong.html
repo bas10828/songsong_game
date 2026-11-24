@@ -160,6 +160,26 @@
     }
     #focusBar #deleteBtn { border-color: #ff8a8a; color: #ffc4c4; }
     #focusBar #unfocusBtn { min-width: 46px; padding: 0; }
+    #focusBar #viewBtn { min-width: 46px; padding: 0; font-size: 20px; }
+    /* clean view for the krathong in close-up (the 👁 button cycles):
+       view-1 hides every button and keeps the wish bubble (name + wish),
+       view-2 hides the bubble too. Only a small faded 👁 stays to bring
+       everything back. */
+    body.view-1 #topBar, body.view-2 #topBar,
+    body.view-1 #listPanel, body.view-2 #listPanel,
+    body.view-1 #actions, body.view-2 #actions,
+    body.view-1 #hint, body.view-2 #hint,
+    body.view-1 #focusBar > :not(#viewBtn), body.view-2 #focusBar > :not(#viewBtn) { display: none; }
+    body.view-1 #focusBar, body.view-2 #focusBar {
+      left: auto;
+      right: max(14px, env(safe-area-inset-right));
+      bottom: max(14px, env(safe-area-inset-bottom));
+      transform: none;
+      padding: 4px;
+      opacity: 0.45;
+      transition: opacity 0.3s;
+    }
+    body.view-1 #focusBar:hover, body.view-2 #focusBar:hover { opacity: 1; }
     body.sheet-open #focusBar, body.sheet-open #hint { display: none; }
 
     /* ---------- main action ---------- */
@@ -413,6 +433,9 @@
       #title { min-width: 0; font-size: 16px; }
       #wishesBtn { font-size: 0; gap: 0; }
       #wishesBtn::before { content: "💬"; font-size: 18px; }
+      #focusBar { gap: 6px; padding-left: 12px; }
+      #focusBar button { padding: 0 10px; white-space: nowrap; }
+      #focusName { font-size: 16px; }
     }
   </style>
 </head>
@@ -440,6 +463,7 @@
     <span id="focusName"></span>
     <button type="button" id="editBtn">✏️ แก้ไข</button>
     <button type="button" id="deleteBtn">🗑️ ลบ</button>
+    <button type="button" id="viewBtn" aria-label="ซ่อนปุ่ม" title="ซ่อนปุ่ม">👁</button>
     <button type="button" id="unfocusBtn" aria-label="ปิด">✕</button>
   </div>
 
